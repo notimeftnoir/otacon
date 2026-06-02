@@ -1,16 +1,3 @@
-"""Otacon — CLI entrypoint.
-
-Wires up the pipeline: permutations -> resolver -> scoring -> reporters,
-and wraps it in a clean, colored interface (Typer + Rich).
-
-Usage:
-    otacon scan example.com
-    otacon scan example.com --json report.json
-    otacon scan example.com --no-http --concurrency 100
-    otacon scan example.com --exclude "alias.com,known-good.com"
-    otacon generate example.com        # preview permutations only (offline)
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -64,7 +51,14 @@ def _load_exclusions(raw: str | None, file: Path | None) -> set[str]:
     if raw:
         out.update(d.strip().lower() for d in raw.split(",") if d.strip())
     if file:
-        for line in file.read_text(encoding="utf-8").splitlines():
+        try:
+            content = file.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            raise typer.BadParameter(f"exclude-file not found: {file}") from exc
+        except OSError as exc:
+            raise typer.BadParameter(f"cannot read exclude-file: {file}") from exc
+
+        for line in content.splitlines():
             entry = line.strip().lower()
             if entry and not entry.startswith("#"):
                 out.add(entry)

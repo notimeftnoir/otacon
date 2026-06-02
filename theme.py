@@ -79,9 +79,8 @@ class RiskLevel(str, Enum):
 
 
 # ASCII banner — shown at startup. Kept here to keep cli.py clean.
-# Crosshair logo + risk-scale bar whose colors mirror the result table,
-# so the legend doubles as a key for the risk levels users will see.
-_LOGO_TOP = " [brand.dim]┌─[/][brand]◎[/][brand.dim]─┐[/]  [brand]OTACON[/]"
+# Simple radar/antenna logo that stays terminal-friendly and easy to read.
+_LOGO_TOP = " [brand.dim]┌─[/][brand]⊙[/][brand.dim]─┐[/]  [brand]OTACON[/]"
 _LOGO_BOT = " [brand.dim]└───┘[/]  [muted]domain impersonation detector[/]"
 _BAR = "[ok]█[/][info]█[/][warn]█[/][danger]█[/][crit.bar]█[/]"
 _LEGEND = "[ok]safe[/] [info]low[/] [warn]med[/] [danger]high[/] [crit.bar]crit[/]"
