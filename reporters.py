@@ -20,6 +20,14 @@ from rich.text import Text
 from .models import DomainResult, ScanReport
 from .theme import RiskLevel
 
+_BAR_STYLE: dict[RiskLevel, str] = {
+    RiskLevel.SAFE: "ok",
+    RiskLevel.LOW: "info",
+    RiskLevel.MEDIUM: "warn",
+    RiskLevel.HIGH: "danger",
+    RiskLevel.CRITICAL: "crit.bar",
+}
+
 
 def _signals(result: DomainResult) -> str:
     """Builds a compact signal string (DNS/MX/SSL/HTTP) for a result row."""
@@ -126,7 +134,7 @@ def render_table(report: ScanReport, console: Console, show_safe: bool = False) 
     for r in rows:
         table.add_row(
             _domain_cell(r),
-            _risk_bar(r.risk_score, r.risk_level.style),
+            _risk_bar(r.risk_score, _BAR_STYLE[r.risk_level]),
             _check(r.resolves),
             _check(r.has_mx),
             _check(r.has_ssl),
