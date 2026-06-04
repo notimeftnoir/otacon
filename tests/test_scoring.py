@@ -95,3 +95,43 @@ def test_score_backward_compatible_no_target():
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO, resolves=True)
     result = score(r)  # no target — must not raise
     assert result.is_likely_defensive is False
+
+
+def test_score_http_2xx_gives_fifteen_points():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=200,
+    )
+    result = score(r)
+    # base=18 (typo) + 10 (resolves) + 15 (HTTP 200) = 43
+    assert result.risk_score == 43
+
+
+def test_score_http_3xx_gives_ten_points():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=301,
+    )
+    result = score(r)
+    # base=18 + 10 (resolves) + 10 (HTTP 301) = 38
+    assert result.risk_score == 38
+
+
+def test_score_http_4xx_gives_five_points():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=404,
+    )
+    result = score(r)
+    # base=18 + 10 (resolves) + 5 (HTTP 404) = 33
+    assert result.risk_score == 33
+
+
+def test_score_http_5xx_gives_three_points():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=500,
+    )
+    result = score(r)
+    # base=18 + 10 (resolves) + 3 (HTTP 500) = 31
+    assert result.risk_score == 31
