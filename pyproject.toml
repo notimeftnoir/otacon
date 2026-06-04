@@ -35,7 +35,8 @@ dev = [
 otacon = "otacon.cli:app"
 
 [project.urls]
-Repository = "https://github.com/yourusername/otacon"
+Repository = "https://github.com/notimeftnoir/otacon"
+Issues = "https://github.com/notimeftnoir/otacon/issues"
 
 [build-system]
 requires = ["hatchling"]

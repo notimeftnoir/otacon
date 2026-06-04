@@ -57,7 +57,7 @@ Domains that redirect back to the original are flagged with **⚑** (likely defe
 ### Recommended: pipx (isolated, globally available)
 
 ```bash
-pipx install git+https://github.com/yourusername/otacon.git
+pipx install git+https://github.com/notimeftnoir/otacon.git
 otacon
 ```
 
@@ -66,7 +66,7 @@ otacon
 Otacon requires **Python 3.10+**.
 
 ```bash
-git clone https://github.com/yourusername/otacon.git
+git clone https://github.com/notimeftnoir/otacon.git
 cd otacon
 
 python3 -m venv .venv

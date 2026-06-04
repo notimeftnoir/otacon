@@ -15,5 +15,10 @@ build/
 .idea/
 .vscode/
 
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
 # Superpowers brainstorm sessions
 .superpowers/
