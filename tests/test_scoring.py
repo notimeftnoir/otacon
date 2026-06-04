@@ -59,8 +59,6 @@ def test_domain_result_is_likely_defensive_defaults_to_false():
 
 
 def test_score_sets_is_likely_defensive_when_redirect_matches_target():
-    from otacon.models import DomainResult, PermutationType
-    from otacon.scoring import score
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
@@ -72,8 +70,6 @@ def test_score_sets_is_likely_defensive_when_redirect_matches_target():
 
 
 def test_score_does_not_set_defensive_for_unrelated_redirect():
-    from otacon.models import DomainResult, PermutationType
-    from otacon.scoring import score
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
@@ -85,8 +81,6 @@ def test_score_does_not_set_defensive_for_unrelated_redirect():
 
 
 def test_score_does_not_set_defensive_when_target_is_empty():
-    from otacon.models import DomainResult, PermutationType
-    from otacon.scoring import score
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
@@ -98,8 +92,6 @@ def test_score_does_not_set_defensive_when_target_is_empty():
 
 
 def test_score_backward_compatible_no_target():
-    from otacon.models import DomainResult, PermutationType
-    from otacon.scoring import score
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO, resolves=True)
     result = score(r)  # no target — must not raise
     assert result.is_likely_defensive is False

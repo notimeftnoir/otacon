@@ -1,5 +1,19 @@
-"""Risk scoring engine."""
+"""Risk scoring engine.
+
+Each collected signal adds points to a 0-100 score. The logic follows the
+real-world hierarchy of phishing threat:
+
+  - mere registration of a fake domain = weak signal (a company may own it)
+  - MX = the domain is READY for email phishing (serious signal)
+  - SSL + live HTTP = active infrastructure (attack in progress?)
+  - homoglyphs/typos close to the original = higher risk than a distant combosquat
+
+Scoring is deliberately simple and transparent (explicit rules instead of ML) —
+a pentester should understand WHY something received a given score.
+"""
 from __future__ import annotations
+
+from urllib.parse import urlparse
 
 from .models import DomainResult, PermutationType
 from .theme import RiskLevel
@@ -23,8 +37,11 @@ def score(result: DomainResult, target: str = "") -> DomainResult:
         return result
 
     # Defensive-registration detection: redirect points back to the original domain.
-    if result.redirects_to and target and target.lower() in result.redirects_to.lower():
-        result.is_likely_defensive = True
+    if result.redirects_to and target:
+        _host = (urlparse(result.redirects_to).hostname or "").lower().rstrip(".")
+        _t = target.lower().lstrip(".")
+        if _host == _t or _host.endswith("." + _t):
+            result.is_likely_defensive = True
 
     points = 0
     reasons: list[str] = []
