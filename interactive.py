@@ -31,6 +31,18 @@ _STYLE = questionary.Style([
     ("disabled",    "fg:#8a8a8a italic"),
     ("validator-toolbar", "bg:#870000 fg:#ffffff"),
 ])
+_STYLE_DOMAIN = questionary.Style([
+    ("qmark",       "fg:#00d7af bold"),
+    ("question",    "bold fg:#afafaf"),
+    ("answer",      "fg:#5fd700"),
+    ("pointer",     "fg:#00d7af bold"),
+    ("highlighted", "fg:#00d7af bold"),
+    ("selected",    "fg:#5fd700"),
+    ("instruction", "fg:#8a8a8a"),
+    ("text",        "fg:#5fd700"),
+    ("disabled",    "fg:#8a8a8a italic"),
+    ("validator-toolbar", "bg:#870000 fg:#ffffff"),
+])
 
 
 def _validate_domain(text: str) -> bool | str:
@@ -51,7 +63,7 @@ def _validate_limit(text: str) -> bool | str:
 def run(console: Console) -> None:
     """Called by cli._main when otacon is invoked with no subcommand."""
     domain = questionary.text(
-        "Enter your domain:", validate=_validate_domain, qmark=_QMARK, style=_STYLE
+        "Enter your domain:", validate=_validate_domain, qmark=_QMARK, style=_STYLE_DOMAIN
     ).ask()
     if domain is None:
         return
@@ -95,7 +107,8 @@ def _interactive_scan(domain: str, console: Console) -> None:
         return
 
     show_all = questionary.confirm(
-        "Show unregistered variants?", default=False, qmark=_QMARK, style=_STYLE
+        "Show unregistered variants?", default=False, instruction="(y/n)",
+        qmark=_QMARK, style=_STYLE,
     ).ask()
     if show_all is None:
         return
