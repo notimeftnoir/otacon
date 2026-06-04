@@ -154,7 +154,7 @@ def render_table(report: ScanReport, console: Console, show_safe: bool = False) 
     footer.append(
         f"Permutations: {report.total_permutations} \u00b7 "
         f"registered: {len(report.registered)} \u00b7 ",
-        style="muted",
+        style="value",
     )
     footer.append(f"med: {med}", style="warn")
     footer.append(" \u00b7 ", style="muted")

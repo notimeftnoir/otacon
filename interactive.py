@@ -107,12 +107,26 @@ def _interactive_scan(domain: str, console: Console) -> None:
     if network is None:
         return
 
-    show_all = questionary.confirm(
-        "Show unregistered variants?", default=False, instruction="(y/n)",
-        qmark=_QMARK, style=_STYLE,
+    show_raw = questionary.select(
+        "Show unregistered variants?",
+        choices=[
+            questionary.Choice(
+                title=[("fg:#ff5f5f bold", "n"), ("", "  No")],
+                value=False,
+            ),
+            questionary.Choice(
+                title=[("fg:#5fd700 bold", "y"), ("", "  Yes")],
+                value=True,
+            ),
+        ],
+        default=False,
+        pointer=_POINTER,
+        qmark=_QMARK,
+        style=_STYLE,
     ).ask()
-    if show_all is None:
+    if show_raw is None:
         return
+    show_all = show_raw
 
     check_http = network == "full"
     report = asyncio.run(_scan(domain, concurrency=50, check_http=check_http, console=console))

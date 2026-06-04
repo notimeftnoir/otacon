@@ -159,8 +159,7 @@ def test_interactive_scan_full_calls_render_table():
          patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan, \
          patch("otacon.interactive.reporters") as mock_reporters:
 
-        mock_q.select.return_value.ask.return_value = "full"
-        mock_q.confirm.return_value.ask.return_value = False
+        mock_q.select.return_value.ask.side_effect = ["full", False]
         mock_scan.return_value = mock_report
 
         console = MagicMock()
@@ -183,8 +182,7 @@ def test_interactive_scan_dns_only():
          patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan, \
          patch("otacon.interactive.reporters") as mock_reporters:
 
-        mock_q.select.return_value.ask.return_value = "dns"
-        mock_q.confirm.return_value.ask.return_value = False
+        mock_q.select.return_value.ask.side_effect = ["dns", False]
         mock_scan.return_value = mock_report
 
         console = MagicMock()
@@ -210,8 +208,7 @@ def test_interactive_scan_ctrl_c_on_show_all():
     with patch("otacon.interactive.questionary") as mock_q, \
          patch("otacon.interactive._scan", new_callable=AsyncMock):
 
-        mock_q.select.return_value.ask.return_value = "full"
-        mock_q.confirm.return_value.ask.return_value = None
+        mock_q.select.return_value.ask.side_effect = ["full", None]
 
         console = MagicMock()
         from otacon.interactive import _interactive_scan
