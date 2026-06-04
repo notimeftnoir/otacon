@@ -37,16 +37,97 @@ def _validate_limit(text: str) -> bool | str:
 
 def run(console: Console) -> None:
     """Called by cli._main when otacon is invoked with no subcommand."""
-    pass
+    domain = questionary.text("Domain:", validate=_validate_domain).ask()
+    if domain is None:
+        return
+    domain = domain.strip()
+
+    mode = questionary.select(
+        "Mode:",
+        choices=[
+            questionary.Choice(
+                "scan    — DNS + HTTP, detects registered variants", value="scan"
+            ),
+            questionary.Choice(
+                "generate — offline variants, no network", value="generate"
+            ),
+        ],
+        pointer=_POINTER,
+    ).ask()
+    if mode is None:
+        return
+
+    if mode == "scan":
+        _interactive_scan(domain, console)
+    else:
+        _interactive_generate(domain, console)
 
 
 def _interactive_scan(domain: str, console: Console) -> None:
-    pass
+    network = questionary.select(
+        "Network:",
+        choices=[
+            questionary.Choice("DNS + HTTP  (full, slower)", value="full"),
+            questionary.Choice("DNS only    (fast)", value="dns"),
+        ],
+        pointer=_POINTER,
+    ).ask()
+    if network is None:
+        return
+
+    show_all = questionary.confirm("Show unregistered variants?", default=False).ask()
+    if show_all is None:
+        return
+
+    check_http = network == "full"
+    report = asyncio.run(_scan(domain, concurrency=50, check_http=check_http, console=console))
+    reporters.render_table(report, console, show_safe=show_all)
 
 
 def _interactive_generate(domain: str, console: Console) -> None:
-    pass
+    limit_str = questionary.text(
+        "Result limit (0 = all):", default="0", validate=_validate_limit
+    ).ask()
+    if limit_str is None:
+        return
+
+    limit = int(limit_str)
+    perms = permutations.generate(domain)
+    shown = perms[:limit] if limit > 0 else perms
+
+    console.print(
+        f"[field]Generated[/field] [value]{len(perms)}[/value] "
+        f"[field]variants for[/field] [value]{domain}[/value]\n"
+    )
+    for p in shown:
+        console.print(
+            f"  [value]{p.domain:<40}[/value] [muted]{p.kind.value:<12} {p.note}[/muted]"
+        )
+    if limit and len(perms) > limit:
+        console.print(f"\n[muted]... and {len(perms) - limit} more[/muted]")
 
 
 async def _scan(domain: str, concurrency: int, check_http: bool, console: Console) -> ScanReport:
-    pass  # type: ignore[return-value]
+    perms = permutations.generate(domain)
+    report = ScanReport(target=domain, total_permutations=len(perms))
+    if not perms:
+        return report
+
+    with Progress(
+        SpinnerColumn(style="brand"),
+        TextColumn("[field]{task.description}"),
+        BarColumn(complete_style="brand", finished_style="ok"),
+        TextColumn("[muted]{task.completed}/{task.total}"),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Checking variants", total=len(perms))
+        async with Resolver(concurrency=concurrency, check_http=check_http) as resolver:
+            coros = [resolver.check_one(p) for p in perms]
+            for coro in asyncio.as_completed(coros):
+                result = await coro
+                report.results.append(scoring.score(result))
+                progress.advance(task)
+
+    return report
