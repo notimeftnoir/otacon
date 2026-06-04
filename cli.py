@@ -33,11 +33,11 @@ def _banner() -> None:
 
 @app.callback(invoke_without_command=True)
 def _main(ctx: typer.Context) -> None:
-    """Shows the banner before any command, and help when run bare."""
+    """Shows the banner before any command; enters interactive mode when run bare."""
     _banner()
-    # No subcommand given (bare `otacon`) → print help and exit cleanly.
     if ctx.invoked_subcommand is None:
-        console.print(ctx.get_help())
+        from .interactive import run as _interactive_run
+        _interactive_run(console)
         raise typer.Exit()
 
 

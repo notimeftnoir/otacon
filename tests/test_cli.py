@@ -26,3 +26,20 @@ def test_load_exclusions_reads_file(tmp_path: Path) -> None:
 def test_load_exclusions_raises_for_missing_file() -> None:
     with pytest.raises(typer.BadParameter, match="exclude-file not found"):
         cli._load_exclusions(None, Path("does-not-exist.txt"))
+
+
+def test_bare_invocation_calls_interactive(monkeypatch) -> None:
+    """Running otacon with no subcommand must call interactive.run()."""
+    called = {}
+
+    def fake_interactive_run(console):
+        called["ran"] = True
+
+    monkeypatch.setattr("otacon.interactive.run", fake_interactive_run)
+
+    from typer.testing import CliRunner
+    from otacon.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, [])
+    assert called.get("ran") is True
