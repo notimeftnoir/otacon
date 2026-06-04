@@ -51,7 +51,7 @@ def _validate_limit(text: str) -> bool | str:
 def run(console: Console) -> None:
     """Called by cli._main when otacon is invoked with no subcommand."""
     domain = questionary.text(
-        "Domain:", validate=_validate_domain, qmark=_QMARK, style=_STYLE
+        "Enter your domain:", validate=_validate_domain, qmark=_QMARK, style=_STYLE
     ).ask()
     if domain is None:
         return
