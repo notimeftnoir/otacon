@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from otacon.models import DomainResult, PermutationType, ScanReport
-from otacon.reporters import to_markdown
+from otacon.reporters import (
+    _check,
+    _domain_cell,
+    _http_cell,
+    _redirect_host,
+    _risk_bar,
+    to_markdown,
+)
 from otacon.theme import RiskLevel
 
 
@@ -31,10 +38,6 @@ def test_to_markdown_includes_detected_threat() -> None:
     markdown = to_markdown(report)
 
     assert "| `login.example.com` | combosquat | 40 (medium) | DNS |" in markdown
-
-
-from otacon.reporters import _check, _domain_cell, _http_cell, _redirect_host, _risk_bar
-from otacon.models import DomainResult, PermutationType
 
 
 def test_risk_bar_full_score():

@@ -46,7 +46,7 @@ def _redirect_host(url: str) -> str:
 
 def _risk_bar(score: int, style: str) -> Text:
     """8-char block bar (████░░░░) + right-justified score, coloured by style."""
-    filled = round(score / 100 * 8)
+    filled = max(0, min(8, round(score / 100 * 8)))
     bar = "█" * filled + "░" * (8 - filled)
     t = Text()
     t.append(bar, style=style)
