@@ -85,8 +85,3 @@ def score(result: DomainResult, target: str = "") -> DomainResult:
     result.risk_level = RiskLevel.from_score(result.risk_score)
     result.risk_reasons = reasons
     return result
-
-
-def score_all(results: list[DomainResult], target: str = "") -> list[DomainResult]:
-    """Scores the whole list in-place."""
-    return [score(r, target) for r in results]

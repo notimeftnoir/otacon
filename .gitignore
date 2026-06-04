@@ -14,3 +14,6 @@ build/
 .DS_Store
 .idea/
 .vscode/
+
+# Superpowers brainstorm sessions
+.superpowers/

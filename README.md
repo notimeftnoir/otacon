@@ -5,7 +5,7 @@
 Otacon generates hundreds of realistic variants of a given domain (typos, visually identical characters, appended bait words, TLD swaps), checks **asynchronously** which of them are actively registered, and scores the threat level of each.
 
 ```
- ┌─◎─┐  OTACON
+ ┌─⊙─┐  OTACON
  └───┘  domain impersonation detector
        █████ safe low med high crit
 ```
@@ -41,45 +41,59 @@ domain → permutation engine → async resolver → scoring → report
 For each registered variant Otacon collects signals and sums them into a **0-100** score:
 
 - **A record** — the domain resolves (someone is holding it),
-- **MX record** — ready for email phishing *(strongest signal)*,
-- **SSL certificate** — active HTTPS infrastructure,
-- **HTTP response** — content being served,
+- **MX record** — ready for email phishing *(strongest signal, +25)*,
+- **SSL certificate** — active HTTPS infrastructure (+15),
+- **HTTP 2xx** — content being served (+15),
+- **HTTP 3xx** — redirect (+10),
+- **HTTP 4xx/5xx** — registered but inactive (+5/+3),
 - **permutation type** — homoglyphs are more dangerous than a distant combosquat.
 
 The score maps to levels: `safe` → `low` → `medium` → `high` → `critical`.
 
+Domains that redirect back to the original are flagged with **⚑** (likely defensive registration by the brand owner).
+
 ## Installation
 
-Otacon requires **Python 3.10+**. Installation in a virtual environment is recommended — it isolates dependencies and avoids the `externally-managed-environment` error on modern macOS (Homebrew) and Debian/Kali (PEP 668).
+### Recommended: pipx (isolated, globally available)
+
+```bash
+pipx install git+https://github.com/yourusername/otacon.git
+otacon
+```
+
+### Development install
+
+Otacon requires **Python 3.10+**.
 
 ```bash
 git clone https://github.com/yourusername/otacon.git
 cd otacon
 
-# create and activate a virtual environment
 python3 -m venv .venv
 source .venv/bin/activate          # Linux / macOS
 # .venv\Scripts\activate           # Windows (PowerShell)
 
-# install
-pip install -e .
-
-# verify
-otacon --help
+pip install -e ".[dev]"
+otacon
 ```
 
-After activation the `otacon` command is available in your shell. Leave the
-environment with `deactivate`; next time just re-run `source .venv/bin/activate`
-(no need to reinstall).
-
-> **Note (macOS / Kali):** if `pip` is missing, use `python3 -m venv` as above —
-> the venv ships its own `pip`. The `aiodns` dependency needs the `c-ares`
-> system library; if the build fails, install it with `brew install c-ares`
-> (macOS) or `sudo apt install libc-ares-dev` (Debian/Kali).
+> **Note (macOS / Kali):** the `aiodns` dependency needs the `c-ares` system library.
+> Install with `brew install c-ares` (macOS) or `sudo apt install libc-ares-dev` (Debian/Kali).
 
 ## Usage
 
-### Scan a domain
+### Interactive mode (recommended)
+
+Run `otacon` with no arguments to enter the interactive prompt — it guides you through domain input, mode selection and options:
+
+```
+› Enter your domain: example.com
+› Mode: scan — DNS + HTTP, detects registered variants
+› Network: DNS + HTTP (full, slower)
+› Show unregistered variants? n  No
+```
+
+### Scan a domain (CLI)
 
 ```bash
 otacon scan example.com
@@ -126,13 +140,17 @@ otacon generate example.com --limit 20
 
 ```
 Otacon · target: github.com
-┏━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
-┃     ┃ Domain             ┃ Type        ┃         Risk ┃ Signals              ┃
-┡━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
-│  ●  │ githubupdate.com   │ combosquat  │  90 critical │ DNS, MX, SSL, HTTP   │
-│  ●  │ bithub.com         │ typo        │  88 critical │ DNS, MX, SSL, HTTP   │
-│  ◑  │ github-login.com   │ combosquat  │  50 medium   │ DNS, SSL, HTTP 404   │
-└─────┴────────────────────┴─────────────┴──────────────┴──────────────────────┘
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━━━━━┓
+┃ Domain                                          ┃ Risk         ┃ DNS ┃ MX  ┃ SSL ┃ HTTP   ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━━━━━┩
+│ githubupdate.com                                │ ████████  90 │  ✓  │  ✓  │  ✓  │  200   │
+│ combosquat                                      │              │     │     │     │        │
+│ bithub.com                                      │ ██████░░  75 │  ✓  │  ✓  │  ✓  │  301   │
+│ typo                                            │              │     │     │     │        │
+│ github-login.com                                │ ████░░░░  50 │  ✓  │  —  │  ✓  │  404   │
+│ combosquat  ⚑ → github.com                      │              │     │     │     │        │
+└─────────────────────────────────────────────────┴──────────────┴─────┴─────┴─────┴────────┘
+Permutations: 143 · registered: 31 · med: 8 · high: 12 · crit: 6
 ```
 
 ## Interpreting results
@@ -144,11 +162,12 @@ live service) — but the final judgment belongs to the analyst.
 Common cases that need manual verification:
 
 - **Legitimate owner domains** — e.g. `googlemail.com` is a real Google domain
-  despite a `critical` score. Exclude these via `--exclude` / `--exclude-file`.
+  despite a `critical` score. These are often flagged with ⚑ (redirect to original).
+  Exclude them via `--exclude` / `--exclude-file`.
 - **Parked / for-sale domains** — often have MX and SSL but run no active
   phishing. Still worth monitoring (they can be weaponized later).
-- **Defensive registrations by competitors or brand protection** — sometimes
-  the owner bought the variants preemptively.
+- **Defensive registrations** — the brand owner bought the variants preemptively.
+  Look for the ⚑ indicator.
 
 Practical workflow: sort by risk → filter out known-good domains with a
 whitelist → manually verify `critical`/`high` (open in a sandbox, inspect the
@@ -162,10 +181,11 @@ a human does the rest.
 otacon/
 ├── permutations.py   # variant generation engine (6 techniques)
 ├── resolver.py       # async DNS/MX/SSL/HTTP (semaphore + connection pooling)
-├── scoring.py        # transparent rule-based risk engine
+├── scoring.py        # transparent rule-based risk engine (0-100)
 ├── reporters.py      # output: table / json / markdown
 ├── models.py         # Pydantic models (type safety + serialization)
 ├── theme.py          # consistent color palette (single source of truth)
+├── interactive.py    # interactive prompt mode (questionary)
 └── cli.py            # Typer + Rich entrypoint
 ```
 
@@ -174,7 +194,7 @@ Design decisions:
 - **async-first** — hundreds of domains checked concurrently (seconds instead
   of minutes), bounded by a semaphore so the DNS resolver isn't flooded.
 - **transparent scoring** — rules instead of ML; the user sees WHY something
-  got its score (the `risk_reasons` field).
+  got its score (the `risk_reasons` field in JSON export).
 - **layer separation** — generation / checking / scoring / output are
   independent and individually testable.
 - **no paid APIs** — works right after installation.

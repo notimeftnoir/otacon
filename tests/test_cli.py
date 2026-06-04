@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 import typer
-
 from otacon import cli
+from otacon.cli import app
+from typer.testing import CliRunner
 
 
 def test_load_exclusions_parses_comma_separated_values() -> None:
@@ -37,9 +38,6 @@ def test_bare_invocation_calls_interactive(monkeypatch) -> None:
 
     monkeypatch.setattr("otacon.interactive.run", fake_interactive_run)
 
-    from typer.testing import CliRunner
-    from otacon.cli import app
-
     runner = CliRunner()
-    result = runner.invoke(app, [])
+    runner.invoke(app, [])
     assert called.get("ran") is True

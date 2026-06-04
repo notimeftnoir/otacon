@@ -20,30 +20,25 @@ from .resolver import Resolver
 
 _POINTER = "[*]"
 _QMARK = "›"
-_STYLE = questionary.Style([
-    ("qmark",       "fg:#00d7af bold"),
-    ("question",    "bold fg:#afafaf"),
-    ("answer",      "fg:#ffffff"),
-    ("pointer",     "fg:#00d7af bold"),
-    ("highlighted", "fg:#00d7af bold"),
-    ("selected",    "fg:#ffffff"),
-    ("instruction", "fg:#8a8a8a"),
-    ("text",        "fg:#ffffff"),
-    ("disabled",    "fg:#8a8a8a italic"),
-    ("validator-toolbar", "bg:#870000 fg:#ffffff"),
-])
-_STYLE_DOMAIN = questionary.Style([
-    ("qmark",       "fg:#00d7af bold"),
-    ("question",    "bold fg:#afafaf"),
-    ("answer",      "fg:#5fd700"),
-    ("pointer",     "fg:#00d7af bold"),
-    ("highlighted", "fg:#00d7af bold"),
-    ("selected",    "fg:#5fd700"),
-    ("instruction", "fg:#8a8a8a"),
-    ("text",        "fg:#5fd700"),
-    ("disabled",    "fg:#8a8a8a italic"),
-    ("validator-toolbar", "bg:#870000 fg:#ffffff"),
-])
+
+
+def _make_style(answer_color: str) -> questionary.Style:
+    return questionary.Style([
+        ("qmark",             "fg:#00d7af bold"),
+        ("question",          "bold fg:#afafaf"),
+        ("answer",            f"fg:{answer_color}"),
+        ("pointer",           "fg:#00d7af bold"),
+        ("highlighted",       "fg:#00d7af bold"),
+        ("selected",          f"fg:{answer_color}"),
+        ("instruction",       "fg:#8a8a8a"),
+        ("text",              f"fg:{answer_color}"),
+        ("disabled",          "fg:#8a8a8a italic"),
+        ("validator-toolbar", "bg:#870000 fg:#ffffff"),
+    ])
+
+
+_STYLE = _make_style("#ffffff")
+_STYLE_DOMAIN = _make_style("#5fd700")
 
 
 def _validate_domain(text: str) -> bool | str:
@@ -151,7 +146,8 @@ def _interactive_generate(domain: str, console: Console) -> None:
     )
     for p in shown:
         console.print(
-            f"  [value]{escape(p.domain):<40}[/value] [muted]{p.kind.value:<12} {escape(p.note)}[/muted]"
+            f"  [value]{escape(p.domain):<40}[/value]"
+            f" [muted]{p.kind.value:<12} {escape(p.note)}[/muted]"
         )
     if limit and len(perms) > limit:
         console.print(f"\n[muted]... and {len(perms) - limit} more[/muted]")
