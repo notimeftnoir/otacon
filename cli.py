@@ -176,7 +176,8 @@ def generate(
     shown = perms[:limit] if limit > 0 else perms
     for p in shown:
         console.print(
-            f"  [value]{escape(p.domain):<40}[/value] [muted]{p.kind.value:<12} {escape(p.note)}[/muted]"
+            f"  [value]{escape(p.domain):<40}[/value]"
+            f" [muted]{p.kind.value:<12} {escape(p.note)}[/muted]"
         )
 
     if limit and len(perms) > limit:
