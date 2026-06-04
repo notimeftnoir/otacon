@@ -135,3 +135,37 @@ def test_score_http_5xx_gives_three_points():
     result = score(r)
     # base=18 + 10 (resolves) + 3 (HTTP 500) = 31
     assert result.risk_score == 31
+
+
+def test_score_3xx_with_redirect_does_not_double_count():
+    """HTTP 3xx already captures the redirect signal — redirects_to must not add +5 on top."""
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=301,
+        redirects_to="https://somewhere.com/",
+    )
+    result = score(r)
+    # base=18 + 10 (resolves) + 10 (HTTP 301) = 38, NOT 43
+    assert result.risk_score == 38
+
+
+def test_score_non_3xx_redirect_still_adds_bonus():
+    """A Location header on a 2xx response is unusual but still a signal."""
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=200,
+        redirects_to="https://somewhere.com/",
+    )
+    result = score(r)
+    # base=18 + 10 (resolves) + 15 (HTTP 200) + 5 (redirect bonus) = 48
+    assert result.risk_score == 48
+
+
+def test_score_defensive_detection_ignores_trailing_dot_in_target():
+    """A trailing dot on the target (FQDN notation) must not prevent defensive detection."""
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, redirects_to="https://www.google.com/",
+    )
+    result = score(r, target="google.com.")  # trailing dot — FQDN notation
+    assert result.is_likely_defensive is True

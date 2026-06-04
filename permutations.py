@@ -26,13 +26,13 @@ _QWERTY_ADJACENT: dict[str, str] = {
 # Homoglyphs: visually similar characters. We mix ASCII (1/l, 0/o) with
 # Unicode (Cyrillic), since both are used in real-world attacks.
 _HOMOGLYPHS: dict[str, list[str]] = {
-    "a": ["\u0430", "@", "4"],       # Cyrillic a
-    "c": ["\u0441", "("],            # Cyrillic c
+    "a": ["\u0430", "4"],            # Cyrillic a  (@ removed \u2014 invalid DNS char)
+    "c": ["\u0441"],                 # Cyrillic c  (( removed \u2014 invalid DNS char)
     "e": ["\u0435", "3"],            # Cyrillic e
     "i": ["1", "l", "\u00ed", "\u0131"],
     "l": ["1", "i", "\u0142"],
     "o": ["\u043e", "0", "\u03bf"],  # Cyrillic o + Greek omicron
-    "s": ["\u0455", "5", "$"],       # Cyrillic s
+    "s": ["\u0455", "5"],            # Cyrillic s  ($ removed \u2014 invalid DNS char)
     "p": ["\u0440"],                 # Cyrillic p
     "x": ["\u0445"],                 # Cyrillic x
     "y": ["\u0443"],                 # Cyrillic y

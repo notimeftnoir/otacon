@@ -83,7 +83,7 @@ class Resolver:
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
             fut = asyncio.open_connection(domain, 443, ssl=ctx)
-            _, writer = await asyncio.wait_for(fut, timeout=_DNS_TIMEOUT)
+            _, writer = await asyncio.wait_for(fut, timeout=_HTTP_TIMEOUT)
             writer.close()
             await writer.wait_closed()
             return True
@@ -92,7 +92,8 @@ class Resolver:
 
     async def _probe_http(self, domain: str) -> tuple[int | None, str | None, str | None]:
         """Tries HTTPS, then HTTP. Returns (status, server, redirect_target)."""
-        assert self._http is not None
+        if self._http is None:
+            raise RuntimeError("Resolver._probe_http called outside async context manager")
         for scheme in ("https", "http"):
             try:
                 resp = await self._http.get(f"{scheme}://{domain}")
@@ -113,21 +114,22 @@ class Resolver:
             result.ip_addresses = ips
             result.resolves = bool(ips)
 
-            # MX and HTTP only make sense if the domain exists at all.
-            if result.resolves:
-                mx = await self._resolve_mx(perm.domain)
-                result.mx_records = mx
-                result.has_mx = bool(mx)
+            # MX is checked independently of A — mail-only phishing domains
+            # often have MX but no A record (no web presence by design).
+            mx = await self._resolve_mx(perm.domain)
+            result.mx_records = mx
+            result.has_mx = bool(mx)
 
-                if self._check_http:
-                    ssl_ok, (status, server, redirect) = await asyncio.gather(
-                        self._check_ssl(perm.domain),
-                        self._probe_http(perm.domain),
-                    )
-                    result.has_ssl = ssl_ok
-                    result.http_status = status
-                    result.server_header = server
-                    result.redirects_to = redirect
+            # SSL and HTTP only make sense when there's an IP to connect to.
+            if result.resolves and self._check_http:
+                ssl_ok, (status, server, redirect) = await asyncio.gather(
+                    self._check_ssl(perm.domain),
+                    self._probe_http(perm.domain),
+                )
+                result.has_ssl = ssl_ok
+                result.http_status = status
+                result.server_header = server
+                result.redirects_to = redirect
 
             return result
 

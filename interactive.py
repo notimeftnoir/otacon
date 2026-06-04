@@ -16,7 +16,7 @@ from rich.progress import (
 
 from . import permutations, reporters, scoring
 from .models import ScanReport
-from .resolver import Resolver
+from .resolver import _DEFAULT_CONCURRENCY, Resolver
 
 _POINTER = "[*]"
 _QMARK = "›"
@@ -102,7 +102,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
     if network is None:
         return
 
-    show_raw = questionary.select(
+    show_all = questionary.select(
         "Show unregistered variants?",
         choices=[
             questionary.Choice(
@@ -119,12 +119,13 @@ def _interactive_scan(domain: str, console: Console) -> None:
         qmark=_QMARK,
         style=_STYLE,
     ).ask()
-    if show_raw is None:
+    if show_all is None:
         return
-    show_all = show_raw
 
     check_http = network == "full"
-    report = asyncio.run(_scan(domain, concurrency=50, check_http=check_http, console=console))
+    report = asyncio.run(
+        _scan(domain, concurrency=_DEFAULT_CONCURRENCY, check_http=check_http, console=console)
+    )
     reporters.render_table(report, console, show_safe=show_all)
 
 

@@ -98,3 +98,14 @@ def test_exclude_none_is_noop():
     a = {p.domain for p in permutations.generate("test.com")}
     b = {p.domain for p in permutations.generate("test.com", exclude=set())}
     assert a == b
+
+
+def test_no_invalid_dns_chars_in_homoglyphs():
+    """Homoglyph variants must not contain @, (, or $ — invalid in DNS labels."""
+    perms = permutations.generate("example.com")
+    homoglyphs = [p for p in perms if p.kind == PermutationType.HOMOGLYPH]
+    for p in homoglyphs:
+        label = p.domain.split(".")[0]
+        assert "@" not in label
+        assert "(" not in label
+        assert "$" not in label

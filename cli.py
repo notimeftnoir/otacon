@@ -114,7 +114,7 @@ def scan(
         False, "--no-http", help="Skip HTTP/SSL probing (faster, fewer signals)."
     ),
     concurrency: int = typer.Option(
-        50, "--concurrency", "-c", help="Number of concurrent checks."
+        50, "--concurrency", "-c", help="Number of concurrent checks.", min=1
     ),
     show_all: bool = typer.Option(
         False, "--all", help="Show unregistered variants too."
@@ -129,6 +129,11 @@ def scan(
     ),
 ) -> None:
     """Scans domain variants and detects registered fakes."""
+    domain = domain.strip().lower()
+    if not domain:
+        console.print("[danger]Error: domain cannot be empty.[/danger]")
+        raise typer.Exit(1)
+
     exclusions = _load_exclusions(exclude, exclude_file)
     console.print(f"[field]Target:[/field] [value]{escape(domain)}[/value]")
     console.print(
@@ -145,12 +150,18 @@ def scan(
     reporters.render_table(report, console, show_safe=show_all)
 
     if json_out:
-        json_out.write_text(reporters.to_json(report), encoding="utf-8")
-        console.print(f"[ok]\u2192 JSON saved:[/ok] [url]{json_out}[/url]")
+        try:
+            json_out.write_text(reporters.to_json(report), encoding="utf-8")
+            console.print(f"[ok]\u2192 JSON saved:[/ok] [url]{json_out}[/url]")
+        except OSError as exc:
+            console.print(f"[danger]Error saving JSON: {exc}[/danger]")
 
     if md_out:
-        md_out.write_text(reporters.to_markdown(report), encoding="utf-8")
-        console.print(f"[ok]\u2192 Markdown saved:[/ok] [url]{md_out}[/url]")
+        try:
+            md_out.write_text(reporters.to_markdown(report), encoding="utf-8")
+            console.print(f"[ok]\u2192 Markdown saved:[/ok] [url]{md_out}[/url]")
+        except OSError as exc:
+            console.print(f"[danger]Error saving Markdown: {exc}[/danger]")
 
 
 @app.command()

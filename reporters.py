@@ -48,7 +48,7 @@ def _redirect_host(url: str) -> str:
     try:
         host = urlparse(url).netloc
         return host if host else url
-    except Exception:
+    except ValueError:
         return url
 
 
@@ -178,7 +178,7 @@ def to_markdown(report: ScanReport) -> str:
         "# Otacon — domain impersonation report",
         "",
         f"**Target:** `{report.target}`  ",
-        f"**Date:** {report.started_at:%Y-%m-%d %H:%M UTC}  ",
+        f"**Date:** {report.started_at:%Y-%m-%d %H:%M %Z}  ",
         f"**Permutations checked:** {report.total_permutations}  ",
         f"**Registered variants:** {len(report.registered)}",
         "",
