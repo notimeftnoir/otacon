@@ -5,6 +5,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.progress import (
     BarColumn,
     Progress,
@@ -94,7 +95,7 @@ async def _run_scan(
             coros = [resolver.check_one(p) for p in perms]
             for coro in asyncio.as_completed(coros):
                 result = await coro
-                report.results.append(scoring.score(result))
+                report.results.append(scoring.score(result, target))
                 progress.advance(task)
 
     return report
@@ -129,7 +130,7 @@ def scan(
 ) -> None:
     """Scans domain variants and detects registered fakes."""
     exclusions = _load_exclusions(exclude, exclude_file)
-    console.print(f"[field]Target:[/field] [value]{domain}[/value]")
+    console.print(f"[field]Target:[/field] [value]{escape(domain)}[/value]")
     console.print(
         f"[muted]Mode: {'DNS only' if no_http else 'DNS + HTTP/SSL'} \u00b7 "
         f"concurrency: {concurrency}"

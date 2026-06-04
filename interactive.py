@@ -162,7 +162,7 @@ async def _scan(domain: str, concurrency: int, check_http: bool, console: Consol
             coros = [resolver.check_one(p) for p in perms]
             for coro in asyncio.as_completed(coros):
                 result = await coro
-                report.results.append(scoring.score(result))
+                report.results.append(scoring.score(result, domain))
                 progress.advance(task)
 
     return report
