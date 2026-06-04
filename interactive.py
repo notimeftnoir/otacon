@@ -4,6 +4,9 @@ from __future__ import annotations
 import asyncio
 
 import questionary
+from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.shortcuts import prompt as _pt_prompt
+from prompt_toolkit.validation import ValidationError, Validator
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import (
@@ -39,6 +42,29 @@ def _make_style(answer_color: str) -> questionary.Style:
 
 _STYLE = _make_style("#ffffff")
 _STYLE_DOMAIN = _make_style("#5fd700")
+
+
+class _YNValidator(Validator):
+    def validate(self, document) -> None:
+        if document.text.strip().lower() not in ("y", "n", ""):
+            raise ValidationError(message="Type y or n", cursor_position=len(document.text))
+
+
+def _confirm(message: str) -> bool | None:
+    """y/n prompt with green y and red n. Returns True/False, or None on Ctrl+C."""
+    prompt_text = FormattedText([
+        ("fg:#00d7af bold", "› "),
+        ("bold fg:#afafaf", f"{message} ("),
+        ("fg:#5fd700 bold", "y"),
+        ("fg:#8a8a8a", "/"),
+        ("fg:#ff5f5f bold", "n"),
+        ("fg:#8a8a8a", ") "),
+    ])
+    try:
+        answer = _pt_prompt(prompt_text, validator=_YNValidator(), validate_while_typing=False)
+        return answer.strip().lower() == "y"
+    except KeyboardInterrupt:
+        return None
 
 
 def _validate_domain(text: str) -> bool | str:
@@ -102,23 +128,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
     if network is None:
         return
 
-    show_all = questionary.select(
-        "Show unregistered variants?",
-        choices=[
-            questionary.Choice(
-                title=[("fg:#ff5f5f bold", "n"), ("", "  No")],
-                value=False,
-            ),
-            questionary.Choice(
-                title=[("fg:#5fd700 bold", "y"), ("", "  Yes")],
-                value=True,
-            ),
-        ],
-        default=False,
-        pointer=_POINTER,
-        qmark=_QMARK,
-        style=_STYLE,
-    ).ask()
+    show_all = _confirm("Show unregistered variants?")
     if show_all is None:
         return
 

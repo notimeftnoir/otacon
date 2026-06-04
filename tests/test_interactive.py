@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from otacon.interactive import (
+    _confirm,
     _interactive_generate,
     _interactive_scan,
     _validate_domain,
@@ -133,14 +134,39 @@ def test_interactive_generate_respects_limit():
     assert console.print.call_count == 5
 
 
+def test_confirm_returns_true_for_y():
+    """_confirm returns True when user types y."""
+    with patch("otacon.interactive._pt_prompt", return_value="y"):
+        assert _confirm("Continue?") is True
+
+
+def test_confirm_returns_false_for_n():
+    """_confirm returns False when user types n."""
+    with patch("otacon.interactive._pt_prompt", return_value="n"):
+        assert _confirm("Continue?") is False
+
+
+def test_confirm_returns_false_for_enter():
+    """_confirm defaults to False when user presses Enter (empty input)."""
+    with patch("otacon.interactive._pt_prompt", return_value=""):
+        assert _confirm("Continue?") is False
+
+
+def test_confirm_returns_none_on_ctrl_c():
+    """_confirm returns None on KeyboardInterrupt (Ctrl+C)."""
+    with patch("otacon.interactive._pt_prompt", side_effect=KeyboardInterrupt):
+        assert _confirm("Continue?") is None
+
+
 def test_interactive_scan_full_calls_render_table():
     """Full scan (HTTP) must call reporters.render_table with correct params."""
     mock_report = ScanReport(target="example.com", total_permutations=0)
 
     with patch("otacon.interactive.questionary") as mock_q, \
+         patch("otacon.interactive._confirm", return_value=False), \
          patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan, \
          patch("otacon.interactive.reporters") as mock_reporters:
-        mock_q.select.return_value.ask.side_effect = ["full", False]
+        mock_q.select.return_value.ask.return_value = "full"
         mock_scan.return_value = mock_report
         console = MagicMock()
         _interactive_scan("example.com", console)
@@ -156,9 +182,10 @@ def test_interactive_scan_dns_only():
     mock_report = ScanReport(target="example.com", total_permutations=0)
 
     with patch("otacon.interactive.questionary") as mock_q, \
+         patch("otacon.interactive._confirm", return_value=False), \
          patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan, \
          patch("otacon.interactive.reporters"):
-        mock_q.select.return_value.ask.side_effect = ["dns", False]
+        mock_q.select.return_value.ask.return_value = "dns"
         mock_scan.return_value = mock_report
         _interactive_scan("example.com", MagicMock())
 
@@ -177,6 +204,7 @@ def test_interactive_scan_ctrl_c_on_network():
 def test_interactive_scan_ctrl_c_on_show_all():
     """Ctrl+C on show-all must exit without raising."""
     with patch("otacon.interactive.questionary") as mock_q, \
+         patch("otacon.interactive._confirm", return_value=None), \
          patch("otacon.interactive._scan", new_callable=AsyncMock):
-        mock_q.select.return_value.ask.side_effect = ["full", None]
+        mock_q.select.return_value.ask.return_value = "full"
         _interactive_scan("example.com", MagicMock())
