@@ -51,3 +51,8 @@ def test_score_full_infrastructure_is_high_risk() -> None:
     assert scored.risk_level == RiskLevel.CRITICAL
     assert any("has an MX record" in reason for reason in scored.risk_reasons)
     assert any("responds HTTP 200" in reason for reason in scored.risk_reasons)
+
+
+def test_domain_result_is_likely_defensive_defaults_to_false():
+    r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
+    assert r.is_likely_defensive is False
