@@ -11,8 +11,11 @@ without touching the rest.
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from .models import DomainResult, ScanReport
 from .theme import RiskLevel
@@ -30,6 +33,57 @@ def _signals(result: DomainResult) -> str:
     if result.http_status is not None:
         signals.append(f"HTTP {result.http_status}")
     return ", ".join(signals) or "\u2014"
+
+
+def _redirect_host(url: str) -> str:
+    """Extracts the hostname from a redirect URL; falls back to the raw value."""
+    try:
+        host = urlparse(url).netloc
+        return host if host else url
+    except Exception:
+        return url
+
+
+def _risk_bar(score: int, style: str) -> Text:
+    """8-char block bar (████░░░░) + right-justified score, coloured by style."""
+    filled = round(score / 100 * 8)
+    bar = "█" * filled + "░" * (8 - filled)
+    t = Text()
+    t.append(bar, style=style)
+    t.append(f" {score:>3}", style=style)
+    return t
+
+
+def _check(value: bool) -> Text:
+    """Green ✓ when True, dim — when False."""
+    return Text("✓", style="ok") if value else Text("—", style="muted")
+
+
+def _http_cell(status: int | None) -> Text:
+    """HTTP status code coloured by range (2xx green, 3xx blue, 4xx dim, 5xx yellow)."""
+    if status is None:
+        return Text("—", style="muted")
+    if 200 <= status < 300:
+        style = "ok"
+    elif 300 <= status < 400:
+        style = "info"
+    elif 400 <= status < 500:
+        style = "muted"
+    else:
+        style = "warn"
+    return Text(str(status), style=style)
+
+
+def _domain_cell(result: DomainResult) -> Text:
+    """Domain name + dim technique subtitle. ⚑ redirect host appended when defensive."""
+    t = Text()
+    t.append(result.domain, style="value")
+    t.append("\n")
+    t.append(result.kind.value, style="muted")
+    if result.is_likely_defensive and result.redirects_to:
+        t.append("  ⚑ → ", style="warn")
+        t.append(_redirect_host(result.redirects_to), style="warn")
+    return t
 
 
 def render_table(report: ScanReport, console: Console, show_safe: bool = False) -> None:
