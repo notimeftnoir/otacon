@@ -55,8 +55,8 @@ def _risk_bar(score: int, style: str) -> Text:
 
 
 def _check(value: bool) -> Text:
-    """Green ✓ when True, dim — when False."""
-    return Text("✓", style="ok") if value else Text("—", style="muted")
+    """Green ✓ when True, red — when False."""
+    return Text("✓", style="ok") if value else Text("—", style="danger")
 
 
 def _http_cell(status: int | None) -> Text:
