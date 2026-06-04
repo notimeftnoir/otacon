@@ -1,75 +1,65 @@
-"""Risk scoring engine.
-
-Each collected signal adds points to a 0-100 score. The logic follows the
-real-world hierarchy of phishing threat:
-
-  - mere registration of a fake domain = weak signal (a company may own it)
-  - MX = the domain is READY for email phishing (serious signal)
-  - SSL + live HTTP = active infrastructure (attack in progress?)
-  - homoglyphs/typos close to the original = higher risk than a distant combosquat
-
-Scoring is deliberately simple and transparent (explicit rules instead of ML) —
-a pentester should understand WHY something received a given score.
-"""
-
+"""Risk scoring engine."""
 from __future__ import annotations
 
 from .models import DomainResult, PermutationType
 from .theme import RiskLevel
 
-# Base "dangerousness" of a technique — how easily a variant fools the eye.
 _KIND_BASE: dict[PermutationType, int] = {
-    PermutationType.HOMOGLYPH: 25,   # looks identical — most dangerous
+    PermutationType.HOMOGLYPH: 25,
     PermutationType.TYPO: 18,
     PermutationType.BITSQUAT: 15,
     PermutationType.HYPHEN: 12,
-    PermutationType.COMBO: 20,       # -login etc. = overtly phishing
+    PermutationType.COMBO: 20,
     PermutationType.TLD_SWAP: 10,
 }
 
 
-def score(result: DomainResult) -> DomainResult:
-    """Computes risk_score, risk_level and reasons. Mutates and returns the object."""
-    points = 0
-    reasons: list[str] = []
-
-    # Unregistered variants = no real threat (for now).
+def score(result: DomainResult, target: str = "") -> DomainResult:
+    """Computes risk_score, risk_level, reasons, and is_likely_defensive. Mutates and returns."""
     if not result.is_registered:
         result.risk_score = 0
         result.risk_level = RiskLevel.SAFE
         result.risk_reasons = []
         return result
 
-    # Base from the permutation type.
+    # Defensive-registration detection: redirect points back to the original domain.
+    if result.redirects_to and target and target.lower() in result.redirects_to.lower():
+        result.is_likely_defensive = True
+
+    points = 0
+    reasons: list[str] = []
+
     base = _KIND_BASE.get(result.kind, 10)
     points += base
     reasons.append(f"technique: {result.kind.value} (+{base})")
 
-    # The domain resolves — someone is actively holding it.
     if result.resolves:
         points += 10
         reasons.append("resolves to an IP (+10)")
 
-    # MX = phishing emails can be sent from it. Strong signal.
     if result.has_mx:
         points += 25
         reasons.append("has an MX record — ready for email phishing (+25)")
 
-    # SSL = someone set up a certificate = serious infrastructure.
     if result.has_ssl:
         points += 15
         reasons.append("active SSL certificate (+15)")
 
-    # Live HTTP response = content is being served.
     if result.http_status is not None:
-        if 200 <= result.http_status < 400:
+        status = result.http_status
+        if 200 <= status < 300:
             points += 15
-            reasons.append(f"responds HTTP {result.http_status} (+15)")
-        else:
+            reasons.append(f"responds HTTP {status} — active site (+15)")
+        elif 300 <= status < 400:
+            points += 10
+            reasons.append(f"responds HTTP {status} — redirect (+10)")
+        elif 400 <= status < 500:
             points += 5
-            reasons.append(f"HTTP {result.http_status} (+5)")
+            reasons.append(f"responds HTTP {status} — registered, no content (+5)")
+        else:
+            points += 3
+            reasons.append(f"responds HTTP {status} — server error (+3)")
 
-    # Redirect to the original/another domain — a common trick (parking/cloaking).
     if result.redirects_to:
         points += 5
         reasons.append("redirects elsewhere (+5)")
@@ -80,6 +70,6 @@ def score(result: DomainResult) -> DomainResult:
     return result
 
 
-def score_all(results: list[DomainResult]) -> list[DomainResult]:
-    """Scores the whole list of results in-place."""
-    return [score(r) for r in results]
+def score_all(results: list[DomainResult], target: str = "") -> list[DomainResult]:
+    """Scores the whole list in-place."""
+    return [score(r, target) for r in results]
