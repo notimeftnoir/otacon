@@ -5,6 +5,7 @@ import asyncio
 
 import questionary
 from rich.console import Console
+from rich.markup import escape
 from rich.progress import (
     BarColumn,
     Progress,
@@ -132,11 +133,11 @@ def _interactive_generate(domain: str, console: Console) -> None:
 
     console.print(
         f"[field]Generated[/field] [value]{len(perms)}[/value] "
-        f"[field]variants for[/field] [value]{domain}[/value]\n"
+        f"[field]variants for[/field] [value]{escape(domain)}[/value]\n"
     )
     for p in shown:
         console.print(
-            f"  [value]{p.domain:<40}[/value] [muted]{p.kind.value:<12} {p.note}[/muted]"
+            f"  [value]{escape(p.domain):<40}[/value] [muted]{p.kind.value:<12} {escape(p.note)}[/muted]"
         )
     if limit and len(perms) > limit:
         console.print(f"\n[muted]... and {len(perms) - limit} more[/muted]")

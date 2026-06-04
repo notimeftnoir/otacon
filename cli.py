@@ -170,13 +170,13 @@ def generate(
 
     console.print(
         f"[field]Generated[/field] [value]{len(perms)}[/value] "
-        f"[field]variants for[/field] [value]{domain}[/value]\n"
+        f"[field]variants for[/field] [value]{escape(domain)}[/value]\n"
     )
 
     shown = perms[:limit] if limit > 0 else perms
     for p in shown:
         console.print(
-            f"  [value]{p.domain:<40}[/value] [muted]{p.kind.value:<12} {p.note}[/muted]"
+            f"  [value]{escape(p.domain):<40}[/value] [muted]{p.kind.value:<12} {escape(p.note)}[/muted]"
         )
 
     if limit and len(perms) > limit:
