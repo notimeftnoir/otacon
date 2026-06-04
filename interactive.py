@@ -18,6 +18,19 @@ from .models import ScanReport
 from .resolver import Resolver
 
 _POINTER = "[*]"
+_QMARK = "›"
+_STYLE = questionary.Style([
+    ("qmark",       "fg:#00d7af bold"),
+    ("question",    "bold fg:#afafaf"),
+    ("answer",      "fg:#ffffff"),
+    ("pointer",     "fg:#00d7af bold"),
+    ("highlighted", "fg:#00d7af bold"),
+    ("selected",    "fg:#ffffff"),
+    ("instruction", "fg:#8a8a8a"),
+    ("text",        "fg:#ffffff"),
+    ("disabled",    "fg:#8a8a8a italic"),
+    ("validator-toolbar", "bg:#870000 fg:#ffffff"),
+])
 
 
 def _validate_domain(text: str) -> bool | str:
@@ -37,7 +50,9 @@ def _validate_limit(text: str) -> bool | str:
 
 def run(console: Console) -> None:
     """Called by cli._main when otacon is invoked with no subcommand."""
-    domain = questionary.text("Domain:", validate=_validate_domain).ask()
+    domain = questionary.text(
+        "Domain:", validate=_validate_domain, qmark=_QMARK, style=_STYLE
+    ).ask()
     if domain is None:
         return
     domain = domain.strip()
@@ -53,6 +68,8 @@ def run(console: Console) -> None:
             ),
         ],
         pointer=_POINTER,
+        qmark=_QMARK,
+        style=_STYLE,
     ).ask()
     if mode is None:
         return
@@ -71,11 +88,15 @@ def _interactive_scan(domain: str, console: Console) -> None:
             questionary.Choice("DNS only    (fast)", value="dns"),
         ],
         pointer=_POINTER,
+        qmark=_QMARK,
+        style=_STYLE,
     ).ask()
     if network is None:
         return
 
-    show_all = questionary.confirm("Show unregistered variants?", default=False).ask()
+    show_all = questionary.confirm(
+        "Show unregistered variants?", default=False, qmark=_QMARK, style=_STYLE
+    ).ask()
     if show_all is None:
         return
 
@@ -86,7 +107,8 @@ def _interactive_scan(domain: str, console: Console) -> None:
 
 def _interactive_generate(domain: str, console: Console) -> None:
     limit_str = questionary.text(
-        "Result limit (0 = all):", default="0", validate=_validate_limit
+        "Result limit (0 = all):", default="0", validate=_validate_limit,
+        qmark=_QMARK, style=_STYLE,
     ).ask()
     if limit_str is None:
         return
