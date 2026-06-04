@@ -5,6 +5,7 @@ import asyncio
 
 import questionary
 from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import prompt as _pt_prompt
 from prompt_toolkit.validation import ValidationError, Validator
 from rich.console import Console
@@ -50,8 +51,27 @@ class _YNValidator(Validator):
             raise ValidationError(message="Type y or n", cursor_position=len(document.text))
 
 
+def _yn_bindings() -> KeyBindings:
+    """Key bindings that auto-submit on y/n without requiring Enter."""
+    kb = KeyBindings()
+
+    @kb.add("y")
+    @kb.add("Y")
+    def _yes(event) -> None:
+        event.app.current_buffer.text = "y"
+        event.app.current_buffer.validate_and_handle()
+
+    @kb.add("n")
+    @kb.add("N")
+    def _no(event) -> None:
+        event.app.current_buffer.text = "n"
+        event.app.current_buffer.validate_and_handle()
+
+    return kb
+
+
 def _confirm(message: str) -> bool | None:
-    """y/n prompt with green y and red n. Returns True/False, or None on Ctrl+C."""
+    """y/n prompt: green y, red n, auto-submits on keypress. Returns True/False/None (Ctrl+C)."""
     prompt_text = FormattedText([
         ("fg:#00d7af bold", "› "),
         ("bold fg:#afafaf", f"{message} ("),
@@ -61,7 +81,12 @@ def _confirm(message: str) -> bool | None:
         ("fg:#8a8a8a", ") "),
     ])
     try:
-        answer = _pt_prompt(prompt_text, validator=_YNValidator(), validate_while_typing=False)
+        answer = _pt_prompt(
+            prompt_text,
+            validator=_YNValidator(),
+            validate_while_typing=False,
+            key_bindings=_yn_bindings(),
+        )
         return answer.strip().lower() == "y"
     except KeyboardInterrupt:
         return None
