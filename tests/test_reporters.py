@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from io import StringIO
+
 from otacon.models import DomainResult, PermutationType, ScanReport
 from otacon.reporters import (
     _check,
@@ -9,6 +11,7 @@ from otacon.reporters import (
     _http_cell,
     _redirect_host,
     _risk_bar,
+    render_table,
     to_markdown,
 )
 from otacon.theme import RiskLevel
@@ -123,3 +126,75 @@ def test_domain_cell_non_defensive_no_flag():
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
     cell = _domain_cell(r)
     assert "⚑" not in cell.plain
+
+
+def _make_console(no_color: bool = True):
+    from otacon.theme import OTACON_THEME
+    from rich.console import Console
+
+    buf = StringIO()
+    return Console(file=buf, no_color=no_color, theme=OTACON_THEME, width=120), buf
+
+
+def test_render_table_footer_shows_medium_count():
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=40,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    report.results.append(r)
+    console, buf = _make_console()
+    render_table(report, console)
+    assert "med:" in buf.getvalue()
+
+
+def test_render_table_shows_defensive_flag():
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exampl.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        is_likely_defensive=True,
+        redirects_to="https://example.com/",
+        risk_score=28,
+        risk_level=RiskLevel.LOW,
+    )
+    report.results.append(r)
+    console, buf = _make_console()
+    render_table(report, console)
+    assert "⚑" in buf.getvalue()
+
+
+def test_render_table_no_defensive_flag_when_not_defensive():
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exampl.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=28,
+        risk_level=RiskLevel.LOW,
+    )
+    report.results.append(r)
+    console, buf = _make_console()
+    render_table(report, console)
+    assert "⚑" not in buf.getvalue()
+
+
+def test_render_table_shows_risk_bar_characters():
+    report = ScanReport(target="example.com", total_permutations=5)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=50,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    report.results.append(r)
+    console, buf = _make_console()
+    render_table(report, console)
+    output = buf.getvalue()
+    assert "█" in output
+    assert "░" in output

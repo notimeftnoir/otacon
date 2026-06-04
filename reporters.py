@@ -87,17 +87,15 @@ def _domain_cell(result: DomainResult) -> Text:
 
 
 def render_table(report: ScanReport, console: Console, show_safe: bool = False) -> None:
-    """Renders results as a colored terminal table.
+    """Renders results as a colored terminal table (Option B layout).
 
-    By default shows only registered variants — unregistered permutations are
-    noise (there are hundreds). show_safe=True shows everything.
+    Columns: Domain+technique | Risk bar | DNS | MX | SSL | HTTP
+    Defensive registrations (redirect \u2192 original) are flagged with \u2691.
     """
     rows = report.results if show_safe else report.registered
 
     if not rows:
-        console.print(
-            "\n[ok]\u2713 No registered impersonating variants detected.[/ok]"
-        )
+        console.print("\n[ok]\u2713 No registered impersonating variants detected.[/ok]")
         console.print(
             f"[muted]  Checked {report.total_permutations} permutations.[/muted]\n"
         )
@@ -105,42 +103,60 @@ def render_table(report: ScanReport, console: Console, show_safe: bool = False) 
 
     rows = sorted(rows, key=lambda r: r.risk_score, reverse=True)
 
+    title = Text()
+    title.append("Otacon", style="brand")
+    title.append(" \u00b7 target: ")
+    title.append(report.target, style="value")
+
     table = Table(
-        title=f"[brand]Otacon[/brand] \u00b7 target: [value]{report.target}[/value]",
+        title=title,
         title_justify="left",
         header_style="field",
         expand=True,
         border_style="brand.dim",
+        show_lines=False,
     )
-    table.add_column("", width=3, justify="center")  # risk icon
-    table.add_column("Domain", style="value", no_wrap=True)
-    table.add_column("Type", style="muted")
-    table.add_column("Risk", justify="right")
-    table.add_column("Signals", style="muted")
+    table.add_column("Domain", no_wrap=False, min_width=30)
+    table.add_column("Risk", width=14)
+    table.add_column("DNS", width=5, justify="center")
+    table.add_column("MX", width=5, justify="center")
+    table.add_column("SSL", width=5, justify="center")
+    table.add_column("HTTP", width=7, justify="center")
 
     for r in rows:
-        lvl = r.risk_level
         table.add_row(
-            f"[{lvl.style}]{lvl.icon}[/{lvl.style}]",
-            r.domain,
-            r.kind.value,
-            f"[{lvl.style}]{r.risk_score:>3} {lvl.value}[/{lvl.style}]",
-            _signals(r),
+            _domain_cell(r),
+            _risk_bar(r.risk_score, r.risk_level.style),
+            _check(r.resolves),
+            _check(r.has_mx),
+            _check(r.has_ssl),
+            _http_cell(r.http_status),
         )
 
     console.print()
     console.print(table)
 
-    # Summary below the table.
     threats = report.threats
     crit = sum(1 for r in threats if r.risk_level == RiskLevel.CRITICAL)
     high = sum(1 for r in threats if r.risk_level == RiskLevel.HIGH)
-    console.print(
-        f"[muted]Permutations: {report.total_permutations} \u00b7 "
-        f"registered: {len(report.registered)} \u00b7 "
-        f"[/muted][danger]high: {high}[/danger] "
-        f"[critical] critical: {crit} [/critical]\n"
+    med = sum(1 for r in threats if r.risk_level == RiskLevel.MEDIUM)
+    defensive = sum(1 for r in rows if r.is_likely_defensive)
+
+    footer = Text()
+    footer.append(
+        f"Permutations: {report.total_permutations} \u00b7 "
+        f"registered: {len(report.registered)} \u00b7 ",
+        style="muted",
     )
+    footer.append(f"med: {med}", style="warn")
+    footer.append(" \u00b7 ", style="muted")
+    footer.append(f"high: {high}", style="danger")
+    footer.append(" \u00b7 ", style="muted")
+    footer.append(f"crit: {crit}", style="critical")
+    if defensive:
+        footer.append("    \u2691 = likely defensive (redirects to original)", style="warn")
+    console.print(footer)
+    console.print()
 
 
 def to_json(report: ScanReport) -> str:
