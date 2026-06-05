@@ -104,6 +104,28 @@ Run `otacon` with no arguments to enter the interactive prompt — it guides you
 otacon scan example.com
 ```
 
+### Watch mode — continuous monitoring
+
+`watch` scans, diffs against a saved baseline (`~/.otacon/<domain>.json`), and
+shows only what **changed** since the last run (NEW / CHANGED / GONE).
+
+```bash
+# Single run — write baseline on first call, show only deltas on subsequent calls
+otacon watch example.com
+
+# Loop every 24 hours, exit cleanly with Ctrl+C
+otacon watch example.com --interval 24h
+
+# Notify a Slack/Teams webhook whenever a high/critical domain appears
+otacon watch example.com --interval 1h --notify https://hooks.example.com/abc
+
+# Save the diff as JSON
+otacon watch example.com --json diff.json
+```
+
+First run reports all registered variants as **NEW** and writes the baseline.
+Every subsequent run shows only what changed.
+
 ### Export reports
 
 ```bash
@@ -191,6 +213,8 @@ otacon/
 ├── whois.py          # async WHOIS lookup — domain age signal
 ├── scoring.py        # transparent rule-based risk engine (0-100)
 ├── reporters.py      # output: table / json / markdown
+├── state.py          # baseline persistence for watch mode (~/.otacon/<domain>.json)
+├── watch.py          # diff engine + watch-mode loop (NEW/CHANGED/GONE)
 ├── models.py         # Pydantic models (type safety + serialization)
 ├── theme.py          # consistent color palette (single source of truth)
 ├── interactive.py    # interactive prompt mode (questionary)

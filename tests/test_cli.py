@@ -41,3 +41,32 @@ def test_bare_invocation_calls_interactive(monkeypatch) -> None:
     runner = CliRunner()
     runner.invoke(app, [])
     assert called.get("ran") is True
+
+
+def test_watch_command_is_registered() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["watch", "--help"])
+    assert result.exit_code == 0
+    assert "--interval" in result.output
+    assert "--notify" in result.output
+
+
+def test_watch_command_invalid_interval_exits_1(tmp_path, monkeypatch) -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["watch", "example.com", "--interval", "bad"])
+    assert result.exit_code == 1
+
+
+def test_watch_command_runs_single_scan(tmp_path, monkeypatch) -> None:
+    """Single-shot watch (no --interval) runs once, writes baseline, exits 0."""
+    from otacon.models import ScanReport
+
+    async def fake_run_scan(domain, concurrency, check_http, exclude=None):
+        return ScanReport(target=domain, total_permutations=0)
+
+    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["watch", "example.com"])
+    assert result.exit_code == 0
