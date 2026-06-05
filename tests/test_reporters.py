@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from io import StringIO
 
 from otacon.models import DomainResult, PermutationType, ScanReport
 from otacon.reporters import (
+    _age_cell,
     _check,
     _domain_cell,
     _http_cell,
     _redirect_host,
     _risk_bar,
     render_table,
+    to_json,
     to_markdown,
 )
 from otacon.theme import RiskLevel
@@ -198,3 +201,76 @@ def test_render_table_shows_risk_bar_characters():
     output = buf.getvalue()
     assert "█" in output
     assert "░" in output
+
+
+# ---------------------------------------------------------------------------
+# Age column
+# ---------------------------------------------------------------------------
+
+def test_age_cell_none_returns_dash():
+    assert _age_cell(None).plain == "—"
+
+
+def test_age_cell_6_days():
+    assert _age_cell(6).plain == "6d"
+
+
+def test_age_cell_90_days_is_3_months():
+    assert _age_cell(90).plain == "3mo"
+
+
+def test_age_cell_730_days_is_2_years():
+    assert _age_cell(730).plain == "2y"
+
+
+def test_render_table_has_age_column_header():
+    report = ScanReport(target="example.com", total_permutations=5)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=28,
+        risk_level=RiskLevel.LOW,
+        age_days=6,
+    )
+    report.results.append(r)
+    console, buf = _make_console()
+    render_table(report, console)
+    output = buf.getvalue()
+    assert "Age" in output
+    assert "6d" in output
+
+
+def test_render_table_age_none_does_not_crash():
+    report = ScanReport(target="example.com", total_permutations=5)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=28,
+        risk_level=RiskLevel.LOW,
+        # age_days is None (default)
+    )
+    report.results.append(r)
+    console, buf = _make_console()
+    render_table(report, console)
+    assert "Age" in buf.getvalue()
+
+
+def test_json_export_includes_created_at():
+    created = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    report = ScanReport(target="example.com", total_permutations=5)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        created_at=created,
+        age_days=6,
+        risk_score=28,
+        risk_level=RiskLevel.LOW,
+    )
+    report.results.append(r)
+    json_str = to_json(report)
+    assert "created_at" in json_str
+    assert "2024-01-15" in json_str
+    assert "age_days" in json_str

@@ -46,6 +46,11 @@ For each registered variant Otacon collects signals and sums them into a **0-100
 - **HTTP 2xx** — content being served (+15),
 - **HTTP 3xx** — redirect (+10),
 - **HTTP 4xx/5xx** — registered but inactive (+5/+3),
+- **Domain age** — freshly registered lookalikes are the strongest attack predictor:
+  - `< 7 days` → **+20** (shown in red in the Age column)
+  - `< 30 days` → **+12** (shown in red)
+  - `< 90 days` → **+5**
+  - `≥ 90 days` → no modifier; missing WHOIS data is never penalised,
 - **permutation type** — homoglyphs are more dangerous than a distant combosquat.
 
 The score maps to levels: `safe` → `low` → `medium` → `high` → `critical`.
@@ -140,18 +145,20 @@ otacon generate example.com --limit 20
 
 ```
 Otacon · target: github.com
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━━━━━┓
-┃ Domain                                          ┃ Risk         ┃ DNS ┃ MX  ┃ SSL ┃ HTTP   ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━━━━━┩
-│ githubupdate.com                                │ ████████  90 │  ✓  │  ✓  │  ✓  │  200   │
-│ combosquat                                      │              │     │     │     │        │
-│ bithub.com                                      │ ██████░░  75 │  ✓  │  ✓  │  ✓  │  301   │
-│ typo                                            │              │     │     │     │        │
-│ github-login.com                                │ ████░░░░  50 │  ✓  │  —  │  ✓  │  404   │
-│ combosquat  ⚑ → github.com                      │              │     │     │     │        │
-└─────────────────────────────────────────────────┴──────────────┴─────┴─────┴─────┴────────┘
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━━━━━┓
+┃ Domain                                          ┃ Risk         ┃  Age ┃ DNS ┃ MX  ┃ SSL ┃ HTTP   ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━━━━━┩
+│ githubupdate.com                                │ ████████  90 │  3d  │  ✓  │  ✓  │  ✓  │  200   │
+│ combosquat                                      │              │      │     │     │     │        │
+│ bithub.com                                      │ ██████░░  75 │ 2y   │  ✓  │  ✓  │  ✓  │  301   │
+│ typo                                            │              │      │     │     │     │        │
+│ github-login.com                                │ ████░░░░  50 │ 6mo  │  ✓  │  —  │  ✓  │  404   │
+│ combosquat  ⚑ → github.com                      │              │      │     │     │     │        │
+└─────────────────────────────────────────────────┴──────────────┴──────┴─────┴─────┴─────┴────────┘
 Permutations: 143 · registered: 31 · med: 8 · high: 12 · crit: 6
 ```
+
+Age values shown in red when `< 30 days` — a recently registered lookalike is almost always malicious.
 
 ## Interpreting results
 
@@ -180,7 +187,8 @@ a human does the rest.
 ```
 otacon/
 ├── permutations.py   # variant generation engine (6 techniques)
-├── resolver.py       # async DNS/MX/SSL/HTTP (semaphore + connection pooling)
+├── resolver.py       # async DNS/MX/SSL/HTTP + WHOIS (semaphore + connection pooling)
+├── whois.py          # async WHOIS lookup — domain age signal
 ├── scoring.py        # transparent rule-based risk engine (0-100)
 ├── reporters.py      # output: table / json / markdown
 ├── models.py         # Pydantic models (type safety + serialization)

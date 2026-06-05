@@ -85,6 +85,17 @@ def score(result: DomainResult, target: str = "") -> DomainResult:
         points += 5
         reasons.append("redirects elsewhere (+5)")
 
+    if result.age_days is not None:
+        if result.age_days < 7:
+            points += 20
+            reasons.append(f"registered {result.age_days} days ago (+20)")
+        elif result.age_days < 30:
+            points += 12
+            reasons.append(f"registered {result.age_days} days ago (+12)")
+        elif result.age_days < 90:
+            points += 5
+            reasons.append(f"registered {result.age_days} days ago (+5)")
+
     result.risk_score = min(points, 100)
     result.risk_level = RiskLevel.from_score(result.risk_score)
     result.risk_reasons = reasons

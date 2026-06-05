@@ -169,3 +169,81 @@ def test_score_defensive_detection_ignores_trailing_dot_in_target():
     )
     result = score(r, target="google.com.")  # trailing dot — FQDN notation
     assert result.is_likely_defensive is True
+
+
+# ---------------------------------------------------------------------------
+# Domain-age scoring modifier
+# ---------------------------------------------------------------------------
+
+def test_score_age_under_7_days_adds_20():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, age_days=5,
+    )
+    result = score(r)
+    # base=18 (typo) + 10 (resolves) + 20 (age <7d) = 48
+    assert result.risk_score == 48
+    assert any("registered 5 days ago" in reason for reason in result.risk_reasons)
+    assert any("+20" in reason for reason in result.risk_reasons)
+
+
+def test_score_age_7_to_29_days_adds_12():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, age_days=15,
+    )
+    result = score(r)
+    # base=18 + 10 + 12 = 40
+    assert result.risk_score == 40
+    assert any("+12" in reason for reason in result.risk_reasons)
+
+
+def test_score_age_30_to_89_days_adds_5():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, age_days=60,
+    )
+    result = score(r)
+    # base=18 + 10 + 5 = 33
+    assert result.risk_score == 33
+    assert any("+5" in reason for reason in result.risk_reasons)
+
+
+def test_score_age_90_plus_days_adds_nothing():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, age_days=120,
+    )
+    result = score(r)
+    # base=18 + 10 = 28; no age modifier
+    assert result.risk_score == 28
+
+
+def test_score_age_exactly_7_days_adds_12():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, age_days=7,
+    )
+    result = score(r)
+    # <7 threshold is exclusive: 7 falls in the <30 bucket (+12)
+    assert result.risk_score == 40
+
+
+def test_score_age_exactly_30_days_adds_5():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, age_days=30,
+    )
+    result = score(r)
+    # <30 is exclusive; 30 falls in the <90 bucket (+5)
+    assert result.risk_score == 33
+
+
+def test_score_missing_age_no_modifier():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True,  # age_days is None (default)
+    )
+    result = score(r)
+    # base=18 + 10 = 28; no age penalty for unknown age
+    assert result.risk_score == 28

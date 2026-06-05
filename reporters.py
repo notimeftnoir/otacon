@@ -19,6 +19,7 @@ from rich.text import Text
 
 from .models import DomainResult, ScanReport
 from .theme import RiskLevel
+from .whois import format_age
 
 _BAR_STYLE: dict[RiskLevel, str] = {
     RiskLevel.SAFE: "ok",
@@ -82,6 +83,16 @@ def _http_cell(status: int | None) -> Text:
     return Text(str(status), style=style)
 
 
+def _age_cell(age_days: int | None) -> Text:
+    """Compact age string, styled critical (red) for domains registered within 30 days."""
+    label = format_age(age_days)
+    if age_days is None:
+        return Text(label, style="muted")
+    if age_days < 30:
+        return Text(label, style="critical")
+    return Text(label, style="value")
+
+
 def _domain_cell(result: DomainResult) -> Text:
     """Domain name + dim technique subtitle. ⚑ redirect host appended when defensive."""
     t = Text()
@@ -126,6 +137,7 @@ def render_table(report: ScanReport, console: Console, show_safe: bool = False) 
     )
     table.add_column("Domain", no_wrap=False, min_width=30)
     table.add_column("Risk", width=14)
+    table.add_column("Age", width=6, justify="right")
     table.add_column("DNS", width=5, justify="center")
     table.add_column("MX", width=5, justify="center")
     table.add_column("SSL", width=5, justify="center")
@@ -135,6 +147,7 @@ def render_table(report: ScanReport, console: Console, show_safe: bool = False) 
         table.add_row(
             _domain_cell(r),
             _risk_bar(r.risk_score, _BAR_STYLE[r.risk_level]),
+            _age_cell(r.age_days),
             _check(r.resolves),
             _check(r.has_mx),
             _check(r.has_ssl),

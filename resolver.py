@@ -21,6 +21,7 @@ import aiodns
 import httpx
 
 from .models import DomainResult, Permutation
+from .whois import fetch_domain_age
 
 # We intentionally probe with verify=False (suspicious certs are the point),
 # so silence the resulting urllib3/httpx warning to keep output clean.
@@ -130,6 +131,12 @@ class Resolver:
                 result.http_status = status
                 result.server_header = server
                 result.redirects_to = redirect
+
+            # WHOIS only for registered domains — unregistered aren't worth the quota.
+            if result.is_registered:
+                created, age = await fetch_domain_age(perm.domain)
+                result.created_at = created
+                result.age_days = age
 
             return result
 

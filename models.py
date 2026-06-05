@@ -58,6 +58,10 @@ class DomainResult(BaseModel):
     server_header: str | None = None
     redirects_to: str | None = None
 
+    # WHOIS — filled for registered domains only; None when lookup fails.
+    created_at: datetime | None = None
+    age_days: int | None = None
+
     # Scoring result — filled in by scoring.py.
     risk_score: int = 0
     risk_level: RiskLevel = RiskLevel.SAFE
