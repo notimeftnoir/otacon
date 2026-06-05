@@ -43,6 +43,111 @@ def test_bare_invocation_calls_interactive(monkeypatch) -> None:
     assert called.get("ran") is True
 
 
+# ---------------------------------------------------------------------------
+# --fail-on exit codes (Task 05)
+# ---------------------------------------------------------------------------
+
+def _make_scan_with_result(risk_score: int, risk_level):
+    """Returns a fake _run_scan coroutine that yields one registered result."""
+    from otacon.models import DomainResult, PermutationType, ScanReport
+
+    async def fake_run_scan(domain, concurrency, check_http, exclude=None):
+        report = ScanReport(target=domain, total_permutations=1)
+        report.results.append(
+            DomainResult(
+                domain="googel.com",
+                kind=PermutationType.TYPO,
+                resolves=True,
+                risk_score=risk_score,
+                risk_level=risk_level,
+            )
+        )
+        return report
+
+    return fake_run_scan
+
+
+def test_scan_no_fail_on_exits_0_even_with_critical(monkeypatch) -> None:
+    from otacon.theme import RiskLevel
+
+    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(90, RiskLevel.CRITICAL))
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "google.com"])
+    assert result.exit_code == 0
+
+
+def test_scan_fail_on_high_exits_2_for_critical(monkeypatch) -> None:
+    from otacon.theme import RiskLevel
+
+    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(90, RiskLevel.CRITICAL))
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "google.com", "--fail-on", "high"])
+    assert result.exit_code == 2
+
+
+def test_scan_fail_on_high_exits_0_for_medium(monkeypatch) -> None:
+    from otacon.theme import RiskLevel
+
+    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(40, RiskLevel.MEDIUM))
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "google.com", "--fail-on", "high"])
+    assert result.exit_code == 0
+
+
+def test_scan_fail_on_critical_exits_0_for_high(monkeypatch) -> None:
+    from otacon.theme import RiskLevel
+
+    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(65, RiskLevel.HIGH))
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "google.com", "--fail-on", "critical"])
+    assert result.exit_code == 0
+
+
+def test_scan_fail_on_critical_exits_2_for_critical(monkeypatch) -> None:
+    from otacon.theme import RiskLevel
+
+    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(90, RiskLevel.CRITICAL))
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "google.com", "--fail-on", "critical"])
+    assert result.exit_code == 2
+
+
+def test_scan_fail_on_medium_exits_2_for_high(monkeypatch) -> None:
+    from otacon.theme import RiskLevel
+
+    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(65, RiskLevel.HIGH))
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "google.com", "--fail-on", "medium"])
+    assert result.exit_code == 2
+
+
+def test_scan_fail_on_low_exits_2_for_low(monkeypatch) -> None:
+    from otacon.theme import RiskLevel
+
+    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(28, RiskLevel.LOW))
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "google.com", "--fail-on", "low"])
+    assert result.exit_code == 2
+
+
+def test_scan_fail_on_low_exits_0_for_empty_scan(monkeypatch) -> None:
+    from otacon.models import ScanReport
+
+    async def fake_empty(domain, concurrency, check_http, exclude=None):
+        return ScanReport(target=domain, total_permutations=10)
+
+    monkeypatch.setattr("otacon.cli._run_scan", fake_empty)
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "google.com", "--fail-on", "low"])
+    assert result.exit_code == 0
+
+
+def test_scan_fail_on_help_shows_valid_choices() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "--help"])
+    assert "--fail-on" in result.output
+
+
 def test_watch_command_is_registered() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["watch", "--help"])

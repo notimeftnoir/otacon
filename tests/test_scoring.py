@@ -247,3 +247,27 @@ def test_score_missing_age_no_modifier():
     result = score(r)
     # base=18 + 10 = 28; no age penalty for unknown age
     assert result.risk_score == 28
+
+
+# ---------------------------------------------------------------------------
+# RiskLevel.rank — ordering for threshold comparisons
+# ---------------------------------------------------------------------------
+
+def test_risk_level_rank_safe_is_zero():
+    assert RiskLevel.SAFE.rank == 0
+
+
+def test_risk_level_rank_critical_is_four():
+    assert RiskLevel.CRITICAL.rank == 4
+
+
+def test_risk_level_rank_strict_ascending_order():
+    levels = [RiskLevel.SAFE, RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL]
+    ranks = [lv.rank for lv in levels]
+    assert ranks == sorted(ranks)
+    assert len(set(ranks)) == 5  # all distinct
+
+
+def test_risk_level_rank_comparable_via_ge():
+    assert RiskLevel.HIGH.rank >= RiskLevel.MEDIUM.rank
+    assert RiskLevel.LOW.rank < RiskLevel.HIGH.rank

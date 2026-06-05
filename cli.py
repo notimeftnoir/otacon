@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from enum import Enum
 from pathlib import Path
 
 import typer
@@ -17,7 +18,16 @@ from rich.progress import (
 from . import permutations, reporters, scoring
 from .models import ScanReport
 from .resolver import Resolver
-from .theme import BANNER, OTACON_THEME
+from .theme import BANNER, OTACON_THEME, RiskLevel
+
+
+class _Threshold(str, Enum):
+    """Valid threshold levels for --fail-on (excludes 'safe')."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
 app = typer.Typer(
     name="otacon",
@@ -127,6 +137,11 @@ def scan(
         None, "--exclude-file",
         help="File with a whitelist (one domain per line, '#' = comment)."
     ),
+    fail_on: _Threshold = typer.Option(
+        None, "--fail-on",
+        help="Exit 2 if any registered result meets or exceeds this risk level."
+             " Choices: low medium high critical.",
+    ),
 ) -> None:
     """Scans domain variants and detects registered fakes."""
     domain = domain.strip().lower()
@@ -162,6 +177,11 @@ def scan(
             console.print(f"[ok]\u2192 Markdown saved:[/ok] [url]{md_out}[/url]")
         except OSError as exc:
             console.print(f"[danger]Error saving Markdown: {exc}[/danger]")
+
+    if fail_on is not None:
+        threshold = RiskLevel(fail_on.value)
+        if any(r.risk_level.rank >= threshold.rank for r in report.registered):
+            raise typer.Exit(2)
 
 
 @app.command()

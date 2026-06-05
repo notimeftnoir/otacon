@@ -144,6 +144,33 @@ otacon scan example.com -c 100             # more concurrent requests
 otacon scan example.com --all              # show unregistered variants too
 ```
 
+### CI/CD exit codes
+
+Use `--fail-on` to gate a pipeline — Otacon exits **2** when any registered
+variant reaches the specified risk level or higher:
+
+```bash
+# Exit 2 if any critical lookalike is found (strict — only top threats)
+otacon scan example.com --fail-on critical
+
+# Exit 2 if any high-or-above risk domain is registered (recommended)
+otacon scan example.com --fail-on high
+
+# Exit 2 on anything registered at medium or above
+otacon scan example.com --fail-on medium
+```
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | Clean — no variant at or above the threshold |
+| `1` | Runtime error (invalid domain, unreadable file, etc.) |
+| `2` | Threshold breached — at least one result `>= --fail-on` level |
+
+Combine with `--exclude` / `--exclude-file` to whitelist known-good aliases
+so they don't trigger the threshold.
+
 ### Whitelist — skipping known-good domains
 
 Some variants are **legitimate** domains of the owner (e.g. `googlemail.com` belongs to Google). You can exclude them so they don't clutter the report — excluded domains are not even checked over the network.

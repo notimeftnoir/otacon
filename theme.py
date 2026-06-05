@@ -64,6 +64,11 @@ class RiskLevel(str, Enum):
             RiskLevel.CRITICAL: "\u25cf",
         }[self]
 
+    @property
+    def rank(self) -> int:
+        """Numeric rank for threshold comparisons (0 = safe … 4 = critical)."""
+        return {"safe": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}[self.value]
+
     @classmethod
     def from_score(cls, score: int) -> RiskLevel:
         """Maps a raw numeric score (0-100) to a risk level."""
