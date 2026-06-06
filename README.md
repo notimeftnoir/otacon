@@ -5,10 +5,19 @@
 Otacon generates hundreds of realistic variants of a given domain (typos, visually identical characters, appended bait words, TLD swaps), checks **asynchronously** which of them are actively registered, and scores the threat level of each.
 
 ```
- ┌─⊙─┐  OTACON
- └───┘  domain impersonation detector
-       █████ safe low med high crit
+ ┌─────┐
+ │  ◉  │  OTACON
+ └─────┘  domain impersonation detector
+          █ █ █ █ █ safe low med high crit
 ```
+
+## Demo
+
+```bash
+asciinema play docs/demo.cast        # play locally (requires asciinema)
+```
+
+The cast shows a full scan of `github.com` — banner, progress bar, verdict summary, colored risk table with page-title fingerprints, and the footer.
 
 ## Why
 
@@ -17,6 +26,29 @@ Attackers register domains deceptively similar to real ones (`github-login.com`,
 - reconnaissance in penetration tests (OSINT / threat modeling phase),
 - brand-protection monitoring on a blue team,
 - security audits before a launch.
+
+## Otacon vs the alternatives
+
+| Feature | **Otacon** | dnstwist | urlcrazy |
+|---|:---:|:---:|:---:|
+| Language | Python 3.10+ | Python | Ruby |
+| DNS / A record check | ✓ | ✓ | ✓ |
+| MX record (email-phishing signal) | ✓ | ✓ | ✓ |
+| SSL certificate check | ✓ | ✓ | ✗ |
+| HTTP probe + redirect detection | ✓ | ✓ | ✗ |
+| **Domain age / WHOIS** (scoring signal) | **✓** | ✗ | ✗ |
+| **Page-title fingerprint** (high/crit rows) | **✓** | ✗ | ✗ |
+| **Transparent risk score** (0-100 + reasons) | **✓** | ✗ | ✗ |
+| **Watch mode** — baseline diff (NEW/CHANGED/GONE) | **✓** | ✗ | ✗ |
+| **CI/CD exit codes** (`--fail-on`) | **✓** | ✗ | ✗ |
+| **Interactive post-scan actions** (open/WHOIS/rescan/allow) | **✓** | ✗ | ✗ |
+| Concurrent async I/O | ✓ (~10 s) | threaded (~60 s) | sync (~45 s) |
+| JSON export | ✓ | ✓ | ✓ |
+| Markdown export | ✓ | ✗ | ✗ |
+| No paid APIs required | ✓ | ✓ | ✓ |
+
+> Speed figures are approximate for a 150-variant scan on a broadband connection.
+> dnstwist can also be run async with `--threads`; results vary.
 
 ## How it works
 
@@ -193,21 +225,27 @@ otacon generate example.com --limit 20
 ## Example output
 
 ```
+⚠ 3 registered · crit: 1 · mx: 1 · fresh <7d: 1
+
 Otacon · target: github.com
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━━━━━┓
-┃ Domain                                          ┃ Risk         ┃  Age ┃ DNS ┃ MX  ┃ SSL ┃ HTTP   ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━━━━━┩
-│ githubupdate.com                                │ ████████  90 │  3d  │  ✓  │  ✓  │  ✓  │  200   │
-│ combosquat                                      │              │      │     │     │     │        │
-│ bithub.com                                      │ ██████░░  75 │ 2y   │  ✓  │  ✓  │  ✓  │  301   │
-│ typo                                            │              │      │     │     │     │        │
-│ github-login.com                                │ ████░░░░  50 │ 6mo  │  ✓  │  —  │  ✓  │  404   │
-│ combosquat  ⚑ → github.com                      │              │      │     │     │     │        │
-└─────────────────────────────────────────────────┴──────────────┴──────┴─────┴─────┴─────┴────────┘
-Permutations: 143 · registered: 31 · med: 8 · high: 12 · crit: 6
+┌──────────────────────────────────────────────┬────────────────────┬──────────┬─────────┬─────────┬────────┬──────────┐
+│ Domain                                       │ Risk               │      Age │   DNS   │   MX    │  SSL   │  HTTP    │
+├──────────────────────────────────────────────┼────────────────────┼──────────┼─────────┼─────────┼────────┼──────────┤
+│ githubupdate.com                             │ ███████░  92       │       3d │    ✓    │    ✓    │   ✓    │  200     │
+│ combosquat                                   │                    │          │         │         │        │          │
+│ "GitHub - Security Update Required"          │                    │          │         │         │        │          │
+│ bithub.com                                   │ █████░░░  68       │       2y │    ✓    │    —    │   ✓    │  301     │
+│ typo                                         │                    │          │         │         │        │          │
+│ githuub.com                                  │ ████░░░░  48       │      8mo │    ✓    │    —    │   —    │  404     │
+│ typo                                         │                    │          │         │         │        │          │
+└──────────────────────────────────────────────┴────────────────────┴──────────┴─────────┴─────────┴────────┴──────────┘
+Permutations: 143 · registered: 3 · med: 1 · high: 1 · crit: 1
 ```
 
-Age values shown in red when `< 30 days` — a recently registered lookalike is almost always malicious.
+- **Verdict banner** (`⚠ 3 registered…`) appears above the table — red when criticals exist, green "✓ clean" when none.
+- **Age column** is red for domains registered within 30 days — the strongest phishing predictor.
+- **Page title** shown as a third line for `high`/`critical` rows (e.g. `"GitHub - Security Update Required"`).
+- **⚑** marks domains that redirect back to the original — likely defensive registrations.
 
 ## Interpreting results
 
@@ -236,16 +274,16 @@ a human does the rest.
 ```
 otacon/
 ├── permutations.py   # variant generation engine (6 techniques)
-├── resolver.py       # async DNS/MX/SSL/HTTP + WHOIS (semaphore + connection pooling)
-├── whois.py          # async WHOIS lookup — domain age signal
-├── scoring.py        # transparent rule-based risk engine (0-100)
-├── reporters.py      # output: table / json / markdown
+├── resolver.py       # async DNS/MX/SSL/HTTP + page-title parsing (semaphore + pooling)
+├── whois.py          # async WHOIS lookup — domain age scoring signal
+├── scoring.py        # transparent rule-based risk engine (0-100, with reasons)
+├── reporters.py      # table / json / markdown + verdict banner + risk bar
 ├── state.py          # baseline persistence for watch mode (~/.otacon/<domain>.json)
 ├── watch.py          # diff engine + watch-mode loop (NEW/CHANGED/GONE)
-├── models.py         # Pydantic models (type safety + serialization)
-├── theme.py          # consistent color palette (single source of truth)
-├── interactive.py    # interactive prompt mode (questionary)
-└── cli.py            # Typer + Rich entrypoint
+├── models.py         # Pydantic models (type safety + JSON serialization)
+├── theme.py          # Watcher mark banner + color palette (single source of truth)
+├── interactive.py    # interactive prompt + post-scan action loop
+└── cli.py            # Typer + Rich entrypoint (scan / watch / generate)
 ```
 
 Design decisions:
