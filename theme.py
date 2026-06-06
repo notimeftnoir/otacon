@@ -83,11 +83,10 @@ class RiskLevel(str, Enum):
         return cls.SAFE
 
 
-# ASCII banner — shown at startup. Kept here to keep cli.py clean.
-# Simple radar/antenna logo that stays terminal-friendly and easy to read.
-_LOGO_TOP = " [brand.dim]┌─[/][brand]⊙[/][brand.dim]─┐[/]  [brand]OTACON[/]"
-_LOGO_BOT = " [brand.dim]└───┘[/]  [muted]domain impersonation detector[/]"
+# ASCII banner — Watcher mark (screen + watching eye).
+_LOGO_TOP = " [brand]┌─────┐[/]"
+_LOGO_MID = " [brand]│[/]  [brand]◉[/]  [brand]│[/]  [brand]OTACON[/]"
+_LOGO_BOT = " [brand]└─────┘[/]  [muted]domain impersonation detector[/]"
 _BAR = "[ok]█[/][info]█[/][warn]█[/][danger]█[/][crit.bar]█[/]"
 _LEGEND = "[ok]safe[/] [info]low[/] [warn]med[/] [danger]high[/] [crit.bar]crit[/]"
-
-BANNER = f"\n{_LOGO_TOP}\n{_LOGO_BOT}\n       {_BAR} {_LEGEND}\n"
+BANNER = f"\n{_LOGO_TOP}\n{_LOGO_MID}\n{_LOGO_BOT}\n          {_BAR} {_LEGEND}\n"
