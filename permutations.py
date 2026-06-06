@@ -211,7 +211,7 @@ def _idn_squats(label: str) -> set[str]:
             ace = variant.encode("idna").decode("ascii")
             if ace.startswith("xn--"):
                 out.add(ace)
-        except (UnicodeError, UnicodeDecodeError):
+        except UnicodeError:
             continue
     out.discard(label)
     return out

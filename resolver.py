@@ -167,12 +167,3 @@ class Resolver:
                 # every other concurrent check_one coroutine.
                 return DomainResult(domain=perm.domain, kind=perm.kind, note=perm.note)
 
-    async def check_all(self, perms: list[Permutation]) -> list[DomainResult]:
-        """Checks all variants concurrently.
-
-        return_exceptions=True ensures a single unexpected failure does not abort
-        the whole scan; failed checks are dropped rather than raised.
-        """
-        tasks = [self.check_one(p) for p in perms]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        return [r for r in results if isinstance(r, DomainResult)]

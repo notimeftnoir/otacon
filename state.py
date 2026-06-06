@@ -7,17 +7,27 @@ to ``~/.otacon/<domain>.json`` so subsequent runs can diff against it.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import DomainResult
 
 _OTACON_DIR = ".otacon"
+_SAFE_DOMAIN_RE = re.compile(r"[^\w.\-]")
+
+
+def _safe_filename(domain: str) -> str:
+    """Strips characters that could cause path traversal (e.g. '/', '\\', '..').
+
+    Only word chars, dots, and hyphens survive — every valid FQDN stays intact.
+    """
+    return _SAFE_DOMAIN_RE.sub("_", domain)
 
 
 def baseline_path(domain: str, home: Path | None = None) -> Path:
     """Returns the path to the baseline file for *domain*."""
-    return (home or Path.home()) / _OTACON_DIR / f"{domain}.json"
+    return (home or Path.home()) / _OTACON_DIR / f"{_safe_filename(domain)}.json"
 
 
 def load_baseline(domain: str, home: Path | None = None) -> dict[str, dict] | None:
