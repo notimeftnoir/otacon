@@ -150,6 +150,46 @@ def _verdict_banner(report: ScanReport) -> Text:
     return t
 
 
+def build_live_table(hits: list[DomainResult], domain: str) -> Table:
+    """Partial results table for the live scan view — registered hits only, sorted by score.
+
+    Designed to be passed into a rich.Live renderable alongside a Progress bar.
+    """
+    title = Text()
+    title.append("Otacon", style="brand")
+    title.append(" · target: ")
+    title.append(domain, style="value")
+
+    table = Table(
+        title=title,
+        title_justify="left",
+        header_style="field",
+        expand=True,
+        border_style="brand.dim",
+        show_lines=False,
+    )
+    table.add_column("Domain", no_wrap=False, min_width=30)
+    table.add_column("Risk", width=14)
+    table.add_column("Age", width=6, justify="right")
+    table.add_column("DNS", width=5, justify="center")
+    table.add_column("MX", width=5, justify="center")
+    table.add_column("SSL", width=5, justify="center")
+    table.add_column("HTTP", width=7, justify="center")
+
+    for r in sorted(hits, key=lambda r: r.risk_score, reverse=True):
+        table.add_row(
+            _domain_cell(r),
+            _risk_bar(r.risk_score, _BAR_STYLE[r.risk_level]),
+            _age_cell(r.age_days),
+            _check(r.resolves),
+            _check(r.has_mx),
+            _check(r.has_ssl),
+            _http_cell(r.http_status),
+        )
+
+    return table
+
+
 def render_table(report: ScanReport, console: Console, show_safe: bool = False) -> None:
     """Renders results as a colored terminal table (Option B layout).
 

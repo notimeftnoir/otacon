@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import asyncio
 import webbrowser
+from pathlib import Path
 
 import questionary
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import prompt as _pt_prompt
 from prompt_toolkit.validation import ValidationError, Validator
-from rich.console import Console
+from rich.console import Console, Group
+from rich.live import Live
 from rich.markup import escape
 from rich.progress import (
     BarColumn,
@@ -164,6 +166,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
         _scan(domain, concurrency=_DEFAULT_CONCURRENCY, check_http=check_http, console=console)
     )
     reporters.render_table(report, console, show_safe=show_all)
+    _suggest_defensive_whitelist(report, console)
     _action_loop(report, domain, console, check_http=check_http)
 
 
@@ -221,7 +224,6 @@ def _export_result(result: DomainResult, console: Console) -> None:
     ).ask()
     if filename is None:
         return
-    from pathlib import Path
     try:
         Path(filename).write_text(result.model_dump_json(indent=2), encoding="utf-8")
         console.print(f"[ok]→ Saved:[/ok] [url]{escape(filename)}[/url]")
@@ -242,6 +244,29 @@ def _rescan_result(
 
     raw = asyncio.run(_run())
     return scoring.score(raw, target)
+
+
+def _suggest_defensive_whitelist(report: ScanReport, console: Console) -> None:
+    """After a scan, if ⚑ defensive domains were found, offer to write them to whitelist.txt."""
+    defensive = [r for r in report.registered if r.is_likely_defensive]
+    if not defensive:
+        return
+    console.print(
+        f"[warn]⚑  {len(defensive)} domain(s) appear defensive "
+        f"(redirect → original). Add to whitelist?[/warn]"
+    )
+    if _confirm("Write to whitelist.txt?") is not True:
+        return
+    path = Path("whitelist.txt")
+    existing = set(path.read_text(encoding="utf-8").splitlines()) if path.exists() else set()
+    new_entries = [r.domain for r in defensive if r.domain not in existing]
+    if new_entries:
+        with path.open("a", encoding="utf-8") as f:
+            for d in new_entries:
+                f.write(d + "\n")
+        console.print(f"[ok]→ Added {len(new_entries)} domain(s) to {path}[/ok]")
+    else:
+        console.print("[muted]All already in whitelist.[/muted]")
 
 
 def _action_loop(
@@ -338,21 +363,28 @@ async def _scan(domain: str, concurrency: int, check_http: bool, console: Consol
     if not perms:
         return report
 
-    with Progress(
+    hits: list[DomainResult] = []
+
+    progress = Progress(
         SpinnerColumn(style="brand"),
         TextColumn("[field]{task.description}"),
         BarColumn(complete_style="brand", finished_style="ok"),
         TextColumn("[muted]{task.completed}/{task.total}"),
         TimeElapsedColumn(),
         console=console,
-        transient=True,
-    ) as progress:
-        task = progress.add_task("Checking variants", total=len(perms))
+    )
+    task_id = progress.add_task("Checking variants", total=len(perms))
+
+    with Live(progress, console=console, refresh_per_second=4, transient=True) as live:
         async with Resolver(concurrency=concurrency, check_http=check_http) as resolver:
             coros = [resolver.check_one(p) for p in perms]
             for coro in asyncio.as_completed(coros):
                 result = await coro
-                report.results.append(scoring.score(result, domain))
-                progress.advance(task)
+                scored = scoring.score(result, domain)
+                report.results.append(scored)
+                progress.advance(task_id)
+                if scored.is_registered:
+                    hits.append(scored)
+                    live.update(Group(progress, reporters.build_live_table(hits, domain)))
 
     return report

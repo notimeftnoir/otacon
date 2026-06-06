@@ -42,8 +42,22 @@ def _banner() -> None:
     console.print(BANNER)
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        from . import __version__
+        console.print(f"[brand]otacon[/brand] [value]{__version__}[/value]")
+        raise typer.Exit()
+
+
 @app.callback(invoke_without_command=True)
-def _main(ctx: typer.Context) -> None:
+def _main(
+    ctx: typer.Context,
+    version: bool = typer.Option(  # noqa: B008
+        False, "--version", "-V",
+        callback=_version_callback, is_eager=True,
+        help="Print version and exit.",
+    ),
+) -> None:
     """Shows the banner before any command; enters interactive mode when run bare."""
     _banner()
     if ctx.invoked_subcommand is None:
@@ -120,6 +134,9 @@ def scan(
     md_out: Path = typer.Option(
         None, "--markdown", "--md", help="Write the Markdown report to a file."
     ),
+    html_out: Path = typer.Option(
+        None, "--html", help="Write a self-contained HTML report to a file."
+    ),
     no_http: bool = typer.Option(
         False, "--no-http", help="Skip HTTP/SSL probing (faster, fewer signals)."
     ),
@@ -177,6 +194,14 @@ def scan(
             console.print(f"[ok]\u2192 Markdown saved:[/ok] [url]{md_out}[/url]")
         except OSError as exc:
             console.print(f"[danger]Error saving Markdown: {exc}[/danger]")
+
+    if html_out:
+        try:
+            from .html_report import to_html
+            html_out.write_text(to_html(report), encoding="utf-8")
+            console.print(f"[ok]\u2192 HTML saved:[/ok] [url]{html_out}[/url]")
+        except OSError as exc:
+            console.print(f"[danger]Error saving HTML: {exc}[/danger]")
 
     if fail_on is not None:
         threshold = RiskLevel(fail_on.value)

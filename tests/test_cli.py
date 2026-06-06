@@ -162,6 +162,13 @@ def test_watch_command_invalid_interval_exits_1(tmp_path, monkeypatch) -> None:
     assert result.exit_code == 1
 
 
+def test_version_flag_prints_version() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "otacon" in result.output
+
+
 def test_watch_command_runs_single_scan(tmp_path, monkeypatch) -> None:
     """Single-shot watch (no --interval) runs once, writes baseline, exits 0."""
     from otacon.models import ScanReport

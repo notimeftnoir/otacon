@@ -15,6 +15,7 @@ from otacon.reporters import (
     _risk_bar,
     _verdict_banner,
     _verdict_banner_md,
+    build_live_table,
     render_table,
     to_json,
     to_markdown,
@@ -459,3 +460,51 @@ def test_render_table_shows_verdict_banner_above_table():
     banner_pos = output.find("registered")
     table_pos = output.find("Domain")
     assert banner_pos < table_pos
+
+
+# ---------------------------------------------------------------------------
+# Live table (Task 07)
+# ---------------------------------------------------------------------------
+
+def _make_hit(domain: str, score: int, level: RiskLevel) -> DomainResult:
+    return DomainResult(
+        domain=domain,
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=score,
+        risk_level=level,
+    )
+
+
+def test_build_live_table_returns_table_with_columns():
+    from rich.table import Table
+    hits = [_make_hit("exmaple.com", 40, RiskLevel.MEDIUM)]
+    table = build_live_table(hits, "example.com")
+    assert isinstance(table, Table)
+    assert len(table.columns) == 7
+
+
+def test_build_live_table_empty_hits_has_no_rows():
+    table = build_live_table([], "example.com")
+    assert table.row_count == 0
+
+
+def test_build_live_table_sorts_by_score_descending():
+    hits = [
+        _make_hit("low.com", 20, RiskLevel.LOW),
+        _make_hit("crit.com", 90, RiskLevel.CRITICAL),
+        _make_hit("med.com", 50, RiskLevel.MEDIUM),
+    ]
+    table = build_live_table(hits, "example.com")
+    assert table.row_count == 3
+    # Rich Table stores cells as renderables; extract plain text from first column
+    first_cell = table.columns[0]._cells[0]
+    assert "crit.com" in (first_cell.plain if hasattr(first_cell, "plain") else str(first_cell))
+
+
+def test_build_live_table_includes_domain_name():
+    hits = [_make_hit("evil-example.com", 60, RiskLevel.HIGH)]
+    table = build_live_table(hits, "example.com")
+    cell = table.columns[0]._cells[0]
+    text = cell.plain if hasattr(cell, "plain") else str(cell)
+    assert "evil-example.com" in text

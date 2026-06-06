@@ -109,3 +109,92 @@ def test_no_invalid_dns_chars_in_homoglyphs():
         assert "@" not in label
         assert "(" not in label
         assert "$" not in label
+
+
+# --- Task 04: new techniques ---
+
+def test_soundsquat_ph_to_f():
+    """'ph' → 'f' substitution: phish.com should produce fish.com."""
+    perms = permutations.generate("phish.com")
+    domains = {p.domain for p in perms if p.kind == PermutationType.SOUNDSQUAT}
+    assert "fish.com" in domains
+
+
+def test_soundsquat_f_to_ph():
+    """'f' → 'ph' substitution (two-char expansion cannot be a bitsquat)."""
+    perms = permutations.generate("fish.com")
+    domains = {p.domain for p in perms if p.kind == PermutationType.SOUNDSQUAT}
+    assert "phish.com" in domains
+
+
+def test_soundsquat_no_self():
+    """Soundsquat never returns the original label unchanged."""
+    perms = permutations.generate("facebook.com")
+    domains = {p.domain for p in perms if p.kind == PermutationType.SOUNDSQUAT}
+    assert "facebook.com" not in domains
+
+
+def test_vowel_swap_produces_variants():
+    """Vowel substitution generates at least one variant for a vowel-containing domain."""
+    perms = permutations.generate("bank.com")
+    vs = [p for p in perms if p.kind == PermutationType.VOWEL_SWAP]
+    assert len(vs) > 0
+
+
+def test_vowel_swap_replaces_vowels():
+    """Vowel-swap result differs from original only in vowel positions."""
+    perms = permutations.generate("test.com")
+    domains = {p.domain for p in perms if p.kind == PermutationType.VOWEL_SWAP}
+    # 'e' in 'test' can become a, i, o, u
+    assert any(d.startswith("tast") or d.startswith("tist") or
+               d.startswith("tost") or d.startswith("tust") for d in domains)
+
+
+def test_plural_adds_s():
+    """Singular domain gets an -s variant."""
+    perms = permutations.generate("bank.com")
+    domains = {p.domain for p in perms if p.kind == PermutationType.PLURAL}
+    assert "banks.com" in domains
+
+
+def test_plural_y_to_ies():
+    """y → ies pluralization is multi-char and never conflicts with typo/bitsquat."""
+    perms = permutations.generate("company.com")
+    domains = {p.domain for p in perms if p.kind == PermutationType.PLURAL}
+    assert "companies.com" in domains
+
+
+def test_subdomain_spoof_present():
+    """Subdomain spoof embeds the original domain as a label of a spoof registrar."""
+    perms = permutations.generate("example.com")
+    subdomains = [p for p in perms if p.kind == PermutationType.SUBDOMAIN]
+    assert len(subdomains) > 0
+    assert any(p.domain.startswith("example.com.") for p in subdomains)
+
+
+def test_subdomain_spoof_uses_all_suffixes():
+    """One variant per spoof suffix is generated."""
+    from otacon.permutations import _SPOOF_SUFFIXES
+    perms = permutations.generate("example.com")
+    sub_domains = {p.domain for p in perms if p.kind == PermutationType.SUBDOMAIN}
+    for suffix in _SPOOF_SUFFIXES:
+        assert f"example.com.{suffix}" in sub_domains
+
+
+def test_idn_variants_are_ascii():
+    """IDN variants are punycode-encoded ASCII, starting with xn--."""
+    perms = permutations.generate("paypal.com")
+    idn = [p for p in perms if p.kind == PermutationType.IDN]
+    if idn:  # may be empty if no encodeable homoglyphs for this input
+        for p in idn:
+            label = p.domain.split(".")[0]
+            assert label.isascii()
+            assert label.startswith("xn--")
+
+
+def test_idn_not_duplicated_by_homoglyph():
+    """IDN variants (xn-- labels) do not appear in the homoglyph set."""
+    perms = permutations.generate("paypal.com")
+    homoglyph_domains = {p.domain for p in perms if p.kind == PermutationType.HOMOGLYPH}
+    idn_domains = {p.domain for p in perms if p.kind == PermutationType.IDN}
+    assert homoglyph_domains.isdisjoint(idn_domains)

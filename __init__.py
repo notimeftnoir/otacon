@@ -2,5 +2,9 @@
 
 A toolkit for detecting typosquatting, homoglyph attacks and combosquatting.
 """
+from importlib.metadata import PackageNotFoundError, version
 
-__version__ = "1.0.0"
+try:
+    __version__ = version("otacon")
+except PackageNotFoundError:
+    __version__ = "dev"

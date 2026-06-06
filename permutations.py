@@ -42,6 +42,21 @@ _HOMOGLYPHS: dict[str, list[str]] = {
     "d": ["cl"],
 }
 
+# Phonetic substitution pairs — how words *sound* can look like the original.
+_SOUND_ALIASES: list[tuple[str, str]] = [
+    ("ph", "f"), ("f", "ph"), ("ck", "k"), ("c", "k"), ("k", "c"),
+    ("z", "s"), ("s", "z"), ("x", "ks"), ("ks", "x"),
+]
+
+# Suffixes used in subdomain spoofing — attacker registers these and puts the
+# real domain as a subdomain label (e.g. paypal.com.login.net).
+_SPOOF_SUFFIXES: tuple[str, ...] = (
+    "login.com", "login.net", "secure.net", "update.com",
+    "verify.org", "auth.io", "account.net", "portal.com",
+)
+
+_VOWELS = "aeiou"
+
 # Words appended in combosquatting — typical for phishing.
 _COMBO_KEYWORDS: tuple[str, ...] = (
     "login", "secure", "account", "verify", "support", "update",
@@ -145,6 +160,63 @@ def _hyphenation(label: str) -> set[str]:
     return out
 
 
+def _soundsquats(label: str) -> set[str]:
+    """Phonetic substitution: replace sound-alike sequences (ph/f, c/k, s/z…)."""
+    out: set[str] = set()
+    for old, new in _SOUND_ALIASES:
+        start = 0
+        while (idx := label.find(old, start)) != -1:
+            out.add(label[:idx] + new + label[idx + len(old):])
+            start = idx + 1
+    out.discard(label)
+    out.discard("")
+    return out
+
+
+def _vowel_swaps(label: str) -> set[str]:
+    """Replace each vowel with every other vowel (one substitution at a time)."""
+    out: set[str] = set()
+    for i, ch in enumerate(label):
+        if ch in _VOWELS:
+            for v in _VOWELS:
+                if v != ch:
+                    out.add(label[:i] + v + label[i + 1:])
+    out.discard(label)
+    return out
+
+
+def _plurals(label: str) -> set[str]:
+    """Singular/plural variation: add -s, strip -s, y <-> ies."""
+    out: set[str] = set()
+    if label.endswith("ies") and len(label) > 3:
+        out.add(label[:-3] + "y")
+    elif label.endswith("s") and len(label) > 1:
+        out.add(label[:-1])
+    else:
+        out.add(label + "s")
+        if label.endswith("y") and len(label) > 1:
+            out.add(label[:-1] + "ies")
+    out.discard(label)
+    out.discard("")
+    return out
+
+
+def _idn_squats(label: str) -> set[str]:
+    """Punycode-encode non-ASCII homoglyph variants → xn-- ACE labels."""
+    out: set[str] = set()
+    for variant in _homoglyphs(label):
+        if variant.isascii():
+            continue
+        try:
+            ace = variant.encode("idna").decode("ascii")
+            if ace.startswith("xn--"):
+                out.add(ace)
+        except (UnicodeError, UnicodeDecodeError):
+            continue
+    out.discard(label)
+    return out
+
+
 def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
     """Main generator — runs all techniques and deduplicates the result.
 
@@ -173,6 +245,9 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
         (PermutationType.TYPO, _typos(label), "typo / keyboard error"),
         (PermutationType.BITSQUAT, _bitsquats(label), "bit-flip (memory error)"),
         (PermutationType.HYPHEN, _hyphenation(label), "hyphen modification"),
+        (PermutationType.SOUNDSQUAT, _soundsquats(label), "phonetic substitution"),
+        (PermutationType.VOWEL_SWAP, _vowel_swaps(label), "vowel substitution"),
+        (PermutationType.PLURAL, _plurals(label), "plural/singular variation"),
         (PermutationType.COMBO, _combos(label), "appended bait word"),
     ]
 
@@ -184,7 +259,19 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
             seen.add(fqdn)
             result.append(Permutation(domain=fqdn, kind=kind, note=note))
 
-    # TLD swap — handled separately, since it changes the TLD instead of the label.
+    # IDN — punycode encoding of non-ASCII homoglyph labels.
+    for v in sorted(_idn_squats(label)):
+        fqdn = f"{v}.{tld}" if tld else v
+        if fqdn in seen:
+            continue
+        seen.add(fqdn)
+        result.append(
+            Permutation(
+                domain=fqdn, kind=PermutationType.IDN, note="ACE/punycode unicode homoglyph"
+            )
+        )
+
+    # TLD swap — changes the TLD instead of the label.
     if tld:
         for alt in _ALT_TLDS:
             if alt == tld:
@@ -200,5 +287,19 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
                     note=f"different TLD (.{alt})",
                 )
             )
+
+    # Subdomain spoof — original domain embedded as a label in a spoof registrar.
+    for suffix in _SPOOF_SUFFIXES:
+        fqdn = f"{domain.lower().rstrip('.')}.{suffix}"
+        if fqdn in seen:
+            continue
+        seen.add(fqdn)
+        result.append(
+            Permutation(
+                domain=fqdn,
+                kind=PermutationType.SUBDOMAIN,
+                note=f"original domain as subdomain of .{suffix}",
+            )
+        )
 
     return result

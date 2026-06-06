@@ -20,10 +20,15 @@ from .theme import RiskLevel
 
 _KIND_BASE: dict[PermutationType, int] = {
     PermutationType.HOMOGLYPH: 25,
+    PermutationType.IDN: 25,
+    PermutationType.SUBDOMAIN: 22,
+    PermutationType.COMBO: 20,
     PermutationType.TYPO: 18,
+    PermutationType.SOUNDSQUAT: 16,
     PermutationType.BITSQUAT: 15,
     PermutationType.HYPHEN: 12,
-    PermutationType.COMBO: 20,
+    PermutationType.VOWEL_SWAP: 14,
+    PermutationType.PLURAL: 10,
     PermutationType.TLD_SWAP: 10,
 }
 

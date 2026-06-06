@@ -1,0 +1,39 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write   # required for OIDC trusted publishing
+
+jobs:
+  publish:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install system deps (c-ares for aiodns)
+        run: sudo apt-get install -y libc-ares-dev
+
+      - name: Install dev extras (run tests before publish)
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest
+
+      - name: Build distribution
+        run: pip install build && python -m build
+
+      - name: Publish to PyPI (trusted publishing — no token needed)
+        uses: pypa/gh-action-pypi-publish@release/v1

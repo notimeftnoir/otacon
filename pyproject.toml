@@ -1,18 +1,29 @@
 [project]
 name = "otacon"
 version = "1.0.0"
-description = "Domain impersonation detector — typosquatting, homoglyph & combosquat detection for pentesters and blue teams."
+description = "Domain impersonation detector — typosquatting, homoglyph & combosquat detection."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Gabriel" }]
-keywords = ["security", "typosquatting", "osint", "phishing", "domain-monitoring", "pentest"]
+keywords = [
+    "security", "typosquatting", "osint", "phishing",
+    "domain-monitoring", "pentest", "blue-team", "threat-intelligence",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Topic :: Security",
+    "Topic :: Internet :: Name Service (DNS)",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
 ]
 
 dependencies = [
@@ -22,6 +33,7 @@ dependencies = [
     "aiodns>=3.1.0",
     "pydantic>=2.6.0",
     "questionary>=2.0.0",
+    "prompt_toolkit>=3.0.0",
     "asyncwhois>=1.1.0",
 ]
 
@@ -29,19 +41,32 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "respx>=0.20.0",
     "ruff>=0.3.0",
+    "build>=1.0.0",
 ]
 
 [project.scripts]
 otacon = "otacon.cli:app"
 
 [project.urls]
+Homepage = "https://github.com/notimeftnoir/otacon"
 Repository = "https://github.com/notimeftnoir/otacon"
 Issues = "https://github.com/notimeftnoir/otacon/issues"
+Changelog = "https://github.com/notimeftnoir/otacon/blob/main/CHANGELOG.md"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+# The project root IS the otacon package — search one level up to find it.
+[tool.setuptools.packages.find]
+where = [".."]
+include = ["otacon*"]
+exclude = ["otacon.tests*", "otacon.build*", "otacon.dist*"]
+
+[tool.setuptools.package-data]
+otacon = ["py.typed"]
 
 [tool.ruff]
 line-length = 100

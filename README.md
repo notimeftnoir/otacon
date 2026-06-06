@@ -39,12 +39,15 @@ Attackers register domains deceptively similar to real ones (`github-login.com`,
 | **Domain age / WHOIS** (scoring signal) | **✓** | ✗ | ✗ |
 | **Page-title fingerprint** (high/crit rows) | **✓** | ✗ | ✗ |
 | **Transparent risk score** (0-100 + reasons) | **✓** | ✗ | ✗ |
+| **11 permutation techniques** (incl. IDN, soundsquat, subdomain) | **✓** | partial | ✗ |
+| **Live streaming table** (hits appear as detected) | **✓** | ✗ | ✗ |
 | **Watch mode** — baseline diff (NEW/CHANGED/GONE) | **✓** | ✗ | ✗ |
 | **CI/CD exit codes** (`--fail-on`) | **✓** | ✗ | ✗ |
 | **Interactive post-scan actions** (open/WHOIS/rescan/allow) | **✓** | ✗ | ✗ |
 | Concurrent async I/O | ✓ (~10 s) | threaded (~60 s) | sync (~45 s) |
 | JSON export | ✓ | ✓ | ✓ |
 | Markdown export | ✓ | ✗ | ✗ |
+| **HTML report** (self-contained, dark palette) | **✓** | ✗ | ✗ |
 | No paid APIs required | ✓ | ✓ | ✓ |
 
 > Speed figures are approximate for a 150-variant scan on a broadband connection.
@@ -54,7 +57,7 @@ Attackers register domains deceptively similar to real ones (`github-login.com`,
 
 ```
 domain → permutation engine → async resolver → scoring → report
-         (6 techniques)        (DNS/MX/SSL/HTTP)  (0-100)   (table/json/md)
+         (11 techniques)       (DNS/MX/SSL/HTTP)  (0-100)   (table/json/md)
 ```
 
 ### Variant generation techniques
@@ -62,11 +65,16 @@ domain → permutation engine → async resolver → scoring → report
 | Technique | Example (`example.com`) | Description |
 |---|---|---|
 | **Homoglyph** | `exаmple.com` (Cyrillic а) | visually identical characters (Unicode + ASCII) |
+| **IDN / Punycode** | `xn--exmple-cua.com` | ACE-encoded unicode homoglyphs |
 | **Typo** | `exmple.com`, `examlpe.com` | typos: omission, duplication, swap, QWERTY adjacency |
 | **Combosquat** | `example-login.com` | appended bait words (login, secure, verify...) |
 | **TLD swap** | `example.net`, `example.io` | same name, different TLD |
+| **Subdomain spoof** | `example.com.login.net` | real domain used as a label in a spoof registrar |
 | **Bitsquat** | `dxample.com` | bit-flip (RAM/DNS memory errors) |
 | **Hyphenation** | `ex-ample.com` | inserting/removing a hyphen |
+| **Soundsquat** | `phishing.com` → `fishing.com` | phonetic substitution (ph/f, c/k, s/z…) |
+| **Vowel swap** | `exomple.com` | replace each vowel with every other vowel |
+| **Plural** | `examples.com` | plural/singular suffix variation |
 
 ### Risk signals
 
@@ -111,7 +119,7 @@ source .venv/bin/activate          # Linux / macOS
 # .venv\Scripts\activate           # Windows (PowerShell)
 
 pip install -e ".[dev]"
-otacon
+otacon --version
 ```
 
 > **Note (macOS / Kali):** the `aiodns` dependency needs the `c-ares` system library.
@@ -166,6 +174,9 @@ otacon scan example.com --json report.json
 
 # Markdown — ready to paste into a ticket/issue
 otacon scan example.com --markdown report.md
+
+# HTML — self-contained dark-palette report (open in browser, share as file)
+otacon scan example.com --html report.html
 ```
 
 ### Options

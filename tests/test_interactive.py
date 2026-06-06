@@ -12,6 +12,7 @@ from otacon.interactive import (
     _interactive_scan,
     _rescan_result,
     _show_whois,
+    _suggest_defensive_whitelist,
     _validate_domain,
     _validate_limit,
     run,
@@ -460,3 +461,61 @@ def test_rescan_result_returns_scored_domain_result():
 
     assert result.domain == "googel.com"
     mock_scoring.score.assert_called_once_with(fresh, "example.com")
+
+
+# ---------------------------------------------------------------------------
+# _suggest_defensive_whitelist (Task 07)
+# ---------------------------------------------------------------------------
+
+def _defensive() -> DomainResult:
+    return DomainResult(
+        domain="googel.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        is_likely_defensive=True,
+        redirects_to="https://google.com",
+        risk_score=30,
+        risk_level=RiskLevel.LOW,
+    )
+
+
+def test_suggest_defensive_whitelist_silent_when_no_defensive():
+    """No defensive domains → function is a no-op."""
+    report = ScanReport(target="example.com", total_permutations=5)
+    console = MagicMock()
+    _suggest_defensive_whitelist(report, console)
+    console.print.assert_not_called()
+
+
+def test_suggest_defensive_whitelist_prints_message():
+    """Defensive domain found → prints a warning with the count."""
+    r = _defensive()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive._confirm", return_value=False):
+        console = MagicMock()
+        _suggest_defensive_whitelist(report, console)
+    assert console.print.called
+    printed = " ".join(str(c) for c in console.print.call_args_list)
+    assert "1" in printed
+
+
+def test_suggest_defensive_whitelist_writes_file_on_yes(tmp_path, monkeypatch):
+    """Answering y writes the defensive domain to whitelist.txt in cwd."""
+    monkeypatch.chdir(tmp_path)
+    r = _defensive()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive._confirm", return_value=True):
+        _suggest_defensive_whitelist(report, MagicMock())
+    wl = tmp_path / "whitelist.txt"
+    assert wl.exists()
+    assert "googel.com" in wl.read_text()
+
+
+def test_suggest_defensive_whitelist_no_file_on_no(tmp_path, monkeypatch):
+    """Answering n writes nothing."""
+    monkeypatch.chdir(tmp_path)
+    r = _defensive()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive._confirm", return_value=False):
+        _suggest_defensive_whitelist(report, MagicMock())
+    assert not (tmp_path / "whitelist.txt").exists()

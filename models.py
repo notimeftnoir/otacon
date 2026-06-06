@@ -30,6 +30,11 @@ class PermutationType(str, Enum):
     TLD_SWAP = "tld-swap"          # TLD change: .com -> .net
     BITSQUAT = "bitsquat"          # bit-flip (memory errors)
     HYPHEN = "hyphenation"         # adding/removing a hyphen
+    SOUNDSQUAT = "soundsquat"      # phonetic substitution (ph/f, c/k, s/z …)
+    SUBDOMAIN = "subdomain"        # original domain as subdomain of spoof registrar
+    VOWEL_SWAP = "vowel-swap"      # replace each vowel with every other vowel
+    PLURAL = "plural"              # plural / singular suffix variation
+    IDN = "idn"                    # ACE/punycode encoding of unicode homoglyph
 
 
 class Permutation(BaseModel):
