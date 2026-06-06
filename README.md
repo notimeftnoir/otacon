@@ -116,9 +116,20 @@ cd otacon
 
 python3 -m venv .venv
 source .venv/bin/activate          # Linux / macOS
-# .venv\Scripts\activate           # Windows (PowerShell)
+.venv\Scripts\activate             # Windows (PowerShell)
+```
 
+Then install — pick one:
+
+```bash
+# Editable install with dev extras (recommended)
 pip install -e ".[dev]"
+
+# Or from pinned requirements files
+pip install -r requirements-dev.txt
+```
+
+```bash
 otacon --version
 ```
 
