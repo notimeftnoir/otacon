@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from enum import Enum
 from pathlib import Path
+
+# Windows ProactorEventLoop raises ConnectionResetError (WinError 10054) on
+# normal HTTP connection teardowns. SelectorEventLoop doesn't have this issue.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 import typer
 from rich.console import Console
