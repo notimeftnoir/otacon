@@ -58,6 +58,9 @@ class DomainResult(BaseModel):
     server_header: str | None = None
     redirects_to: str | None = None
 
+    # Page title — parsed from HTML body on 2xx responses; None when absent/failed.
+    page_title: str | None = None
+
     # WHOIS — filled for registered domains only; None when lookup fails.
     created_at: datetime | None = None
     age_days: int | None = None

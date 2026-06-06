@@ -14,6 +14,7 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
@@ -93,8 +94,12 @@ def _age_cell(age_days: int | None) -> Text:
     return Text(label, style="value")
 
 
+_HIGH_RISK_LEVELS = {RiskLevel.HIGH, RiskLevel.CRITICAL}
+
+
 def _domain_cell(result: DomainResult) -> Text:
-    """Domain name + dim technique subtitle. ⚑ redirect host appended when defensive."""
+    """Domain name + dim technique subtitle. ⚑ redirect host appended when defensive.
+    Page title shown for high/critical rows."""
     t = Text()
     t.append(result.domain, style="value")
     t.append("\n")
@@ -102,6 +107,9 @@ def _domain_cell(result: DomainResult) -> Text:
     if result.is_likely_defensive and result.redirects_to:
         t.append("  ⚑ → ", style="warn")
         t.append(_redirect_host(result.redirects_to), style="warn")
+    if result.page_title and result.risk_level in _HIGH_RISK_LEVELS:
+        t.append("\n")
+        t.append(f'"{escape(result.page_title)}"', style="muted")
     return t
 
 

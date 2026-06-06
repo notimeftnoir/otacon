@@ -14,6 +14,7 @@ take minutes; here, seconds.
 from __future__ import annotations
 
 import asyncio
+import re
 import ssl
 import warnings
 
@@ -22,6 +23,18 @@ import httpx
 
 from .models import DomainResult, Permutation
 from .whois import fetch_domain_age
+
+_TITLE_RE = re.compile(r"<title[^>]*>([^<]{1,200})", re.IGNORECASE | re.DOTALL)
+_TITLE_MAX = 80
+
+
+def _parse_title(html: str) -> str | None:
+    """Extracts and cleans <title> text from an HTML snippet. Returns None when absent."""
+    m = _TITLE_RE.search(html)
+    if not m:
+        return None
+    title = " ".join(m.group(1).split())  # collapse whitespace
+    return title[:_TITLE_MAX] if title else None
 
 # We intentionally probe with verify=False (suspicious certs are the point),
 # so silence the resulting urllib3/httpx warning to keep output clean.
@@ -91,18 +104,23 @@ class Resolver:
         except (OSError, asyncio.TimeoutError, ssl.SSLError, UnicodeError):
             return False
 
-    async def _probe_http(self, domain: str) -> tuple[int | None, str | None, str | None]:
-        """Tries HTTPS, then HTTP. Returns (status, server, redirect_target)."""
+    async def _probe_http(
+        self, domain: str
+    ) -> tuple[int | None, str | None, str | None, str | None]:
+        """Tries HTTPS, then HTTP. Returns (status, server, redirect_target, page_title)."""
         if self._http is None:
             raise RuntimeError("Resolver._probe_http called outside async context manager")
         for scheme in ("https", "http"):
             try:
                 resp = await self._http.get(f"{scheme}://{domain}")
                 location = resp.headers.get("location")
-                return resp.status_code, resp.headers.get("server"), location
+                title: str | None = None
+                if 200 <= resp.status_code < 300:
+                    title = _parse_title(resp.text)
+                return resp.status_code, resp.headers.get("server"), location, title
             except (httpx.HTTPError, UnicodeError, OSError):
                 continue
-        return None, None, None
+        return None, None, None, None
 
     async def check_one(self, perm: Permutation) -> DomainResult:
         """Full check of a single variant. Bounded by the semaphore."""
@@ -123,7 +141,7 @@ class Resolver:
 
             # SSL and HTTP only make sense when there's an IP to connect to.
             if result.resolves and self._check_http:
-                ssl_ok, (status, server, redirect) = await asyncio.gather(
+                ssl_ok, (status, server, redirect, title) = await asyncio.gather(
                     self._check_ssl(perm.domain),
                     self._probe_http(perm.domain),
                 )
@@ -131,6 +149,7 @@ class Resolver:
                 result.http_status = status
                 result.server_header = server
                 result.redirects_to = redirect
+                result.page_title = title
 
             # WHOIS only for registered domains — unregistered aren't worth the quota.
             if result.is_registered:

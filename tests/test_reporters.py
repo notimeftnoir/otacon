@@ -274,3 +274,68 @@ def test_json_export_includes_created_at():
     assert "created_at" in json_str
     assert "2024-01-15" in json_str
     assert "age_days" in json_str
+
+
+# ---------------------------------------------------------------------------
+# Page title (Task 03)
+# ---------------------------------------------------------------------------
+
+def test_domain_cell_shows_page_title_for_high_risk():
+    r = DomainResult(
+        domain="googel.com",
+        kind=PermutationType.TYPO,
+        page_title="Sign in to Google",
+        risk_level=RiskLevel.HIGH,
+    )
+    cell = _domain_cell(r)
+    assert "Sign in to Google" in cell.plain
+
+
+def test_domain_cell_shows_page_title_for_critical_risk():
+    r = DomainResult(
+        domain="googel.com",
+        kind=PermutationType.TYPO,
+        page_title="Verify your account",
+        risk_level=RiskLevel.CRITICAL,
+    )
+    cell = _domain_cell(r)
+    assert "Verify your account" in cell.plain
+
+
+def test_domain_cell_hides_page_title_for_medium_risk():
+    r = DomainResult(
+        domain="googel.com",
+        kind=PermutationType.TYPO,
+        page_title="Some page",
+        risk_level=RiskLevel.MEDIUM,
+    )
+    cell = _domain_cell(r)
+    assert "Some page" not in cell.plain
+
+
+def test_domain_cell_no_title_no_extra_line():
+    r = DomainResult(
+        domain="googel.com",
+        kind=PermutationType.TYPO,
+        page_title=None,
+        risk_level=RiskLevel.HIGH,
+    )
+    cell = _domain_cell(r)
+    # Only domain + newline + technique — no third line
+    assert cell.plain == "googel.com\ntypo"
+
+
+def test_json_export_includes_page_title():
+    report = ScanReport(target="example.com", total_permutations=5)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        page_title="Login - ExampleBank",
+        risk_score=68,
+        risk_level=RiskLevel.HIGH,
+    )
+    report.results.append(r)
+    json_str = to_json(report)
+    assert "page_title" in json_str
+    assert "Login - ExampleBank" in json_str
