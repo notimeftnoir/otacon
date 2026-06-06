@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import webbrowser
 
 import questionary
 from prompt_toolkit.formatted_text import FormattedText
@@ -19,8 +20,9 @@ from rich.progress import (
 )
 
 from . import permutations, reporters, scoring
-from .models import ScanReport
+from .models import DomainResult, Permutation, ScanReport
 from .resolver import _DEFAULT_CONCURRENCY, Resolver
+from .whois import fetch_domain_age, format_age
 
 _POINTER = "[*]"
 _QMARK = "›"
@@ -162,6 +164,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
         _scan(domain, concurrency=_DEFAULT_CONCURRENCY, check_http=check_http, console=console)
     )
     reporters.render_table(report, console, show_safe=show_all)
+    _action_loop(report, domain, console, check_http=check_http)
 
 
 def _interactive_generate(domain: str, console: Console) -> None:
@@ -187,6 +190,146 @@ def _interactive_generate(domain: str, console: Console) -> None:
         )
     if limit and len(perms) > limit:
         console.print(f"\n[muted]... and {len(perms) - limit} more[/muted]")
+
+
+def _show_whois(result: DomainResult, console: Console) -> None:
+    """Displays WHOIS registration info for a domain result."""
+    console.print(f"\n[field]WHOIS:[/field] [value]{escape(result.domain)}[/value]")
+    created, age = result.created_at, result.age_days
+    if created is None:
+        console.print("[muted]Fetching WHOIS…[/muted]")
+        created, age = asyncio.run(fetch_domain_age(result.domain))
+    if created is not None:
+        console.print(f"  [field]Created:[/field]  [value]{created:%Y-%m-%d}[/value]")
+        console.print(f"  [field]Age:[/field]     [value]{format_age(age)}[/value]")
+    else:
+        console.print("  [muted]WHOIS data unavailable for this domain[/muted]")
+    if result.ip_addresses:
+        ips = ", ".join(result.ip_addresses[:3])
+        console.print(f"  [field]IPs:[/field]     [value]{ips}[/value]")
+    if result.mx_records:
+        mx = ", ".join(result.mx_records[:3])
+        console.print(f"  [field]MX:[/field]      [value]{mx}[/value]")
+    console.print()
+
+
+def _export_result(result: DomainResult, console: Console) -> None:
+    """Saves a single domain result as a JSON file."""
+    default_name = f"{result.domain.replace('.', '_')}.json"
+    filename = questionary.text(
+        "Save as:", default=default_name, qmark=_QMARK, style=_STYLE,
+    ).ask()
+    if filename is None:
+        return
+    from pathlib import Path
+    try:
+        Path(filename).write_text(result.model_dump_json(indent=2), encoding="utf-8")
+        console.print(f"[ok]→ Saved:[/ok] [url]{escape(filename)}[/url]")
+    except OSError as exc:
+        console.print(f"[danger]Error: {exc}[/danger]")
+
+
+def _rescan_result(
+    result: DomainResult, target: str, check_http: bool, console: Console
+) -> DomainResult:
+    """Re-runs a network check for a single variant and returns the updated scored result."""
+    perm = Permutation(domain=result.domain, kind=result.kind, note=result.note)
+    console.print(f"[muted]Rescanning {escape(result.domain)}…[/muted]")
+
+    async def _run() -> DomainResult:
+        async with Resolver(check_http=check_http) as resolver:
+            return await resolver.check_one(perm)
+
+    raw = asyncio.run(_run())
+    return scoring.score(raw, target)
+
+
+def _action_loop(
+    report: ScanReport, domain: str, console: Console, check_http: bool
+) -> None:
+    """Post-scan action loop — pick a registered domain row, then act on it.
+
+    Loops until the user chooses quit or presses Ctrl+C.
+    """
+    session_allowed: set[str] = set()
+
+    while True:
+        candidates = sorted(
+            [r for r in report.registered if r.domain not in session_allowed],
+            key=lambda r: r.risk_score,
+            reverse=True,
+        )
+        if not candidates:
+            break
+
+        domain_choices = [
+            questionary.Choice(
+                f"{r.domain:<40} [{r.risk_level.value}]  score: {r.risk_score}",
+                value=r,
+            )
+            for r in candidates
+        ] + [questionary.Choice("── quit ──", value=None)]
+
+        selected: DomainResult | None = questionary.select(
+            "Domain:", choices=domain_choices, pointer=_POINTER, qmark=_QMARK, style=_STYLE,
+        ).ask()
+
+        if selected is None:
+            break
+
+        while True:
+            action = questionary.select(
+                f"Action for {selected.domain}:",
+                choices=[
+                    questionary.Choice("[o]pen   — open in browser", value="open"),
+                    questionary.Choice("[w]hois  — show registration info", value="whois"),
+                    questionary.Choice("[e]xport — save result as JSON", value="export"),
+                    questionary.Choice("[a]llow  — skip in this session", value="allow"),
+                    questionary.Choice("[r]escan — re-check this domain now", value="rescan"),
+                    questionary.Choice("[b]ack   — pick a different domain", value="back"),
+                    questionary.Choice("[q]uit   — exit actions", value="quit"),
+                ],
+                pointer=_POINTER,
+                qmark=_QMARK,
+                style=_STYLE,
+            ).ask()
+
+            if action is None or action == "quit":
+                return
+
+            if action == "back":
+                break
+
+            if action == "open":
+                url = f"https://{selected.domain}"
+                webbrowser.open(url)
+                console.print(f"[ok]→ Opened[/ok] [url]{url}[/url]")
+
+            elif action == "whois":
+                _show_whois(selected, console)
+
+            elif action == "export":
+                _export_result(selected, console)
+
+            elif action == "allow":
+                session_allowed.add(selected.domain)
+                console.print(
+                    f"[ok]✓ {escape(selected.domain)} added to session whitelist[/ok]"
+                )
+                break  # back to domain picker; domain now filtered out
+
+            elif action == "rescan":
+                updated = _rescan_result(selected, domain, check_http, console)
+                for i, r in enumerate(report.results):
+                    if r.domain == selected.domain:
+                        report.results[i] = updated
+                        break
+                selected = updated
+                reporters.render_table(
+                    ScanReport(target=domain, total_permutations=1, results=[updated]),
+                    console,
+                    show_safe=True,
+                )
 
 
 async def _scan(domain: str, concurrency: int, check_http: bool, console: Console) -> ScanReport:

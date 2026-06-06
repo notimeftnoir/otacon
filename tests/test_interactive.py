@@ -5,14 +5,37 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from otacon.interactive import (
+    _action_loop,
     _confirm,
+    _export_result,
     _interactive_generate,
     _interactive_scan,
+    _rescan_result,
+    _show_whois,
     _validate_domain,
     _validate_limit,
     run,
 )
-from otacon.models import Permutation, PermutationType, ScanReport
+from otacon.models import (
+    DomainResult,
+    Permutation,
+    PermutationType,
+    ScanReport,
+)
+from otacon.theme import RiskLevel
+
+# ---------------------------------------------------------------------------
+# Shared fixture
+# ---------------------------------------------------------------------------
+
+def _registered(domain: str = "googel.com", score: int = 50) -> DomainResult:
+    return DomainResult(
+        domain=domain,
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=score,
+        risk_level=RiskLevel.MEDIUM,
+    )
 
 
 def test_validate_domain_empty_string():
@@ -208,3 +231,232 @@ def test_interactive_scan_ctrl_c_on_show_all():
          patch("otacon.interactive._scan", new_callable=AsyncMock):
         mock_q.select.return_value.ask.return_value = "full"
         _interactive_scan("example.com", MagicMock())
+
+
+# ---------------------------------------------------------------------------
+# Action loop (Task 06)
+# ---------------------------------------------------------------------------
+
+def test_action_loop_skips_when_no_registered():
+    """Empty report → no prompt shown."""
+    with patch("otacon.interactive.questionary") as mock_q:
+        report = ScanReport(target="example.com", total_permutations=5)
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+        mock_q.select.assert_not_called()
+
+
+def test_action_loop_ctrl_c_on_domain_picker():
+    """Ctrl+C on domain picker exits cleanly."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q:
+        mock_q.select.return_value.ask.return_value = None
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+
+
+def test_action_loop_quit_from_action_menu():
+    """Quit from action menu exits loop."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q:
+        mock_q.select.return_value.ask.side_effect = [r, "quit"]
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+
+
+def test_action_loop_ctrl_c_from_action_menu():
+    """None from action menu exits loop."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q:
+        mock_q.select.return_value.ask.side_effect = [r, None]
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+
+
+def test_action_loop_back_returns_to_domain_picker():
+    """Back action returns to domain picker (outer loop)."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q:
+        # back → domain picker again → None (Ctrl+C)
+        mock_q.select.return_value.ask.side_effect = [r, "back", None]
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+        assert mock_q.select.return_value.ask.call_count == 3
+
+
+def test_action_loop_open_calls_webbrowser():
+    """Open action calls webbrowser.open with the correct URL."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q, \
+         patch("otacon.interactive.webbrowser") as mock_wb:
+        mock_q.select.return_value.ask.side_effect = [r, "open", "quit"]
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+    mock_wb.open.assert_called_once_with("https://googel.com")
+
+
+def test_action_loop_whois_calls_show_whois():
+    """Whois action calls _show_whois with the selected result."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q, \
+         patch("otacon.interactive._show_whois") as mock_show:
+        mock_q.select.return_value.ask.side_effect = [r, "whois", "quit"]
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+    mock_show.assert_called_once_with(r, mock_show.call_args[0][1])
+
+
+def test_action_loop_export_calls_export_result():
+    """Export action calls _export_result with the selected result."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q, \
+         patch("otacon.interactive._export_result") as mock_export:
+        mock_q.select.return_value.ask.side_effect = [r, "export", "quit"]
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+    assert mock_export.called
+
+
+def test_action_loop_allow_removes_domain_from_next_iteration():
+    """Allow adds domain to session whitelist → domain absent from next outer loop."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q:
+        # allow → outer loop: no candidates → exits
+        mock_q.select.return_value.ask.side_effect = [r, "allow"]
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+    # domain picker + action picker = 2 calls; no third call (no candidates remain)
+    assert mock_q.select.return_value.ask.call_count == 2
+
+
+def test_action_loop_rescan_updates_report_and_selected():
+    """Rescan action calls _rescan_result and updates the report in-place."""
+    r = _registered(score=50)
+    updated = _registered(score=75)
+    updated = updated.model_copy(update={"risk_level": RiskLevel.HIGH})
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q, \
+         patch("otacon.interactive._rescan_result", return_value=updated) as mock_rescan, \
+         patch("otacon.interactive.reporters"):
+        mock_q.select.return_value.ask.side_effect = [r, "rescan", "quit"]
+        _action_loop(report, "example.com", MagicMock(), check_http=False)
+    assert mock_rescan.called
+    assert report.results[0].risk_score == 75
+
+
+def test_action_loop_called_after_render_in_interactive_scan():
+    """_interactive_scan calls _action_loop after render_table."""
+    mock_report = ScanReport(target="example.com", total_permutations=0)
+    called = {}
+
+    def fake_loop(report, domain, console, check_http):
+        called["ran"] = True
+
+    with patch("otacon.interactive.questionary") as mock_q, \
+         patch("otacon.interactive._confirm", return_value=False), \
+         patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan, \
+         patch("otacon.interactive.reporters"), \
+         patch("otacon.interactive._action_loop", fake_loop):
+        mock_q.select.return_value.ask.return_value = "full"
+        mock_scan.return_value = mock_report
+        _interactive_scan("example.com", MagicMock())
+
+    assert called.get("ran") is True
+
+
+# ---------------------------------------------------------------------------
+# _show_whois
+# ---------------------------------------------------------------------------
+
+def test_show_whois_uses_cached_data_without_fetch():
+    """_show_whois shows cached created_at from result — no asyncio.run call."""
+    from datetime import datetime, timezone
+    r = DomainResult(
+        domain="googel.com",
+        kind=PermutationType.TYPO,
+        created_at=datetime(2024, 3, 1, tzinfo=timezone.utc),
+        age_days=90,
+    )
+    with patch("otacon.interactive.asyncio") as mock_asyncio:
+        console = MagicMock()
+        _show_whois(r, console)
+    mock_asyncio.run.assert_not_called()
+    assert console.print.called
+
+
+def test_show_whois_fetches_when_no_cache():
+    """_show_whois fetches WHOIS when created_at is None."""
+    from datetime import datetime, timezone
+    r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
+
+    async def _fake_fetch(domain):
+        return (datetime(2024, 1, 1, tzinfo=timezone.utc), 150)
+
+    with patch("otacon.interactive.fetch_domain_age", _fake_fetch):
+        console = MagicMock()
+        _show_whois(r, console)
+    assert console.print.called
+
+
+def test_show_whois_shows_unavailable_on_failed_lookup():
+    """_show_whois prints 'unavailable' when fetch returns (None, None)."""
+    r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
+
+    async def _fake_fetch(domain):
+        return (None, None)
+
+    with patch("otacon.interactive.fetch_domain_age", _fake_fetch):
+        console = MagicMock()
+        _show_whois(r, console)
+    printed = " ".join(str(c) for c in console.print.call_args_list)
+    assert "unavailable" in printed
+
+
+# ---------------------------------------------------------------------------
+# _export_result
+# ---------------------------------------------------------------------------
+
+def test_export_result_writes_json_to_file(tmp_path):
+    """_export_result saves valid JSON for the given domain result."""
+    r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
+    out_file = tmp_path / "googel_com.json"
+    with patch("otacon.interactive.questionary") as mock_q:
+        mock_q.text.return_value.ask.return_value = str(out_file)
+        _export_result(r, MagicMock())
+    assert out_file.exists()
+    import json
+    data = json.loads(out_file.read_text())
+    assert data["domain"] == "googel.com"
+
+
+def test_export_result_ctrl_c_exits_cleanly():
+    """Ctrl+C on filename prompt exits without error."""
+    r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
+    with patch("otacon.interactive.questionary") as mock_q:
+        mock_q.text.return_value.ask.return_value = None
+        _export_result(r, MagicMock())  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# _rescan_result
+# ---------------------------------------------------------------------------
+
+def test_rescan_result_returns_scored_domain_result():
+    """_rescan_result returns a DomainResult scored against the target."""
+    r = _registered()
+    fresh = DomainResult(domain="googel.com", kind=PermutationType.TYPO, resolves=True)
+
+    with patch("otacon.interactive.Resolver") as MockResolver, \
+         patch("otacon.interactive.scoring") as mock_scoring:
+        # Make Resolver.check_one return the fresh result
+        mock_instance = AsyncMock()
+        mock_instance.check_one.return_value = fresh
+        MockResolver.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+        MockResolver.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        scored = fresh.model_copy(update={"risk_score": 28, "risk_level": RiskLevel.LOW})
+        mock_scoring.score.return_value = scored
+
+        result = _rescan_result(r, "example.com", check_http=True, console=MagicMock())
+
+    assert result.domain == "googel.com"
+    mock_scoring.score.assert_called_once_with(fresh, "example.com")
