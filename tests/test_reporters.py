@@ -13,6 +13,8 @@ from otacon.reporters import (
     _http_cell,
     _redirect_host,
     _risk_bar,
+    _verdict_banner,
+    _verdict_banner_md,
     render_table,
     to_json,
     to_markdown,
@@ -339,3 +341,121 @@ def test_json_export_includes_page_title():
     json_str = to_json(report)
     assert "page_title" in json_str
     assert "Login - ExampleBank" in json_str
+
+
+# ---------------------------------------------------------------------------
+# Verdict summary banner (Task 08)
+# ---------------------------------------------------------------------------
+
+def test_verdict_banner_clean_when_no_registered():
+    report = ScanReport(target="example.com", total_permutations=10)
+    banner = _verdict_banner(report)
+    assert "clean" in banner.plain
+
+
+def test_verdict_banner_shows_registered_count():
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=40,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    report.results.append(r)
+    banner = _verdict_banner(report)
+    assert "1 registered" in banner.plain
+
+
+def test_verdict_banner_shows_crit_count():
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        has_mx=True,
+        has_ssl=True,
+        http_status=200,
+        risk_score=95,
+        risk_level=RiskLevel.CRITICAL,
+    )
+    report.results.append(r)
+    banner = _verdict_banner(report)
+    assert "crit: 1" in banner.plain
+
+
+def test_verdict_banner_shows_mx_count():
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        has_mx=True,
+        risk_score=45,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    report.results.append(r)
+    banner = _verdict_banner(report)
+    assert "mx: 1" in banner.plain
+
+
+def test_verdict_banner_shows_fresh_count():
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        age_days=3,
+        risk_score=40,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    report.results.append(r)
+    banner = _verdict_banner(report)
+    assert "fresh <7d: 1" in banner.plain
+
+
+def test_verdict_banner_md_clean():
+    report = ScanReport(target="example.com", total_permutations=5)
+    md = _verdict_banner_md(report)
+    assert "clean" in md
+    assert "✓" in md
+
+
+def test_verdict_banner_md_with_threats():
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=40,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    report.results.append(r)
+    md = _verdict_banner_md(report)
+    assert "registered" in md
+    assert "crit:" in md
+
+
+def test_to_markdown_includes_verdict_banner():
+    report = ScanReport(target="example.com", total_permutations=5)
+    md = to_markdown(report)
+    # Banner is the first substantive line after the header
+    assert "clean" in md or "registered" in md
+
+
+def test_render_table_shows_verdict_banner_above_table():
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        risk_score=40,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    report.results.append(r)
+    console, buf = _make_console()
+    render_table(report, console)
+    output = buf.getvalue()
+    # Banner must appear before the table border characters
+    banner_pos = output.find("registered")
+    table_pos = output.find("Domain")
+    assert banner_pos < table_pos

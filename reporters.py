@@ -113,16 +113,55 @@ def _domain_cell(result: DomainResult) -> Text:
     return t
 
 
+def _verdict_banner(report: ScanReport) -> Text:
+    """One-line verdict banner: counts of critical, live MX, and freshly registered.
+    Green when no threats, red when criticals exist."""
+    threats = report.threats
+    registered = report.registered
+
+    if not registered:
+        t = Text()
+        t.append("✓ clean", style="ok")
+        t.append(
+            f" — {report.total_permutations} permutations checked, none registered",
+            style="muted",
+        )
+        return t
+
+    crit_count = sum(1 for r in threats if r.risk_level == RiskLevel.CRITICAL)
+    mx_count = sum(1 for r in registered if r.has_mx)
+    fresh_count = sum(
+        1 for r in registered if r.age_days is not None and r.age_days < 7
+    )
+
+    t = Text()
+    if crit_count:
+        t.append("⚠ ", style="critical")
+    else:
+        t.append("● ", style="warn")
+
+    t.append(f"{len(registered)} registered", style="value")
+    t.append(" · ", style="muted")
+    t.append(f"crit: {crit_count}", style="critical" if crit_count else "muted")
+    t.append(" · ", style="muted")
+    t.append(f"mx: {mx_count}", style="danger" if mx_count else "muted")
+    t.append(" · ", style="muted")
+    t.append(f"fresh <7d: {fresh_count}", style="critical" if fresh_count else "muted")
+    return t
+
+
 def render_table(report: ScanReport, console: Console, show_safe: bool = False) -> None:
     """Renders results as a colored terminal table (Option B layout).
 
     Columns: Domain+technique | Risk bar | DNS | MX | SSL | HTTP
     Defensive registrations (redirect \u2192 original) are flagged with \u2691.
     """
+    console.print()
+    console.print(_verdict_banner(report))
+
     rows = report.results if show_safe else report.registered
 
     if not rows:
-        console.print("\n[ok]\u2713 No registered impersonating variants detected.[/ok]")
         console.print(
             f"[muted]  Checked {report.total_permutations} permutations.[/muted]\n"
         )
@@ -193,10 +232,30 @@ def to_json(report: ScanReport) -> str:
     return report.model_dump_json(indent=2)
 
 
+def _verdict_banner_md(report: ScanReport) -> str:
+    """Plain-text verdict line for the Markdown export."""
+    registered = report.registered
+    if not registered:
+        return f"✓ **clean** — {report.total_permutations} permutations checked, none registered"
+    threats = report.threats
+    crit_count = sum(1 for r in threats if r.risk_level == RiskLevel.CRITICAL)
+    mx_count = sum(1 for r in registered if r.has_mx)
+    fresh_count = sum(
+        1 for r in registered if r.age_days is not None and r.age_days < 7
+    )
+    icon = "⚠" if crit_count else "●"
+    return (
+        f"{icon} **{len(registered)} registered** · "
+        f"crit: {crit_count} · mx: {mx_count} · fresh <7d: {fresh_count}"
+    )
+
+
 def to_markdown(report: ScanReport) -> str:
     """Generates a Markdown report — ready to paste into a ticket/issue."""
     lines: list[str] = [
         "# Otacon — domain impersonation report",
+        "",
+        _verdict_banner_md(report),
         "",
         f"**Target:** `{report.target}`  ",
         f"**Date:** {report.started_at:%Y-%m-%d %H:%M %Z}  ",
