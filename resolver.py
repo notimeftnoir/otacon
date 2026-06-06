@@ -79,7 +79,9 @@ class Resolver:
         try:
             records = await self._dns.query(domain, "A")
             return [r.host for r in records]
-        except (aiodns.error.DNSError, UnicodeError):
+        except Exception:
+            # pycares.AresError is not a subclass of aiodns.error.DNSError in all
+            # versions, so we catch broadly — DNS queries are fire-and-forget.
             return []
 
     async def _resolve_mx(self, domain: str) -> list[str]:
@@ -87,7 +89,7 @@ class Resolver:
         try:
             records = await self._dns.query(domain, "MX")
             return [r.host for r in records]
-        except (aiodns.error.DNSError, UnicodeError):
+        except Exception:
             return []
 
     async def _check_ssl(self, domain: str) -> bool:
@@ -125,39 +127,45 @@ class Resolver:
     async def check_one(self, perm: Permutation) -> DomainResult:
         """Full check of a single variant. Bounded by the semaphore."""
         async with self._sem:
-            result = DomainResult(
-                domain=perm.domain, kind=perm.kind, note=perm.note
-            )
-
-            ips = await self._resolve_a(perm.domain)
-            result.ip_addresses = ips
-            result.resolves = bool(ips)
-
-            # MX is checked independently of A — mail-only phishing domains
-            # often have MX but no A record (no web presence by design).
-            mx = await self._resolve_mx(perm.domain)
-            result.mx_records = mx
-            result.has_mx = bool(mx)
-
-            # SSL and HTTP only make sense when there's an IP to connect to.
-            if result.resolves and self._check_http:
-                ssl_ok, (status, server, redirect, title) = await asyncio.gather(
-                    self._check_ssl(perm.domain),
-                    self._probe_http(perm.domain),
+            try:
+                result = DomainResult(
+                    domain=perm.domain, kind=perm.kind, note=perm.note
                 )
-                result.has_ssl = ssl_ok
-                result.http_status = status
-                result.server_header = server
-                result.redirects_to = redirect
-                result.page_title = title
 
-            # WHOIS only for registered domains — unregistered aren't worth the quota.
-            if result.is_registered:
-                created, age = await fetch_domain_age(perm.domain)
-                result.created_at = created
-                result.age_days = age
+                ips = await self._resolve_a(perm.domain)
+                result.ip_addresses = ips
+                result.resolves = bool(ips)
 
-            return result
+                # MX is checked independently of A — mail-only phishing domains
+                # often have MX but no A record (no web presence by design).
+                mx = await self._resolve_mx(perm.domain)
+                result.mx_records = mx
+                result.has_mx = bool(mx)
+
+                # SSL and HTTP only make sense when there's an IP to connect to.
+                if result.resolves and self._check_http:
+                    ssl_ok, (status, server, redirect, title) = await asyncio.gather(
+                        self._check_ssl(perm.domain),
+                        self._probe_http(perm.domain),
+                    )
+                    result.has_ssl = ssl_ok
+                    result.http_status = status
+                    result.server_header = server
+                    result.redirects_to = redirect
+                    result.page_title = title
+
+                # WHOIS only for registered domains — unregistered aren't worth the quota.
+                if result.is_registered:
+                    created, age = await fetch_domain_age(perm.domain)
+                    result.created_at = created
+                    result.age_days = age
+
+                return result
+            except Exception:
+                # Return a blank result rather than propagating — an unhandled
+                # exception here would close the shared httpx client and crash
+                # every other concurrent check_one coroutine.
+                return DomainResult(domain=perm.domain, kind=perm.kind, note=perm.note)
 
     async def check_all(self, perms: list[Permutation]) -> list[DomainResult]:
         """Checks all variants concurrently.

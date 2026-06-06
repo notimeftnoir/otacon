@@ -167,7 +167,7 @@ def scan(
     ),
 ) -> None:
     """Scans domain variants and detects registered fakes."""
-    domain = domain.strip().lower()
+    domain = domain.strip().lower().removeprefix("www.")
     if not domain:
         console.print("[danger]Error: domain cannot be empty.[/danger]")
         raise typer.Exit(1)
@@ -236,7 +236,7 @@ def watch(
 
     Shows only NEW / CHANGED / GONE since the last run.
     """
-    domain = domain.strip().lower()
+    domain = domain.strip().lower().removeprefix("www.")
     if not domain:
         console.print("[danger]Error: domain cannot be empty.[/danger]")
         raise typer.Exit(1)

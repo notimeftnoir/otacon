@@ -118,7 +118,7 @@ def run(console: Console) -> None:
     ).ask()
     if domain is None:
         return
-    domain = domain.strip()
+    domain = domain.strip().lower().removeprefix("www.")
 
     mode = questionary.select(
         "Mode:",
