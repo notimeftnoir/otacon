@@ -6,6 +6,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from otacon.models import Permutation, PermutationType
 from otacon.resolver import Resolver, _parse_title
 
@@ -51,6 +52,11 @@ def test_parse_title_case_insensitive():
 def test_parse_title_multiline():
     html = "<title>\n  Phishing Page\n</title>"
     assert _parse_title(html) == "Phishing Page"
+
+
+def test_parse_title_unescapes_html_entities():
+    assert _parse_title("<title>Tom &amp; Jerry</title>") == "Tom & Jerry"
+    assert _parse_title("<title>Page &#8211; Subtitle</title>") == "Page – Subtitle"
 
 
 # ---------------------------------------------------------------------------

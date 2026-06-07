@@ -14,6 +14,7 @@ take minutes; here, seconds.
 from __future__ import annotations
 
 import asyncio
+import html as _html
 import re
 import ssl
 import warnings
@@ -29,12 +30,12 @@ _TITLE_RE = re.compile(r"<title[^>]*>([^<]{1,200})", re.IGNORECASE | re.DOTALL)
 _TITLE_MAX = 80
 
 
-def _parse_title(html: str) -> str | None:
+def _parse_title(body: str) -> str | None:
     """Extracts and cleans <title> text from an HTML snippet. Returns None when absent."""
-    m = _TITLE_RE.search(html)
+    m = _TITLE_RE.search(body)
     if not m:
         return None
-    title = " ".join(m.group(1).split())  # collapse whitespace
+    title = _html.unescape(" ".join(m.group(1).split()))
     return title[:_TITLE_MAX] if title else None
 
 # We intentionally probe with verify=False (suspicious certs are the point),
