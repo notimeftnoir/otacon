@@ -35,6 +35,9 @@ async def fetch_domain_age(domain: str) -> tuple[datetime | None, int | None]:
         age_days = (datetime.now(timezone.utc) - created).days
         return created, age_days
     except Exception:
+        # Broad exception catch for WHOIS layer — network failures, parsing errors,
+        # and unexpected errors are all gracefully downgraded to (None, None).
+        # This ensures that WHOIS lookup failures don't crash the scan.
         return None, None
 
 

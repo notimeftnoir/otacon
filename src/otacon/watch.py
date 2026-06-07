@@ -6,6 +6,7 @@ NEW (appeared), CHANGED (risk score/level shifted), GONE (no longer registered).
 
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import datetime, timezone
 
@@ -196,5 +197,6 @@ async def notify(url: str, diff: WatchDiff) -> None:
                 content=diff.model_dump_json(),
                 headers={"Content-Type": "application/json"},
             )
-    except Exception:
+    except (httpx.RequestError, asyncio.TimeoutError):
+        # Webhook delivery failures are silently ignored; logs are available in caller.
         pass

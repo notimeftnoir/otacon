@@ -209,9 +209,9 @@ def to_html(report: ScanReport) -> str:
         footer_parts.append(f'<span class="warn">⚑ {defensive} defensive</span>')
 
     logo = (
-        " ┌─────┐\n"
-        ' │  ◉  │  <span class="brand">OTACON</span>\n'
-        ' └─────┘  <span class="muted">domain impersonation detector</span>'
+        " ⬢ ⬢ ⬢ ⬡ ⬡ ⬡\n"
+        '   <span class="brand">OTACON</span>  <span class="brand">∴</span>\n'
+        ' ⬡ ⬡ ⬡ ⬢ ⬢ ⬢  <span class="muted">domain impersonation detector</span>'
     )
     meta_line = (
         f'<span class="field">Target:</span> <span class="value">{target}</span> &nbsp;'

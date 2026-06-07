@@ -179,8 +179,8 @@ class Resolver:
 
                 return result
             except Exception:
-                # Return a blank result rather than propagating — an unhandled
-                # exception here would close the shared httpx client and crash
-                # every other concurrent check_one coroutine.
+                # Broad catch is intentional — an unhandled exception here would
+                # close the shared httpx client and crash every other concurrent
+                # check_one coroutine. Graceful degradation beats a precise catch.
                 return DomainResult(domain=perm.domain, kind=perm.kind, note=perm.note)
 

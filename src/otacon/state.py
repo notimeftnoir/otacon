@@ -45,7 +45,7 @@ def load_baseline(domain: str, home: Path | None = None) -> dict[str, dict] | No
         if not isinstance(registered, dict):
             return None
         return registered
-    except Exception:
+    except (json.JSONDecodeError, OSError):
         return None
 
 

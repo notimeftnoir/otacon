@@ -83,10 +83,10 @@ class RiskLevel(str, Enum):
         return cls.SAFE
 
 
-# ASCII banner — Watcher mark (screen + watching eye).
-_LOGO_TOP = " [brand]┌─────┐[/]"
-_LOGO_MID = " [brand]│[/]  [brand]◉[/]  [brand]│[/]  [brand]OTACON[/]"
-_LOGO_BOT = " [brand]└─────┘[/]  [muted]domain impersonation detector[/]"
+# ASCII banner — Hexagon grid with radar scanner.
+_LOGO_TOP = " [brand]⬢ ⬢ ⬢ ⬡ ⬡ ⬡[/]"
+_LOGO_MID = "   [brand]OTACON[/]  [brand]∴[/]"
+_LOGO_BOT = " [brand]⬡ ⬡ ⬡ ⬢ ⬢ ⬢[/]  [muted]domain impersonation detector[/]"
 _BAR = "[ok]█[/][info]█[/][warn]█[/][danger]█[/][crit.bar]█[/]"
 _LEGEND = "[ok]safe[/] [info]low[/] [warn]med[/] [danger]high[/] [crit.bar]crit[/]"
 BANNER = f"\n{_LOGO_TOP}\n{_LOGO_MID}\n{_LOGO_BOT}\n          {_BAR} {_LEGEND}\n"

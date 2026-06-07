@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import webbrowser
 from pathlib import Path
-from urllib.parse import urlparse
 
 import questionary
 from prompt_toolkit.formatted_text import FormattedText
@@ -245,7 +244,7 @@ def _export_result(result: DomainResult, console: Console) -> None:
     try:
         # Sanitize: reject parent directory traversal patterns
         if ".." in filename:
-            console.print(f"[danger]Error: Path traversal detected — use relative paths[/danger]")
+            console.print("[danger]Error: Path traversal detected — use relative paths[/danger]")
             return
         
         # Resolve to canonical path
