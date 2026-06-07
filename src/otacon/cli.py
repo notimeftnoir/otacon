@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import sys
 from enum import Enum
 from pathlib import Path
 
@@ -18,28 +16,10 @@ from rich.progress import (
 )
 
 from . import permutations, reporters, scoring
+from ._asyncutils import run_async
 from .models import DomainResult, ScanReport
 from .resolver import Resolver
 from .theme import BANNER, OTACON_THEME, RiskLevel
-
-# Windows ProactorEventLoop raises ConnectionResetError (WinError 10054) on
-# normal HTTP connection teardowns. SelectorEventLoop doesn't have this issue.
-# Python 3.12+ exposes loop_factory on asyncio.run(); older versions need the
-# now-deprecated set_event_loop_policy path.
-_WIN_LOOP_FACTORY = None
-if sys.platform == "win32":
-    if sys.version_info >= (3, 12):
-        _WIN_LOOP_FACTORY = asyncio.SelectorEventLoop
-    else:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-
-def _run_async(coro):
-    # loop_factory was added in Python 3.12; on older versions the policy above
-    # already installs SelectorEventLoop, so we must not pass the keyword at all.
-    if _WIN_LOOP_FACTORY is not None:
-        return asyncio.run(coro, loop_factory=_WIN_LOOP_FACTORY)
-    return asyncio.run(coro)
 
 
 class _Threshold(str, Enum):
@@ -200,7 +180,7 @@ def scan(
         + "[/muted]"
     )
 
-    report = _run_async(
+    report = run_async(
         _run_scan(domain, concurrency, check_http=not no_http, exclude=exclusions)
     )
 
@@ -311,7 +291,7 @@ def watch(
             await asyncio.sleep(interval_secs)
 
     try:
-        _run_async(_loop())
+        run_async(_loop())
     except KeyboardInterrupt:
         console.print("\n[muted]Watch stopped.[/muted]")
 

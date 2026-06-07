@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 import webbrowser
 from pathlib import Path
+from urllib.parse import urlparse
 
 import questionary
 from prompt_toolkit.formatted_text import FormattedText
@@ -23,22 +23,10 @@ from rich.progress import (
 )
 
 from . import permutations, reporters, scoring
+from ._asyncutils import run_async
 from .models import DomainResult, Permutation, ScanReport
 from .resolver import _DEFAULT_CONCURRENCY, Resolver
 from .whois import fetch_domain_age, format_age
-
-_WIN_LOOP_FACTORY = None
-if sys.platform == "win32":
-    if sys.version_info >= (3, 12):
-        _WIN_LOOP_FACTORY = asyncio.SelectorEventLoop
-    else:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-
-def _run_async(coro):
-    if _WIN_LOOP_FACTORY is not None:
-        return asyncio.run(coro, loop_factory=_WIN_LOOP_FACTORY)
-    return asyncio.run(coro)
 
 _POINTER = "[*]"
 _QMARK = "›"
@@ -187,7 +175,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
         except OSError:
             pass
 
-    report = _run_async(
+    report = run_async(
         _scan(domain, concurrency=_DEFAULT_CONCURRENCY, check_http=check_http,
               console=console, exclude=exclusions or None)
     )
@@ -227,7 +215,7 @@ def _show_whois(result: DomainResult, console: Console) -> None:
     created, age = result.created_at, result.age_days
     if created is None:
         console.print("[muted]Fetching WHOIS…[/muted]")
-        created, age = _run_async(fetch_domain_age(result.domain))
+        created, age = run_async(fetch_domain_age(result.domain))
     if created is not None:
         console.print(f"  [field]Created:[/field]  [value]{created:%Y-%m-%d}[/value]")
         console.print(f"  [field]Age:[/field]     [value]{format_age(age)}[/value]")
@@ -243,17 +231,30 @@ def _show_whois(result: DomainResult, console: Console) -> None:
 
 
 def _export_result(result: DomainResult, console: Console) -> None:
-    """Saves a single domain result as a JSON file."""
+    """Saves a single domain result as a JSON file.
+    
+    Validates filename to prevent path traversal attacks (e.g., ../../../etc/passwd).
+    """
     default_name = f"{result.domain.replace('.', '_')}.json"
     filename = questionary.text(
         "Save as:", default=default_name, qmark=_QMARK, style=_STYLE,
     ).ask()
     if filename is None:
         return
+    
     try:
-        Path(filename).write_text(result.model_dump_json(indent=2), encoding="utf-8")
-        console.print(f"[ok]→ Saved:[/ok] [url]{escape(filename)}[/url]")
-    except OSError as exc:
+        # Sanitize: reject parent directory traversal patterns
+        if ".." in filename:
+            console.print(f"[danger]Error: Path traversal detected — use relative paths[/danger]")
+            return
+        
+        # Resolve to canonical path
+        file_path = Path(filename).resolve()
+        
+        # Write the file
+        file_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
+        console.print(f"[ok]→ Saved:[/ok] [url]{escape(file_path.name)}[/url]")
+    except (OSError, ValueError) as exc:
         console.print(f"[danger]Error: {exc}[/danger]")
 
 
@@ -268,7 +269,7 @@ def _rescan_result(
         async with Resolver(check_http=check_http) as resolver:
             return await resolver.check_one(perm)
 
-    raw = _run_async(_run())
+    raw = run_async(_run())
     return scoring.score(raw, target)
 
 
