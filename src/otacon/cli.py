@@ -311,6 +311,10 @@ def watch(
 def generate(
     domain: str = typer.Argument(..., help="Domain to permute."),
     limit: int = typer.Option(0, "--limit", "-n", help="Display limit (0 = all)."),
+    output: Path = typer.Option(
+        None, "--output", "-o",
+        help="Write variant domains (one per line) to a file — useful as a wordlist.",
+    ),
     exclude: str = typer.Option(
         None, "--exclude", "-x", help="Whitelist of domains to skip (comma-separated)."
     ),
@@ -336,6 +340,13 @@ def generate(
 
     if limit and len(perms) > limit:
         console.print(f"\n[muted]... and {len(perms) - limit} more (use --limit 0)[/muted]")
+
+    if output:
+        try:
+            output.write_text("\n".join(p.domain for p in perms) + "\n", encoding="utf-8")
+            console.print(f"[ok]→ Wordlist saved:[/ok] [url]{output}[/url]")
+        except OSError as exc:
+            console.print(f"[danger]Error saving wordlist: {exc}[/danger]")
 
 
 if __name__ == "__main__":

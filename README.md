@@ -207,7 +207,7 @@ otacon scan example.com --html report.html
 ### Options
 
 ```bash
-otacon scan example.com --no-http          # DNS only (faster)
+otacon scan example.com --no-http          # DNS only (faster, disables ⚑ defensive flag)
 otacon scan example.com -c 100             # more concurrent requests
 otacon scan example.com --all              # show unregistered variants too
 ```

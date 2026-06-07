@@ -23,6 +23,7 @@ from datetime import datetime
 import aiodns
 import httpx
 
+from . import __version__
 from .models import DomainResult, Permutation
 from .whois import fetch_domain_age
 
@@ -72,7 +73,7 @@ class Resolver:
             timeout=_HTTP_TIMEOUT,
             follow_redirects=False,   # we want to see redirects, not follow them blindly
             verify=False,             # fakes often have bad certs — we inspect them anyway
-            headers={"User-Agent": "Otacon/1.0 (+domain-monitoring)"},
+            headers={"User-Agent": f"Otacon/{__version__} (+domain-monitoring)"},
         )
         return self
 
