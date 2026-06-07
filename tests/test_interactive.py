@@ -182,8 +182,9 @@ def test_confirm_returns_none_on_ctrl_c():
         assert _confirm("Continue?") is None
 
 
-def test_interactive_scan_full_calls_render_table():
+def test_interactive_scan_full_calls_render_table(monkeypatch, tmp_path):
     """Full scan (HTTP) must call reporters.render_table with correct params."""
+    monkeypatch.chdir(tmp_path)
     mock_report = ScanReport(target="example.com", total_permutations=0)
 
     with patch("otacon.interactive.questionary") as mock_q, \
@@ -201,8 +202,9 @@ def test_interactive_scan_full_calls_render_table():
     mock_reporters.render_table.assert_called_once_with(mock_report, console, show_safe=False)
 
 
-def test_interactive_scan_dns_only():
+def test_interactive_scan_dns_only(monkeypatch, tmp_path):
     """DNS-only scan must pass check_http=False."""
+    monkeypatch.chdir(tmp_path)
     mock_report = ScanReport(target="example.com", total_permutations=0)
 
     with patch("otacon.interactive.questionary") as mock_q, \

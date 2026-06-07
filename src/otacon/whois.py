@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 import asyncwhois
 
-_WHOIS_TIMEOUT = 5.0
+_WHOIS_TIMEOUT = 10.0
 
 
 async def fetch_domain_age(domain: str) -> tuple[datetime | None, int | None]:
@@ -28,6 +28,11 @@ async def fetch_domain_age(domain: str) -> tuple[datetime | None, int | None]:
             asyncwhois.aio_whois(domain), timeout=_WHOIS_TIMEOUT
         )
         created = parsed.get("created")
+        # asyncwhois returns a list for some TLDs (e.g. .info, .io, .pl) when the
+        # WHOIS response contains multiple date fields — take the earliest entry.
+        if isinstance(created, list):
+            candidates = [d for d in created if isinstance(d, datetime)]
+            created = min(candidates) if candidates else None
         if not isinstance(created, datetime):
             return None, None
         if created.tzinfo is None:
