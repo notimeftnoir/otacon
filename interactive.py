@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import webbrowser
 from pathlib import Path
 
@@ -25,6 +26,16 @@ from . import permutations, reporters, scoring
 from .models import DomainResult, Permutation, ScanReport
 from .resolver import _DEFAULT_CONCURRENCY, Resolver
 from .whois import fetch_domain_age, format_age
+
+_WIN_LOOP_FACTORY = None
+if sys.platform == "win32" and sys.version_info >= (3, 12):
+    _WIN_LOOP_FACTORY = asyncio.SelectorEventLoop
+
+
+def _run_async(coro):
+    if _WIN_LOOP_FACTORY is not None:
+        return asyncio.run(coro, loop_factory=_WIN_LOOP_FACTORY)
+    return asyncio.run(coro)
 
 _POINTER = "[*]"
 _QMARK = "›"
@@ -162,7 +173,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
         return
 
     check_http = network == "full"
-    report = asyncio.run(
+    report = _run_async(
         _scan(domain, concurrency=_DEFAULT_CONCURRENCY, check_http=check_http, console=console)
     )
     reporters.render_table(report, console, show_safe=show_all)
@@ -201,7 +212,7 @@ def _show_whois(result: DomainResult, console: Console) -> None:
     created, age = result.created_at, result.age_days
     if created is None:
         console.print("[muted]Fetching WHOIS…[/muted]")
-        created, age = asyncio.run(fetch_domain_age(result.domain))
+        created, age = _run_async(fetch_domain_age(result.domain))
     if created is not None:
         console.print(f"  [field]Created:[/field]  [value]{created:%Y-%m-%d}[/value]")
         console.print(f"  [field]Age:[/field]     [value]{format_age(age)}[/value]")
@@ -242,7 +253,7 @@ def _rescan_result(
         async with Resolver(check_http=check_http) as resolver:
             return await resolver.check_one(perm)
 
-    raw = asyncio.run(_run())
+    raw = _run_async(_run())
     return scoring.score(raw, target)
 
 
