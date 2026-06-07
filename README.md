@@ -40,11 +40,19 @@ Permutations: 143 · registered: 3 · med: 1 · high: 1 · crit: 1
 
 ## Install
 
+**Recommended — isolated global install via pipx:**
+
 ```bash
 pipx install git+https://github.com/notimeftnoir/otacon.git
 ```
 
-> **macOS / Kali:** the `aiodns` dependency needs the `c-ares` system library.
+**Alternative — standard pip into any active virtual environment:**
+
+```bash
+pip install git+https://github.com/notimeftnoir/otacon.git
+```
+
+> **macOS / Kali:** the `aiodns` dependency needs the `c-ares` system library.  
 > `brew install c-ares` (macOS) · `sudo apt install libc-ares-dev` (Debian/Kali)
 
 <details>
