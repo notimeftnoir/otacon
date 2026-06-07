@@ -71,7 +71,10 @@ def compute_diff(
         else:
             old = baseline[domain]
             old_score = int(old.get("risk_score", 0))
-            old_level = RiskLevel(old.get("risk_level", "safe"))
+            try:
+                old_level = RiskLevel(old.get("risk_level", "safe"))
+            except ValueError:
+                old_level = RiskLevel.SAFE
             if result.risk_score != old_score or result.risk_level != old_level:
                 diff.changed_domains.append(
                     DomainChange(

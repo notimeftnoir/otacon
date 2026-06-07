@@ -33,6 +33,14 @@ if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
+def _run_async(coro):
+    # loop_factory was added in Python 3.12; on older versions the policy above
+    # already installs SelectorEventLoop, so we must not pass the keyword at all.
+    if _WIN_LOOP_FACTORY is not None:
+        return asyncio.run(coro, loop_factory=_WIN_LOOP_FACTORY)
+    return asyncio.run(coro)
+
+
 class _Threshold(str, Enum):
     """Valid threshold levels for --fail-on (excludes 'safe')."""
 
@@ -187,9 +195,8 @@ def scan(
         + "[/muted]"
     )
 
-    report = asyncio.run(
-        _run_scan(domain, concurrency, check_http=not no_http, exclude=exclusions),
-        loop_factory=_WIN_LOOP_FACTORY,
+    report = _run_async(
+        _run_scan(domain, concurrency, check_http=not no_http, exclude=exclusions)
     )
 
     reporters.render_table(report, console, show_safe=show_all)
@@ -290,7 +297,7 @@ def watch(
             await asyncio.sleep(interval_secs)
 
     try:
-        asyncio.run(_loop(), loop_factory=_WIN_LOOP_FACTORY)
+        _run_async(_loop())
     except KeyboardInterrupt:
         console.print("\n[muted]Watch stopped.[/muted]")
 

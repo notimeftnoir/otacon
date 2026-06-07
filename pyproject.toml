@@ -59,11 +59,8 @@ Changelog = "https://github.com/notimeftnoir/otacon/blob/main/CHANGELOG.md"
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-# The project root IS the otacon package — search one level up to find it.
 [tool.setuptools.packages.find]
-where = [".."]
-include = ["otacon*"]
-exclude = ["otacon.tests*", "otacon.build*", "otacon.dist*"]
+where = ["src"]
 
 [tool.setuptools.package-data]
 otacon = ["py.typed"]
@@ -80,4 +77,4 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".."]
+pythonpath = ["src"]

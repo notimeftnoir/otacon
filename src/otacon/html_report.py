@@ -147,15 +147,16 @@ def _verdict_html(report: ScanReport) -> str:
     fresh_count = sum(1 for r in registered if r.age_days is not None and r.age_days < 7)
     icon = '<span class="critical">⚠</span>' if crit_count else '<span class="warn">●</span>'
     crit_cls = "critical" if crit_count else "muted"
+    mx_cls = "danger" if mx_count else "muted"
+    fresh_cls = "critical" if fresh_count else "muted"
     return (
         f'{icon} <span class="value">{len(registered)} registered</span>'
         f' <span class="muted">·</span>'
         f' <span class="{crit_cls}">crit: {crit_count}</span>'
         f' <span class="muted">·</span>'
-        f' <span class="{"danger" if mx_count else "muted"}">mx: {mx_count}</span>'
+        f' <span class="{mx_cls}">mx: {mx_count}</span>'
         f' <span class="muted">·</span>'
-        f' <span class="{"critical" if fresh_count else "muted"}">'
-        f"fresh &lt;7d: {fresh_count}</span>"
+        f' <span class="{fresh_cls}">fresh &lt;7d: {fresh_count}</span>'
     )
 
 
