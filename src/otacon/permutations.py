@@ -130,6 +130,7 @@ def _combos(label: str) -> set[str]:
         out.add(f"{label}-{kw}")
         out.add(f"{label}{kw}")
         out.add(f"{kw}-{label}")
+        out.add(f"{kw}{label}")
     return out
 
 

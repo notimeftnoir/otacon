@@ -32,7 +32,7 @@ A scan runs in four sequential stages for each target domain:
 
 ## Why rules, not ML
 
-- **Transparent**: every point increment has a named reason visible in `--verbose` output.
+- **Transparent**: every point increment has a named reason exposed in the JSON export (`risk_reasons`) and the interactive detail view.
 - **Zero training data**: useful on day 1 without a labelled corpus.
 - **Auditable**: a pentester can read `scoring.py` in five minutes and understand every
   decision, which matters when presenting findings to a client.
@@ -50,3 +50,9 @@ A scan runs in four sequential stages for each target domain:
   scoring through every reporter, giving free JSON serialisation and type safety.
 - **Watch mode** (`watch.py`): re-runs the full pipeline on a configurable interval and
   persists state between runs to highlight *new* findings only (`state.py`).
+- **Interactive mode** (`interactive.py`): guided prompt when run bare (`otacon`). Wraps
+  the same scan pipeline and adds a post-scan action loop (open in browser, WHOIS detail,
+  re-scan, allow-list a domain). Shares `asyncio` infrastructure with `cli.py`.
+- **Generate command** (`cli.py:generate`): offline-only — runs the permutation engine
+  without network checks and prints variants. Useful for building wordlists for external
+  tooling or reviewing what Otacon would scan before committing.

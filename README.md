@@ -75,7 +75,7 @@ pytest && ruff check .
 ```bash
 otacon                                        # interactive mode (guided prompt)
 otacon scan example.com                       # one-shot scan
-otacon scan example.com --json r.json --html r.html   # export reports
+otacon scan example.com --json r.json --html r.html --markdown r.md  # export reports
 otacon scan example.com --fail-on high        # CI gate — exit 2 on high/critical
 otacon scan example.com --exclude "alias.com" # skip known-good domains
 otacon watch example.com --interval 24h \

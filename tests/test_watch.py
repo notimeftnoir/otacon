@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 
 import pytest
+
 from otacon.models import DomainResult, PermutationType
 from otacon.theme import RiskLevel
-from otacon.watch import compute_diff, parse_interval
+from otacon.watch import compute_diff, notify, parse_interval
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -175,3 +176,20 @@ def test_parse_interval_no_suffix_raises_value_error() -> None:
 def test_parse_interval_wrong_suffix_raises_value_error() -> None:
     with pytest.raises(ValueError):
         parse_interval("10d")
+
+
+# ---------------------------------------------------------------------------
+# notify — URL scheme guard
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_url", [
+    "ftp://example.com/hook",
+    "/tmp/local.sock",
+    "example.com/hook",
+    "",
+])
+async def test_notify_rejects_non_http_urls(bad_url: str) -> None:
+    """notify() must silently no-op for non-HTTP/HTTPS URLs — never raise."""
+    diff = compute_diff("google.com", [], baseline=None)
+    await notify(bad_url, diff)  # must not raise or make a network call

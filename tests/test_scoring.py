@@ -171,6 +171,28 @@ def test_score_defensive_detection_ignores_trailing_dot_in_target():
     assert result.is_likely_defensive is True
 
 
+def test_score_relative_redirect_3xx_sets_defensive():
+    """A relative-path Location header (e.g. '/') on a 3xx is same-origin — defensive."""
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=301,
+        redirects_to="/",  # relative path — no hostname
+    )
+    result = score(r, target="google.com")
+    assert result.is_likely_defensive is True
+
+
+def test_score_relative_redirect_2xx_does_not_set_defensive():
+    """A relative-path Location on a 2xx is not a redirect — must not set defensive flag."""
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=200,
+        redirects_to="/",
+    )
+    result = score(r, target="google.com")
+    assert result.is_likely_defensive is False
+
+
 # ---------------------------------------------------------------------------
 # Domain-age scoring modifier
 # ---------------------------------------------------------------------------

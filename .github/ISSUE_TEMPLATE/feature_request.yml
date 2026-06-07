@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a new permutation technique, signal, or output format
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - New permutation technique
+        - New signal / data source
+        - Output format
+        - CLI / UX
+        - Watch mode
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or gap
+      description: What phishing/impersonation pattern does this miss, or what workflow friction does it cause?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should Otacon do? Include example domains or output if helpful.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

@@ -247,9 +247,15 @@ def watch(
     ),
     json_out: Path = typer.Option(None, "--json", help="Write diff JSON to this file."),
     no_http: bool = typer.Option(False, "--no-http", help="Skip HTTP/SSL probing."),
-    concurrency: int = typer.Option(50, "--concurrency", "-c", min=1),
-    exclude: str = typer.Option(None, "--exclude", "-x"),
-    exclude_file: Path = typer.Option(None, "--exclude-file"),
+    concurrency: int = typer.Option(
+        50, "--concurrency", "-c", min=1, help="Max concurrent DNS/HTTP checks."
+    ),
+    exclude: str = typer.Option(
+        None, "--exclude", "-x", help="Domains to skip (comma-separated)."
+    ),
+    exclude_file: Path = typer.Option(
+        None, "--exclude-file", help="File with domains to skip (one per line)."
+    ),
 ) -> None:
     """Scans domain variants and diffs against a saved baseline.
 
@@ -326,6 +332,10 @@ def generate(
     ),
 ) -> None:
     """Generates and prints variants WITHOUT network checks (offline, fast)."""
+    domain = domain.strip().lower().removeprefix("www.")
+    if not domain:
+        console.print("[danger]Error: domain cannot be empty.[/danger]")
+        raise typer.Exit(1)
     exclusions = _load_exclusions(exclude, exclude_file)
     perms = permutations.generate(domain, exclude=exclusions)
 
