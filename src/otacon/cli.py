@@ -6,7 +6,8 @@ from enum import Enum
 from pathlib import Path
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group
+from rich.live import Live
 from rich.markup import escape
 from rich.progress import (
     BarColumn,
@@ -17,7 +18,7 @@ from rich.progress import (
 )
 
 from . import permutations, reporters, scoring
-from .models import ScanReport
+from .models import DomainResult, ScanReport
 from .resolver import Resolver
 from .theme import BANNER, OTACON_THEME, RiskLevel
 
@@ -116,31 +117,35 @@ async def _run_scan(
     check_http: bool,
     exclude: set[str] | None = None,
 ) -> ScanReport:
-    """Runs a full scan with a progress bar."""
+    """Runs a full scan; streams registered hits into a live table as they arrive."""
     perms = permutations.generate(target, exclude=exclude)
     report = ScanReport(target=target, total_permutations=len(perms))
 
     if not perms:
         return report
 
-    with Progress(
+    hits: list[DomainResult] = []
+    progress = Progress(
         SpinnerColumn(style="brand"),
         TextColumn("[field]{task.description}"),
         BarColumn(complete_style="brand", finished_style="ok"),
         TextColumn("[muted]{task.completed}/{task.total}"),
         TimeElapsedColumn(),
         console=console,
-        transient=True,
-    ) as progress:
-        task = progress.add_task("Checking variants", total=len(perms))
+    )
+    task = progress.add_task("Checking variants", total=len(perms))
 
+    with Live(progress, console=console, refresh_per_second=4, transient=True) as live:
         async with Resolver(concurrency=concurrency, check_http=check_http) as resolver:
-            # Checked one by one to update the progress bar as results arrive.
             coros = [resolver.check_one(p) for p in perms]
             for coro in asyncio.as_completed(coros):
                 result = await coro
-                report.results.append(scoring.score(result, target))
+                scored = scoring.score(result, target)
+                report.results.append(scored)
                 progress.advance(task)
+                if scored.is_registered:
+                    hits.append(scored)
+                    live.update(Group(progress, reporters.build_live_table(hits, target)))
 
     return report
 
