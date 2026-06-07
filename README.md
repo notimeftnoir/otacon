@@ -71,7 +71,7 @@ Attackers register domains deceptively similar to real ones (`github-login.com`,
 
 ```
 domain → permutation engine → async resolver → scoring → report
-         (11 techniques)       (DNS/MX/SSL/HTTP)  (0-100)   (table/json/md)
+         (11 techniques)       (DNS/MX/SSL/HTTP)  (0-100)   (table/json/md/html)
 ```
 
 ### Variant generation techniques

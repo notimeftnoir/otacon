@@ -1,11 +1,12 @@
 """Reporters — rendering scan results.
 
-Three output formats, decoupled from the detection logic:
+Four output formats, decoupled from the detection logic:
   - table:    interactive, colored terminal preview (rich)
   - json:     machine-readable export (integration with other tools / SIEM)
   - markdown: ready-to-paste fragment for a report/ticket
+  - html:     self-contained dark-palette report (see html_report.py)
 
-Decoupling output from logic = it's easy to add another format (CSV, HTML)
+Decoupling output from logic = it's easy to add another format (CSV, etc.)
 without touching the rest.
 """
 
