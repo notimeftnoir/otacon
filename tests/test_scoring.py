@@ -47,7 +47,7 @@ def test_score_full_infrastructure_is_high_risk() -> None:
 
     scored = score(result)
 
-    assert scored.risk_score == 90
+    assert scored.risk_score == 85
     assert scored.risk_level == RiskLevel.CRITICAL
     assert any("has an MX record" in reason for reason in scored.risk_reasons)
     assert any("responds HTTP 200" in reason for reason in scored.risk_reasons)
@@ -149,16 +149,16 @@ def test_score_3xx_with_redirect_does_not_double_count():
     assert result.risk_score == 38
 
 
-def test_score_non_3xx_redirect_still_adds_bonus():
-    """A Location header on a 2xx response is unusual but still a signal."""
+def test_score_2xx_with_location_header_does_not_add_redirect_bonus():
+    """A 2xx response already scored +15; the redirect +5 bonus must not double-count."""
     r = DomainResult(
         domain="googel.com", kind=PermutationType.TYPO,
         resolves=True, http_status=200,
         redirects_to="https://somewhere.com/",
     )
     result = score(r)
-    # base=18 + 10 (resolves) + 15 (HTTP 200) + 5 (redirect bonus) = 48
-    assert result.risk_score == 48
+    # base=18 + 10 (resolves) + 15 (HTTP 200) = 43; redirect bonus suppressed for 2xx
+    assert result.risk_score == 43
 
 
 def test_score_defensive_detection_ignores_trailing_dot_in_target():

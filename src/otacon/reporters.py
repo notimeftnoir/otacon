@@ -49,7 +49,7 @@ def _signals(result: DomainResult) -> str:
 def _redirect_host(url: str) -> str:
     """Extracts the hostname from a redirect URL; falls back to the raw value."""
     try:
-        host = urlparse(url).netloc
+        host = urlparse(url).hostname
         return host if host else url
     except ValueError:
         return url

@@ -196,7 +196,7 @@ def test_interactive_scan_full_calls_render_table():
         _interactive_scan("example.com", console)
 
     mock_scan.assert_called_once_with(
-        "example.com", concurrency=50, check_http=True, console=console
+        "example.com", concurrency=50, check_http=True, console=console, exclude=None
     )
     mock_reporters.render_table.assert_called_once_with(mock_report, console, show_safe=False)
 
@@ -214,7 +214,8 @@ def test_interactive_scan_dns_only():
         _interactive_scan("example.com", MagicMock())
 
     mock_scan.assert_called_once_with(
-        "example.com", concurrency=50, check_http=False, console=mock_scan.call_args[1]["console"]
+        "example.com", concurrency=50, check_http=False,
+        console=mock_scan.call_args[1]["console"], exclude=None,
     )
 
 

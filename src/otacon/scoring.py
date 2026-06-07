@@ -43,9 +43,15 @@ def score(result: DomainResult, target: str = "") -> DomainResult:
 
     # Defensive-registration detection: redirect points back to the original domain.
     if result.redirects_to and target:
-        _host = (urlparse(result.redirects_to).hostname or "").lower().rstrip(".")
+        _parsed = urlparse(result.redirects_to)
+        _host = (_parsed.hostname or "").lower().rstrip(".")
         _t = target.lower().strip(".")
-        if _host == _t or _host.endswith("." + _t):
+        if _host and (_host == _t or _host.endswith("." + _t)):
+            result.is_likely_defensive = True
+        elif not _host and not _parsed.scheme and (
+            result.http_status is not None and 300 <= result.http_status < 400
+        ):
+            # Relative-path Location header (e.g. "/") from a 3xx is same-origin.
             result.is_likely_defensive = True
 
     points = 0
@@ -83,9 +89,9 @@ def score(result: DomainResult, target: str = "") -> DomainResult:
             reasons.append(f"responds HTTP {status} — server error (+3)")
 
     # Only add redirect bonus when the HTTP status doesn't already capture it
-    # (3xx responses are already scored +10 above — adding +5 here would double-count)
+    # (2xx/3xx responses are already scored above — adding +5 here would double-count)
     if result.redirects_to and not (
-        result.http_status is not None and 300 <= result.http_status < 400
+        result.http_status is not None and 200 <= result.http_status < 400
     ):
         points += 5
         reasons.append("redirects elsewhere (+5)")

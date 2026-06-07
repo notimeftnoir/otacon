@@ -283,7 +283,10 @@ def watch(
             diff = _watch.compute_diff(domain, report.results, baseline)
 
             _watch.render_diff(diff, console)
-            save_baseline(domain, report.results)
+            try:
+                save_baseline(domain, report.results)
+            except OSError as exc:
+                console.print(f"[danger]Warning: could not save baseline: {exc}[/danger]")
 
             if json_out:
                 try:

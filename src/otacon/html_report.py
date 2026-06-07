@@ -123,7 +123,7 @@ def _domain_cell(r: DomainResult) -> str:
         f'<br><span class="technique">{_h(r.kind.value)}</span>',
     ]
     if r.is_likely_defensive and r.redirects_to:
-        host = urlparse(r.redirects_to).netloc or r.redirects_to
+        host = urlparse(r.redirects_to).hostname or r.redirects_to
         parts.append(f'<span class="defensive"> ⚑ → {_h(host)}</span>')
     if r.page_title:
         parts.append(f'<br><span class="page-title">"{_h(r.page_title)}"</span>')

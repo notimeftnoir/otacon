@@ -187,6 +187,8 @@ def has_high_priority_changes(diff: WatchDiff) -> bool:
 
 async def notify(url: str, diff: WatchDiff) -> None:
     """POSTs *diff* as JSON to *url*. Failures are swallowed — never abort the scan."""
+    if not url.startswith(("http://", "https://")):
+        return
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(

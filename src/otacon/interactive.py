@@ -28,8 +28,11 @@ from .resolver import _DEFAULT_CONCURRENCY, Resolver
 from .whois import fetch_domain_age, format_age
 
 _WIN_LOOP_FACTORY = None
-if sys.platform == "win32" and sys.version_info >= (3, 12):
-    _WIN_LOOP_FACTORY = asyncio.SelectorEventLoop
+if sys.platform == "win32":
+    if sys.version_info >= (3, 12):
+        _WIN_LOOP_FACTORY = asyncio.SelectorEventLoop
+    else:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 def _run_async(coro):
@@ -173,8 +176,20 @@ def _interactive_scan(domain: str, console: Console) -> None:
         return
 
     check_http = network == "full"
+    exclusions: set[str] = set()
+    whitelist_path = Path("whitelist.txt")
+    if whitelist_path.exists():
+        try:
+            for line in whitelist_path.read_text(encoding="utf-8").splitlines():
+                entry = line.strip().lower()
+                if entry and not entry.startswith("#"):
+                    exclusions.add(entry)
+        except OSError:
+            pass
+
     report = _run_async(
-        _scan(domain, concurrency=_DEFAULT_CONCURRENCY, check_http=check_http, console=console)
+        _scan(domain, concurrency=_DEFAULT_CONCURRENCY, check_http=check_http,
+              console=console, exclude=exclusions or None)
     )
     reporters.render_table(report, console, show_safe=show_all)
     _suggest_defensive_whitelist(report, console)
@@ -366,10 +381,15 @@ def _action_loop(
                     console,
                     show_safe=True,
                 )
+                if not updated.is_registered:
+                    break  # domain went offline — return to domain picker
 
 
-async def _scan(domain: str, concurrency: int, check_http: bool, console: Console) -> ScanReport:
-    perms = permutations.generate(domain)
+async def _scan(
+    domain: str, concurrency: int, check_http: bool, console: Console,
+    exclude: set[str] | None = None,
+) -> ScanReport:
+    perms = permutations.generate(domain, exclude=exclude)
     report = ScanReport(target=domain, total_permutations=len(perms))
     if not perms:
         return report
