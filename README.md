@@ -1,4 +1,18 @@
-# Otacon
+<p align="center">
+  <img src="assets/brand/otacon-readme-header.png" alt="Otacon — domain impersonation detector" width="620">
+</p>
+
+<p align="center">
+  <b>Domain impersonation detector</b> — finds typosquatting, homoglyph attacks and combosquatting aimed at your domain.
+</p>
+
+<p align="center">
+  <a href="https://github.com/notimeftnoir/otacon/actions"><img src="https://github.com/notimeftnoir/otacon/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT">
+</p>
+
+---
 
 **Domain impersonation detector** — finds typosquatting, homoglyph attacks and combosquatting aimed at your domain.
 
@@ -295,7 +309,7 @@ a human does the rest.
 
 ```
 otacon/
-├── permutations.py   # variant generation engine (6 techniques)
+├── permutations.py   # variant generation engine (11 techniques)
 ├── resolver.py       # async DNS/MX/SSL/HTTP + page-title parsing (semaphore + pooling)
 ├── whois.py          # async WHOIS lookup — domain age scoring signal
 ├── scoring.py        # transparent rule-based risk engine (0-100, with reasons)

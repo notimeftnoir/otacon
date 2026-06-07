@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 56" width="64" height="56" fill="none" role="img" aria-label="Otacon">
+  
+  <rect x="5" y="7" width="54" height="42" rx="10" stroke="#00d7af" stroke-width="5"></rect>
+  
+  <path d="M16 28 C24 18 40 18 48 28 C40 38 24 38 16 28 Z" stroke="#00875f" stroke-width="3"></path>
+  <circle cx="32" cy="28" r="5" fill="#00d7af"></circle>
+  
+  <line x1="14" y1="21" x2="50" y2="21" stroke="#ff5f5f" stroke-width="2.5" stroke-dasharray="3 4" stroke-linecap="round"></line>
+</svg>

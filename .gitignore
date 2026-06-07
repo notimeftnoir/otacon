@@ -24,3 +24,6 @@ build/
 # Superpowers brainstorm sessions
 .superpowers/
 docs/superpowers/
+
+# Design project source — only the extracted assets in assets/brand/*.{png,svg} are committed
+assets/brand/assets/
