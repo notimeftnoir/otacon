@@ -255,6 +255,15 @@ def test_action_loop_ctrl_c_on_domain_picker():
         _action_loop(report, "example.com", MagicMock(), check_http=True)
 
 
+def test_action_loop_quit_choice_returns_title_string():
+    """Selecting '── quit ──' returns its title (not None) in questionary 2.x; must exit cleanly."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q:
+        mock_q.select.return_value.ask.return_value = "── quit ──"
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+
+
 def test_action_loop_quit_from_action_menu():
     """Quit from action menu exits loop."""
     r = _registered()

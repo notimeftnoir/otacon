@@ -304,13 +304,13 @@ def _action_loop(
                 value=r,
             )
             for r in candidates
-        ] + [questionary.Choice("── quit ──", value=None)]
+        ] + [questionary.Choice("── quit ──")]
 
-        selected: DomainResult | None = questionary.select(
+        selected = questionary.select(
             "Domain:", choices=domain_choices, pointer=_POINTER, qmark=_QMARK, style=_STYLE,
         ).ask()
 
-        if selected is None:
+        if not isinstance(selected, DomainResult):
             break
 
         while True:
