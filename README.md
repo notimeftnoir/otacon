@@ -17,11 +17,11 @@ Otacon · target: github.com
 ┌────────────────────────────────┬────────────────────┬──────────┬─────┬────┬─────┬──────┐
 │ Domain                         │ Risk               │      Age │ DNS │ MX │ SSL │ HTTP │
 ├────────────────────────────────┼────────────────────┼──────────┼─────┼────┼─────┼──────┤
-│ githubupdate.com               │ ███████░  92 crit  │       3d │  ✓  │ ✓  │  ✓  │  200 │
-│ combosquat · "GitHub - Security Update Required"                                       │
-│ bithub.com                     │ █████░░░  68 high  │       2y │  ✓  │ —  │  ✓  │  301 │
+│ githubupdate.com               │ #######-  92 crit  │       3d │  +  │ +  │  +  │  200 │
+│ combosquat . "GitHub - Security Update Required"                                       │
+│ bithub.com                     │ #####---  68 high  │       2y │  +  │ -  │  +  │  301 │
 │ typo                                                                                   │
-│ githuub.com                    │ ████░░░░  48 med   │      8mo │  ✓  │ —  │  —  │  404 │
+│ githuub.com                    │ ####----  48 med   │      8mo │  +  │ -  │  -  │  404 │
 │ typo                                                                                   │
 └────────────────────────────────┴────────────────────┴──────────┴─────┴────┴─────┴──────┘
 Permutations: 143 · registered: 3 · med: 1 · high: 1 · crit: 1
