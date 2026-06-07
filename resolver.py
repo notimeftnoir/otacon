@@ -17,6 +17,7 @@ import asyncio
 import re
 import ssl
 import warnings
+from datetime import datetime
 
 import aiodns
 import httpx
@@ -56,10 +57,14 @@ class Resolver:
         check_http: bool = True,
     ) -> None:
         self._sem = asyncio.Semaphore(concurrency)
+        self._whois_sem = asyncio.Semaphore(4)
         self._dns = aiodns.DNSResolver(timeout=_DNS_TIMEOUT, tries=1)
         self._check_http = check_http
         # One HTTP client reused for all requests (connection pooling).
         self._http: httpx.AsyncClient | None = None
+        # Per-run WHOIS cache — keyed by domain; stores an asyncio.Task so
+        # concurrent check_one calls for the same domain share a single lookup.
+        self._whois_cache: dict[str, asyncio.Task[tuple[datetime | None, int | None]]] = {}
 
     async def __aenter__(self) -> Resolver:
         self._http = httpx.AsyncClient(
@@ -124,6 +129,16 @@ class Resolver:
                 continue
         return None, None, None, None
 
+    async def _fetch_whois(self, domain: str) -> tuple[datetime | None, int | None]:
+        async with self._whois_sem:
+            return await fetch_domain_age(domain)
+
+    async def _cached_whois(self, domain: str) -> tuple[datetime | None, int | None]:
+        """Returns WHOIS age data, deduplicated per domain per run."""
+        if domain not in self._whois_cache:
+            self._whois_cache[domain] = asyncio.create_task(self._fetch_whois(domain))
+        return await self._whois_cache[domain]
+
     async def check_one(self, perm: Permutation) -> DomainResult:
         """Full check of a single variant. Bounded by the semaphore."""
         async with self._sem:
@@ -156,7 +171,7 @@ class Resolver:
 
                 # WHOIS only for registered domains — unregistered aren't worth the quota.
                 if result.is_registered:
-                    created, age = await fetch_domain_age(perm.domain)
+                    created, age = await self._cached_whois(perm.domain)
                     result.created_at = created
                     result.age_days = age
 
