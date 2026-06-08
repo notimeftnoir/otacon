@@ -118,7 +118,7 @@ def _risk_cell(score: int, level: RiskLevel) -> str:
 def _domain_cell(r: DomainResult) -> str:
     parts: list[str] = [
         f'<span class="domain-name">'
-        f'<a href="https://{_h(r.domain)}" target="_blank" rel="noreferrer">{_h(r.domain)}</a>'
+        f'<a href="https://{_h(r.domain)}" target="_blank" rel="noopener noreferrer">{_h(r.domain)}</a>'
         f'</span>',
         f'<br><span class="technique">{_h(r.kind.value)}</span>',
     ]
@@ -210,7 +210,7 @@ def to_html(report: ScanReport) -> str:
 
     logo = (
         " ⬢ ⬢ ⬢ ⬡ ⬡ ⬡\n"
-        '   <span class="brand">OTACON</span>  <span class="brand">∴</span>\n'
+        '   <span class="brand">OTACON</span>\n'
         ' ⬡ ⬡ ⬡ ⬢ ⬢ ⬢  <span class="muted">domain impersonation detector</span>'
     )
     meta_line = (

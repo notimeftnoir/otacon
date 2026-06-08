@@ -45,7 +45,7 @@ def score(result: DomainResult, target: str = "") -> DomainResult:
     if result.redirects_to and target:
         _parsed = urlparse(result.redirects_to)
         _host = (_parsed.hostname or "").lower().rstrip(".")
-        _t = target.lower().strip(".")
+        _t = target.lower().rstrip(".")
         if _host and (_host == _t or _host.endswith("." + _t)):
             result.is_likely_defensive = True
         elif not _host and not _parsed.scheme and (

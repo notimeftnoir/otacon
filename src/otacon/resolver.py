@@ -27,7 +27,7 @@ from . import __version__
 from .models import DomainResult, Permutation
 from .whois import fetch_domain_age
 
-_TITLE_RE = re.compile(r"<title[^>]*>([^<]{1,200})", re.IGNORECASE | re.DOTALL)
+_TITLE_RE = re.compile(r"<title[^>]*>([^<]{1,200})", re.IGNORECASE)
 _TITLE_MAX = 80
 
 
@@ -45,7 +45,7 @@ warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 # Concurrency limit — protects against DNS resolver rate-limiting and file
 # descriptor exhaustion.
-_DEFAULT_CONCURRENCY = 50
+DEFAULT_CONCURRENCY = 50
 _DNS_TIMEOUT = 3.0
 _HTTP_TIMEOUT = 4.0
 
@@ -55,7 +55,7 @@ class Resolver:
 
     def __init__(
         self,
-        concurrency: int = _DEFAULT_CONCURRENCY,
+        concurrency: int = DEFAULT_CONCURRENCY,
         check_http: bool = True,
     ) -> None:
         self._sem = asyncio.Semaphore(concurrency)

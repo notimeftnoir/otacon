@@ -24,7 +24,7 @@ from rich.progress import (
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
 from .models import DomainResult, Permutation, ScanReport
-from .resolver import _DEFAULT_CONCURRENCY, Resolver
+from .resolver import DEFAULT_CONCURRENCY, Resolver
 from .whois import fetch_domain_age, format_age
 
 _POINTER = "[*]"
@@ -175,7 +175,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
             pass
 
     report = run_async(
-        _scan(domain, concurrency=_DEFAULT_CONCURRENCY, check_http=check_http,
+        _scan(domain, concurrency=DEFAULT_CONCURRENCY, check_http=check_http,
               console=console, exclude=exclusions or None)
     )
     reporters.render_table(report, console, show_safe=show_all)

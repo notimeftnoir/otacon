@@ -83,9 +83,9 @@ class RiskLevel(str, Enum):
         return cls.SAFE
 
 
-# ASCII banner — Hexagon grid with radar scanner.
+# ASCII banner — Hexagon grid.
 _LOGO_TOP = " [brand]⬢ ⬢ ⬢ ⬡ ⬡ ⬡[/]"
-_LOGO_MID = "   [brand]OTACON[/]  [brand]∴[/]"
+_LOGO_MID = "   [brand]OTACON[/]"
 _LOGO_BOT = " [brand]⬡ ⬡ ⬡ ⬢ ⬢ ⬢[/]  [muted]domain impersonation detector[/]"
 _BAR = "[ok]█[/][info]█[/][warn]█[/][danger]█[/][crit.bar]█[/]"
 _LEGEND = "[ok]safe[/] [info]low[/] [warn]med[/] [danger]high[/] [crit.bar]crit[/]"
