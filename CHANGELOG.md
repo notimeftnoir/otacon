@@ -4,6 +4,17 @@ All notable changes to Otacon are documented here.
 
 ## [Unreleased]
 
+### Changed
+- Banner cleanup: removed the `∴` glyph next to `OTACON` in CLI and HTML output
+- Made `DEFAULT_CONCURRENCY` a public constant in `resolver.py` (was `_DEFAULT_CONCURRENCY`)
+- Unified trailing-dot stripping for defensive-redirect host matching in `scoring.py`
+- Added `noopener` alongside `noreferrer` on domain links in the HTML report
+- Dropped unused `re.DOTALL` flag from the HTML `<title>` regex
+
+### Docs
+- README rewritten and expanded: table of contents, role-based use cases, full CLI reference, CI/CD examples (GitHub Actions + GitLab CI), comparison with dnstwist, FAQ, troubleshooting
+- `docs/DESIGN.md` expanded: module map, async concurrency diagram, error-handling matrix, testing strategy, performance characteristics, roadmap
+
 ## [1.0.0] — 2026-06-06
 
 Initial public release.
