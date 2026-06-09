@@ -1,15 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 56" width="64" height="56" fill="none" role="img" aria-label="Otacon">
   <rect width="64" height="56" fill="#0d0d0d" rx="6"/>
-  <defs>
-    <!-- flat-top hexagon, circumradius=9 -->
-    <polygon id="h" points="9,0 4.5,7.79 -4.5,7.79 -9,0 -4.5,-7.79 4.5,-7.79"/>
-  </defs>
-  <!-- Row 1: ⬢ ⬢ ⬡  (filled · filled · outline) -->
-  <use href="#h" transform="translate(11,18)" fill="#00d7af"/>
-  <use href="#h" transform="translate(32,18)" fill="#00d7af"/>
-  <use href="#h" transform="translate(53,18)" fill="none" stroke="#00875f" stroke-width="1.5"/>
-  <!-- Row 2: ⬡ ⬢ ⬢  (outline · filled · filled) -->
-  <use href="#h" transform="translate(11,38)" fill="none" stroke="#00875f" stroke-width="1.5"/>
-  <use href="#h" transform="translate(32,38)" fill="#00d7af"/>
-  <use href="#h" transform="translate(53,38)" fill="#00d7af"/>
+  <!-- outer hexagon — flat-top, r=22, centre (32,28) -->
+  <polygon points="54,28 43,47.05 21,47.05 10,28 21,8.95 43,8.95"
+    fill="none" stroke="#00d7af" stroke-width="2"/>
+  <!-- inner hexagon — pointy-top, r=8, centre (32,28), rotated 30° -->
+  <polygon points="32,20 38.93,24 38.93,32 32,36 25.07,32 25.07,24"
+    fill="#00d7af"/>
 </svg>
