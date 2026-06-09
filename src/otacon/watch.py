@@ -7,6 +7,7 @@ NEW (appeared), CHANGED (risk score/level shifted), GONE (no longer registered).
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from datetime import datetime, timezone
 
@@ -17,6 +18,8 @@ from rich.text import Text
 
 from .models import DomainResult
 from .theme import RiskLevel
+
+_log = logging.getLogger("otacon.watch")
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -197,6 +200,7 @@ async def notify(url: str, diff: WatchDiff) -> None:
                 content=diff.model_dump_json(),
                 headers={"Content-Type": "application/json"},
             )
-    except (httpx.RequestError, asyncio.TimeoutError):
-        # Webhook delivery failures are silently ignored; logs are available in caller.
-        pass
+    except (httpx.RequestError, asyncio.TimeoutError) as exc:
+        # Webhook delivery failures never abort the scan — but surface them at
+        # DEBUG so a misconfigured/unreachable endpoint isn't silently dropped.
+        _log.debug("webhook POST to %s failed: %r", url, exc)

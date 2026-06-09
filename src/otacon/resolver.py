@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import html as _html
+import logging
 import re
 import ssl
 import warnings
@@ -26,6 +27,8 @@ import httpx
 from . import __version__
 from .models import DomainResult, Permutation
 from .whois import fetch_domain_age
+
+_log = logging.getLogger("otacon.resolver")
 
 _TITLE_RE = re.compile(r"<title[^>]*>([^<]{1,200})", re.IGNORECASE)
 _TITLE_MAX = 80
@@ -39,15 +42,15 @@ def _parse_title(body: str) -> str | None:
     title = _html.unescape(" ".join(m.group(1).split()))
     return title[:_TITLE_MAX] if title else None
 
-# We intentionally probe with verify=False (suspicious certs are the point),
-# so silence the resulting urllib3/httpx warning to keep output clean.
-warnings.filterwarnings("ignore", message="Unverified HTTPS request")
-
 # Concurrency limit — protects against DNS resolver rate-limiting and file
 # descriptor exhaustion.
 DEFAULT_CONCURRENCY = 50
 _DNS_TIMEOUT = 3.0
 _HTTP_TIMEOUT = 4.0
+# Hard cap on how much (decompressed) HTTP body we ever read. The page <title>
+# lives in <head>, so 64 KB is plenty — and the cap is what stops a hostile
+# lookalike server from OOM-ing the scanner with a giant body or a gzip bomb.
+_MAX_BODY_BYTES = 65536
 
 
 class Resolver:
@@ -58,6 +61,7 @@ class Resolver:
         concurrency: int = DEFAULT_CONCURRENCY,
         check_http: bool = True,
     ) -> None:
+        self._concurrency = concurrency
         self._sem = asyncio.Semaphore(concurrency)
         self._whois_sem = asyncio.Semaphore(4)
         self._dns = aiodns.DNSResolver(timeout=_DNS_TIMEOUT, tries=1)
@@ -69,12 +73,23 @@ class Resolver:
         self._whois_cache: dict[str, asyncio.Task[tuple[datetime | None, int | None]]] = {}
 
     async def __aenter__(self) -> Resolver:
-        self._http = httpx.AsyncClient(
-            timeout=_HTTP_TIMEOUT,
-            follow_redirects=False,   # we want to see redirects, not follow them blindly
-            verify=False,             # fakes often have bad certs — we inspect them anyway
-            headers={"User-Agent": f"Otacon/{__version__} (+domain-monitoring)"},
-        )
+        # We intentionally probe with verify=False (suspicious certs are the
+        # point). Scope the "Unverified HTTPS request" suppression to client
+        # construction instead of polluting the process-wide warnings filter.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Unverified HTTPS request")
+            self._http = httpx.AsyncClient(
+                timeout=_HTTP_TIMEOUT,
+                follow_redirects=False,   # we want to see redirects, not follow them blindly
+                verify=False,             # fakes often have bad certs — we inspect them anyway
+                headers={"User-Agent": f"Otacon/{__version__} (+domain-monitoring)"},
+                # Bound the connection pool to the scan's concurrency so a burst
+                # of slow hostile hosts can't pile up file descriptors.
+                limits=httpx.Limits(
+                    max_connections=self._concurrency,
+                    max_keepalive_connections=self._concurrency,
+                ),
+            )
         return self
 
     async def __aexit__(self, *exc: object) -> None:
@@ -86,9 +101,10 @@ class Resolver:
         try:
             records = await self._dns.query(domain, "A")
             return [r.host for r in records]
-        except Exception:
+        except Exception as exc:
             # pycares.AresError is not a subclass of aiodns.error.DNSError in all
             # versions, so we catch broadly — DNS queries are fire-and-forget.
+            _log.debug("A lookup failed for %s: %r", domain, exc)
             return []
 
     async def _resolve_mx(self, domain: str) -> list[str]:
@@ -96,7 +112,8 @@ class Resolver:
         try:
             records = await self._dns.query(domain, "MX")
             return [r.host for r in records]
-        except Exception:
+        except Exception as exc:
+            _log.debug("MX lookup failed for %s: %r", domain, exc)
             return []
 
     async def _check_ssl(self, domain: str) -> bool:
@@ -113,6 +130,23 @@ class Resolver:
         except (OSError, asyncio.TimeoutError, ssl.SSLError, UnicodeError):
             return False
 
+    @staticmethod
+    async def _read_capped(resp: httpx.Response) -> str:
+        """Reads at most ``_MAX_BODY_BYTES`` of the (decompressed) body.
+
+        Streaming + early break means we never materialise more than the cap in
+        memory, even when the server advertises gzip and unpacks to gigabytes —
+        httpx decompresses lazily as we iterate, so breaking stops the bomb.
+        """
+        chunks: list[bytes] = []
+        total = 0
+        async for chunk in resp.aiter_bytes():
+            chunks.append(chunk)
+            total += len(chunk)
+            if total >= _MAX_BODY_BYTES:
+                break
+        return b"".join(chunks)[:_MAX_BODY_BYTES].decode("utf-8", "replace")
+
     async def _probe_http(
         self, domain: str
     ) -> tuple[int | None, str | None, str | None, str | None]:
@@ -121,12 +155,14 @@ class Resolver:
             raise RuntimeError("Resolver._probe_http called outside async context manager")
         for scheme in ("https", "http"):
             try:
-                resp = await self._http.get(f"{scheme}://{domain}")
-                location = resp.headers.get("location")
-                title: str | None = None
-                if 200 <= resp.status_code < 300:
-                    title = _parse_title(resp.text)
-                return resp.status_code, resp.headers.get("server"), location, title
+                # stream() so we can bound the body read — see _read_capped.
+                async with self._http.stream("GET", f"{scheme}://{domain}") as resp:
+                    location = resp.headers.get("location")
+                    server = resp.headers.get("server")
+                    title: str | None = None
+                    if 200 <= resp.status_code < 300:
+                        title = _parse_title(await self._read_capped(resp))
+                    return resp.status_code, server, location, title
             except (httpx.HTTPError, UnicodeError, OSError):
                 continue
         return None, None, None, None
@@ -178,9 +214,10 @@ class Resolver:
                     result.age_days = age
 
                 return result
-            except Exception:
+            except Exception as exc:
                 # Broad catch is intentional — an unhandled exception here would
                 # close the shared httpx client and crash every other concurrent
                 # check_one coroutine. Graceful degradation beats a precise catch.
+                _log.debug("check_one failed for %s: %r", perm.domain, exc)
                 return DomainResult(domain=perm.domain, kind=perm.kind, note=perm.note)
 

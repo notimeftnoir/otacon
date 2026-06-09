@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Python dependencies (pinned in requirements*.txt).
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # GitHub Actions — keeps pinned action SHAs current with their security fixes.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Default to read-only GITHUB_TOKEN for every job.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: pytest + ruff (Python ${{ matrix.python-version }})
@@ -34,6 +38,24 @@ jobs:
 
       - name: Test (pytest)
         run: pytest
+
+  audit:
+    name: Dependency audit (pip-audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit pinned dependencies
+        run: pip-audit -r requirements.txt
 
   build:
     name: Build distribution

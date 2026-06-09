@@ -4,7 +4,26 @@ All notable changes to Otacon are documented here.
 
 ## [Unreleased]
 
+### Security
+- HTTP probing now streams responses and caps the body read at 64 KB
+  (`resolver._read_capped` / `_MAX_BODY_BYTES`), preventing a hostile lookalike
+  server from OOM-ing the scanner with a giant body or a gzip decompression bomb.
+  Connection pool is also bounded to the scan concurrency via `httpx.Limits`.
+- Interactive JSON export (`_export_result`) is now confined to the current
+  working directory: absolute paths and `..` escapes are rejected after
+  canonicalisation (the previous `..`-substring check let absolute paths through).
+- TLS-warning suppression scoped to client construction instead of a
+  process-wide `warnings.filterwarnings` (no longer pollutes importers).
+
+### Added
+- `--debug` flag that surfaces graceful-degradation events (DNS/WHOIS/HTTP/webhook
+  failures) via an `otacon.*` logger; silent by default.
+- CI dependency audit job (`pip-audit`) and a Dependabot config for pip + actions.
+
 ### Changed
+- Hardened release workflow: PyPI Trusted Publishing (OIDC, no long-lived token),
+  least-privilege `permissions:`, a protected `pypi` environment, and the publish
+  action pinned to a commit SHA.
 - Banner cleanup: removed the `∴` glyph next to `OTACON` in CLI and HTML output
 - Made `DEFAULT_CONCURRENCY` a public constant in `resolver.py` (was `_DEFAULT_CONCURRENCY`)
 - Unified trailing-dot stripping for defensive-redirect host matching in `scoring.py`

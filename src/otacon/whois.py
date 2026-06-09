@@ -11,10 +11,12 @@ returns (None, None) so the rest of the scan continues unaffected.
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 import asyncwhois
 
+_log = logging.getLogger("otacon.whois")
 _WHOIS_TIMEOUT = 10.0
 
 
@@ -39,10 +41,11 @@ async def fetch_domain_age(domain: str) -> tuple[datetime | None, int | None]:
             created = created.replace(tzinfo=timezone.utc)
         age_days = (datetime.now(timezone.utc) - created).days
         return created, age_days
-    except Exception:
+    except Exception as exc:
         # Broad exception catch for WHOIS layer — network failures, parsing errors,
         # and unexpected errors are all gracefully downgraded to (None, None).
         # This ensures that WHOIS lookup failures don't crash the scan.
+        _log.debug("WHOIS lookup failed for %s: %r", domain, exc)
         return None, None
 
 

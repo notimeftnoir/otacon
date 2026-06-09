@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from otacon.models import Permutation, PermutationType
-from otacon.resolver import Resolver, _parse_title
+from otacon.resolver import _MAX_BODY_BYTES, Resolver, _parse_title
 
 
 def test_parse_title_basic():
@@ -57,6 +57,43 @@ def test_parse_title_multiline():
 def test_parse_title_unescapes_html_entities():
     assert _parse_title("<title>Tom &amp; Jerry</title>") == "Tom & Jerry"
     assert _parse_title("<title>Page &#8211; Subtitle</title>") == "Page – Subtitle"
+
+
+# ---------------------------------------------------------------------------
+# Body cap — a hostile server can't OOM the scanner with a giant/bomb body
+# ---------------------------------------------------------------------------
+
+class _FakeStreamResp:
+    """Minimal stand-in for httpx.Response.aiter_bytes — counts bytes produced."""
+
+    def __init__(self, total: int, chunk_size: int = 8192) -> None:
+        self._total = total
+        self._chunk_size = chunk_size
+        self.produced = 0
+
+    async def aiter_bytes(self):
+        while self.produced < self._total:
+            n = min(self._chunk_size, self._total - self.produced)
+            self.produced += n
+            yield b"a" * n
+
+
+@pytest.mark.asyncio
+async def test_read_capped_stops_at_limit():
+    # 50 MB "body" — _read_capped must return <= cap and stop pulling early
+    # (never materialising the whole thing, as with a decompression bomb).
+    resp = _FakeStreamResp(50 * 1024 * 1024)
+    text = await Resolver._read_capped(resp)
+    assert len(text.encode("utf-8")) <= _MAX_BODY_BYTES
+    # Generation halted shortly after the cap, not after the full 50 MB.
+    assert resp.produced < _MAX_BODY_BYTES + resp._chunk_size
+
+
+@pytest.mark.asyncio
+async def test_read_capped_small_body_intact():
+    resp = _FakeStreamResp(100)
+    text = await Resolver._read_capped(resp)
+    assert text == "a" * 100
 
 
 # ---------------------------------------------------------------------------

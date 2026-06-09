@@ -230,9 +230,11 @@ def _show_whois(result: DomainResult, console: Console) -> None:
 
 
 def _export_result(result: DomainResult, console: Console) -> None:
-    """Saves a single domain result as a JSON file.
-    
-    Validates filename to prevent path traversal attacks (e.g., ../../../etc/passwd).
+    """Saves a single domain result as a JSON file under the current directory.
+
+    The write is confined to the CWD: absolute paths and ``..`` escapes are
+    rejected after canonicalisation, so a typo (or paste) can't clobber an
+    arbitrary file like ``/etc/cron.d/x`` or a Windows startup folder.
     """
     default_name = f"{result.domain.replace('.', '_')}.json"
     filename = questionary.text(
@@ -240,17 +242,18 @@ def _export_result(result: DomainResult, console: Console) -> None:
     ).ask()
     if filename is None:
         return
-    
+
     try:
-        # Sanitize: reject parent directory traversal patterns
-        if ".." in filename:
-            console.print("[danger]Error: Path traversal detected — use relative paths[/danger]")
+        cwd = Path.cwd().resolve()
+        file_path = (cwd / filename).resolve()
+        # is_relative_to catches both absolute paths (which discard `cwd`) and
+        # any `..` sequence that climbs above the working directory.
+        if not file_path.is_relative_to(cwd):
+            console.print(
+                "[danger]Error: refusing to write outside the current directory[/danger]"
+            )
             return
-        
-        # Resolve to canonical path
-        file_path = Path(filename).resolve()
-        
-        # Write the file
+
         file_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
         console.print(f"[ok]→ Saved:[/ok] [url]{escape(file_path.name)}[/url]")
     except (OSError, ValueError) as exc:

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from otacon.whois import fetch_domain_age, format_age
 
 # ---------------------------------------------------------------------------

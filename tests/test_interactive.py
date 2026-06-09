@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from otacon.interactive import (
     _action_loop,
     _confirm,
@@ -428,17 +430,31 @@ def test_show_whois_shows_unavailable_on_failed_lookup():
 # _export_result
 # ---------------------------------------------------------------------------
 
-def test_export_result_writes_json_to_file(tmp_path):
-    """_export_result saves valid JSON for the given domain result."""
+def test_export_result_writes_json_to_file(tmp_path, monkeypatch):
+    """_export_result saves valid JSON for a relative filename under the CWD."""
+    monkeypatch.chdir(tmp_path)
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
-    out_file = tmp_path / "googel_com.json"
     with patch("otacon.interactive.questionary") as mock_q:
-        mock_q.text.return_value.ask.return_value = str(out_file)
+        mock_q.text.return_value.ask.return_value = "googel_com.json"
         _export_result(r, MagicMock())
+    out_file = tmp_path / "googel_com.json"
     assert out_file.exists()
     import json
     data = json.loads(out_file.read_text())
     assert data["domain"] == "googel.com"
+
+
+@pytest.mark.parametrize("bad_name", ["../escape.json", "/tmp/abs.json", "C:\\abs.json"])
+def test_export_result_rejects_paths_outside_cwd(tmp_path, monkeypatch, bad_name):
+    """Absolute paths and `..` escapes are refused — write stays inside the CWD."""
+    monkeypatch.chdir(tmp_path)
+    r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
+    with patch("otacon.interactive.questionary") as mock_q:
+        mock_q.text.return_value.ask.return_value = bad_name
+        _export_result(r, MagicMock())
+    # Nothing escaped the working directory (parent stays empty of our file).
+    assert not (tmp_path.parent / "escape.json").exists()
+    assert list(tmp_path.rglob("*.json")) == []
 
 
 def test_export_result_ctrl_c_exits_cleanly():

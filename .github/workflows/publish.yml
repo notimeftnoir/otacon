@@ -5,10 +5,19 @@ on:
     tags:
       - "v*"
 
+# Least privilege by default; the publish job opts into the OIDC token it needs.
+permissions:
+  contents: read
+
 jobs:
   publish:
     name: Build and publish
     runs-on: ubuntu-latest
+    # Requires a protected GitHub Environment named "pypi" (add reviewers there
+    # to gate releases). Also where PyPI Trusted Publishing is configured.
+    environment: pypi
+    permissions:
+      id-token: write   # OIDC token for PyPI Trusted Publishing (no API token needed)
 
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +40,6 @@ jobs:
         run: pip install build && python -m build
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
+        # Pinned to the v1.14.0 commit SHA — a mutable ref (release/v1) could be
+        # repointed at malicious code. Bump the SHA + comment together.
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # v1.14.0

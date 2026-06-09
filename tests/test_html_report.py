@@ -193,8 +193,9 @@ def test_to_html_escapes_target_in_title():
 def test_scan_html_flag_writes_file(tmp_path):
     from unittest.mock import AsyncMock, patch
 
-    from otacon.cli import app
     from typer.testing import CliRunner
+
+    from otacon.cli import app
 
     out_file = tmp_path / "report.html"
     empty_report = ScanReport(target="example.com", total_permutations=0)

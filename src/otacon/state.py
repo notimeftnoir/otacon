@@ -7,12 +7,14 @@ to ``~/.otacon/<domain>.json`` so subsequent runs can diff against it.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import DomainResult
 
+_log = logging.getLogger("otacon.state")
 _OTACON_DIR = ".otacon"
 _SAFE_DOMAIN_RE = re.compile(r"[^\w.\-]")
 
@@ -45,7 +47,9 @@ def load_baseline(domain: str, home: Path | None = None) -> dict[str, dict] | No
         if not isinstance(registered, dict):
             return None
         return registered
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as exc:
+        # Corrupt/unreadable baseline → treat as "no prior data" rather than crash.
+        _log.debug("could not load baseline %s: %r", path, exc)
         return None
 
 

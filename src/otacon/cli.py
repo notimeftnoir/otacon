@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from enum import Enum
 from pathlib import Path
 
@@ -51,6 +52,25 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def _configure_logging(debug: bool) -> None:
+    """Wires the ``otacon`` logger to a Rich handler. Off unless ``--debug``.
+
+    Without this, the library's many graceful-degradation paths (WHOIS misses,
+    DNS errors, dropped webhooks) are invisible — this makes them surface at
+    DEBUG on demand without ever leaking into normal output.
+    """
+    from rich.logging import RichHandler
+
+    logger = logging.getLogger("otacon")
+    logger.handlers.clear()
+    if not debug:
+        logger.addHandler(logging.NullHandler())
+        return
+    handler = RichHandler(console=console, show_path=False, rich_tracebacks=True)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+
 @app.callback(invoke_without_command=True)
 def _main(
     ctx: typer.Context,
@@ -59,8 +79,13 @@ def _main(
         callback=_version_callback, is_eager=True,
         help="Print version and exit.",
     ),
+    debug: bool = typer.Option(
+        False, "--debug",
+        help="Log graceful-degradation events (DNS/WHOIS/HTTP/webhook failures) to stderr.",
+    ),
 ) -> None:
     """Shows the banner before any command; enters interactive mode when run bare."""
+    _configure_logging(debug)
     _banner()
     if ctx.invoked_subcommand is None:
         from .interactive import run as _interactive_run

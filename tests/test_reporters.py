@@ -135,8 +135,9 @@ def test_domain_cell_non_defensive_no_flag():
 
 
 def _make_console(no_color: bool = True):
-    from otacon.theme import OTACON_THEME
     from rich.console import Console
+
+    from otacon.theme import OTACON_THEME
 
     buf = StringIO()
     return Console(file=buf, no_color=no_color, theme=OTACON_THEME, width=120), buf

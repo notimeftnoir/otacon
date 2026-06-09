@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 import typer
+from typer.testing import CliRunner
+
 from otacon import cli
 from otacon.cli import app
-from typer.testing import CliRunner
 
 
 def test_load_exclusions_parses_comma_separated_values() -> None:

@@ -116,9 +116,10 @@ def _risk_cell(score: int, level: RiskLevel) -> str:
 
 
 def _domain_cell(r: DomainResult) -> str:
+    dom = _h(r.domain)
     parts: list[str] = [
         f'<span class="domain-name">'
-        f'<a href="https://{_h(r.domain)}" target="_blank" rel="noopener noreferrer">{_h(r.domain)}</a>'
+        f'<a href="https://{dom}" target="_blank" rel="noopener noreferrer">{dom}</a>'
         f'</span>',
         f'<br><span class="technique">{_h(r.kind.value)}</span>',
     ]
