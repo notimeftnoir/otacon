@@ -150,21 +150,38 @@ class Resolver:
     async def _probe_http(
         self, domain: str
     ) -> tuple[int | None, str | None, str | None, str | None]:
-        """Tries HTTPS, then HTTP. Returns (status, server, redirect_target, page_title)."""
+        """Tries HTTPS and HTTP in parallel. Returns (status, server, redirect_target, page_title)."""
         if self._http is None:
             raise RuntimeError("Resolver._probe_http called outside async context manager")
-        for scheme in ("https", "http"):
-            try:
-                # stream() so we can bound the body read — see _read_capped.
-                async with self._http.stream("GET", f"{scheme}://{domain}") as resp:
-                    location = resp.headers.get("location")
-                    server = resp.headers.get("server")
-                    title: str | None = None
-                    if 200 <= resp.status_code < 300:
-                        title = _parse_title(await self._read_capped(resp))
-                    return resp.status_code, server, location, title
-            except (httpx.HTTPError, UnicodeError, OSError):
-                continue
+
+        async def _get(scheme: str) -> tuple[int, str | None, str | None, str | None]:
+            # stream() so we can bound the body read — see _read_capped.
+            async with self._http.stream("GET", f"{scheme}://{domain}") as resp:
+                location = resp.headers.get("location")
+                server = resp.headers.get("server")
+                title: str | None = None
+                if 200 <= resp.status_code < 300:
+                    title = _parse_title(await self._read_capped(resp))
+                return resp.status_code, server, location, title
+
+        # Check both in parallel to free up concurrency slots faster.
+        tasks = [asyncio.create_task(_get("https")), asyncio.create_task(_get("http"))]
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+
+        for task in tasks:
+            if task in done:
+                try:
+                    # Prioritize HTTPS result if it succeeded.
+                    # We check the https task (index 0) first.
+                    res_https = tasks[0].result()
+                    return res_https
+                except (httpx.HTTPError, UnicodeError, OSError):
+                    # If HTTPS failed, try to return the HTTP result.
+                    try:
+                        res_http = tasks[1].result()
+                        return res_http
+                    except (httpx.HTTPError, UnicodeError, OSError):
+                        break
         return None, None, None, None
 
     async def _fetch_whois(self, domain: str) -> tuple[datetime | None, int | None]:

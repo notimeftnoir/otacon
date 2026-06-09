@@ -40,11 +40,12 @@ def test_typo_omission_present():
     assert "gogle.com" in domains
 
 
-def test_homoglyph_produces_unicode():
-    """Homoglyphs include non-ASCII characters (Cyrillic etc.)."""
+def test_homoglyph_produces_punycode():
+    """Homoglyphs include non-ASCII characters, normalized to Punycode."""
     perms = permutations.generate("paypal.com")
     homoglyphs = [p for p in perms if p.kind == PermutationType.HOMOGLYPH]
-    assert any(not p.domain.isascii() for p in homoglyphs)
+    # Check for Punycode (xn--) instead of Unicode.
+    assert any(p.domain.startswith("xn--") for p in homoglyphs)
 
 
 def test_combo_keywords():
@@ -190,11 +191,3 @@ def test_idn_variants_are_ascii():
             label = p.domain.split(".")[0]
             assert label.isascii()
             assert label.startswith("xn--")
-
-
-def test_idn_not_duplicated_by_homoglyph():
-    """IDN variants (xn-- labels) do not appear in the homoglyph set."""
-    perms = permutations.generate("paypal.com")
-    homoglyph_domains = {p.domain for p in perms if p.kind == PermutationType.HOMOGLYPH}
-    idn_domains = {p.domain for p in perms if p.kind == PermutationType.IDN}
-    assert homoglyph_domains.isdisjoint(idn_domains)

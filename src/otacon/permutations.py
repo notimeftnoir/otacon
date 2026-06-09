@@ -243,6 +243,7 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
     # Homoglyphs and typos are the most dangerous, so they go first.
     pipeline: list[tuple[PermutationType, set[str], str]] = [
         (PermutationType.HOMOGLYPH, _homoglyphs(label), "visually identical character"),
+        (PermutationType.IDN, _idn_squats(label), "ACE/punycode unicode homoglyph"),
         (PermutationType.TYPO, _typos(label), "typo / keyboard error"),
         (PermutationType.BITSQUAT, _bitsquats(label), "bit-flip (memory error)"),
         (PermutationType.HYPHEN, _hyphenation(label), "hyphen modification"),
@@ -255,22 +256,18 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
     for kind, variants, note in pipeline:
         for v in sorted(variants):
             fqdn = f"{v}.{tld}" if tld else v
-            if fqdn in seen:
+            
+            # Normalize to Punycode (ACE) for strict deduplication.
+            # A domain might be Unicode from one technique and Punycode from another.
+            try:
+                normalized = fqdn.encode("idna").decode("ascii")
+            except UnicodeError:
                 continue
-            seen.add(fqdn)
-            result.append(Permutation(domain=fqdn, kind=kind, note=note))
 
-    # IDN — punycode encoding of non-ASCII homoglyph labels.
-    for v in sorted(_idn_squats(label)):
-        fqdn = f"{v}.{tld}" if tld else v
-        if fqdn in seen:
-            continue
-        seen.add(fqdn)
-        result.append(
-            Permutation(
-                domain=fqdn, kind=PermutationType.IDN, note="ACE/punycode unicode homoglyph"
-            )
-        )
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            result.append(Permutation(domain=normalized, kind=kind, note=note))
 
     # TLD swap — changes the TLD instead of the label.
     if tld:
