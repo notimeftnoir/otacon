@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import webbrowser
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from .models import DomainResult, Permutation, ScanReport
 from .resolver import DEFAULT_CONCURRENCY, Resolver
 from .whois import fetch_domain_age, format_age
 
+_log = logging.getLogger("otacon.interactive")
 _POINTER = "[*]"
 _QMARK = "›"
 
@@ -171,8 +173,8 @@ def _interactive_scan(domain: str, console: Console) -> None:
                 entry = line.strip().lower()
                 if entry and not entry.startswith("#"):
                     exclusions.add(entry)
-        except OSError:
-            pass
+        except OSError as exc:
+            _log.debug("Could not read whitelist.txt: %s", exc)
 
     report = run_async(
         _scan(domain, concurrency=DEFAULT_CONCURRENCY, check_http=check_http,

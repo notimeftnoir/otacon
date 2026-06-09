@@ -35,5 +35,5 @@ def run_async(coro: Any) -> Any:
         Result of the coroutine.
     """
     if _WIN_LOOP_FACTORY is not None:
-        return asyncio.run(coro, loop_factory=_WIN_LOOP_FACTORY)
+        return asyncio.run(coro, loop_factory=_WIN_LOOP_FACTORY)  # type: ignore[call-arg]
     return asyncio.run(coro)

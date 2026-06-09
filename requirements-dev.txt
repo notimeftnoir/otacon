@@ -4,4 +4,7 @@ pytest==8.4.2
 pytest-asyncio==0.24.0
 respx==0.21.1
 ruff==0.15.13
+mypy==1.15.0
+pip-audit==2.7.3
+types-setuptools
 build==1.5.0

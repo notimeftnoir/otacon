@@ -188,8 +188,16 @@ def test_parse_interval_wrong_suffix_raises_value_error() -> None:
     "/tmp/local.sock",
     "example.com/hook",
     "",
+    # SSRF guards — these used to slip through the old startswith check.
+    "http://127.0.0.1/hook",
+    "http://localhost/hook",
+    "http://169.254.169.254/latest/meta-data/",
+    "http://10.0.0.1/hook",
+    "http://192.168.1.1/hook",
+    "http://[::1]/hook",
+    "file:///etc/passwd",
 ])
 async def test_notify_rejects_non_http_urls(bad_url: str) -> None:
-    """notify() must silently no-op for non-HTTP/HTTPS URLs — never raise."""
+    """notify() must silently no-op for unsafe URLs — never raise, never connect."""
     diff = compute_diff("google.com", [], baseline=None)
     await notify(bad_url, diff)  # must not raise or make a network call
