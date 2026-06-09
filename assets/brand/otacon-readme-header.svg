@@ -1,0 +1,67 @@
+<svg width="620" height="150" viewBox="0 0 620 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Otacon — domain impersonation detector">
+
+  <!-- Background + border -->
+  <rect width="620" height="150" fill="#0d0d0d" rx="8"/>
+  <rect x="1" y="1" width="618" height="148" fill="none" stroke="#00875f" stroke-width="1.5" rx="7" opacity="0.7"/>
+
+  <defs>
+    <!-- flat-top hexagon, circumradius=9, centered at origin -->
+    <polygon id="hx" points="9,0 4.5,7.79 -4.5,7.79 -9,0 -4.5,-7.79 4.5,-7.79"/>
+  </defs>
+
+  <!-- ── Left decoration: row1 ⬢⬢ / row2 ⬡⬡ / row3 ⬢⬢ ── -->
+  <use href="#hx" transform="translate(40,38)"  fill="#00d7af"/>
+  <use href="#hx" transform="translate(64,38)"  fill="#00d7af"/>
+  <use href="#hx" transform="translate(40,62)"  fill="none" stroke="#00875f" stroke-width="1.5"/>
+  <use href="#hx" transform="translate(64,62)"  fill="none" stroke="#00875f" stroke-width="1.5"/>
+  <use href="#hx" transform="translate(40,86)"  fill="#00d7af" opacity="0.35"/>
+  <use href="#hx" transform="translate(64,86)"  fill="#00d7af" opacity="0.35"/>
+
+  <!-- ── Right decoration: row1 ⬡⬡ / row2 ⬢⬢ / row3 ⬡⬡ (mirrored) ── -->
+  <use href="#hx" transform="translate(556,38)" fill="none" stroke="#00875f" stroke-width="1.5"/>
+  <use href="#hx" transform="translate(580,38)" fill="none" stroke="#00875f" stroke-width="1.5"/>
+  <use href="#hx" transform="translate(556,62)" fill="#00d7af"/>
+  <use href="#hx" transform="translate(580,62)" fill="#00d7af"/>
+  <use href="#hx" transform="translate(556,86)" fill="none" stroke="#00875f" stroke-width="1.5" opacity="0.35"/>
+  <use href="#hx" transform="translate(580,86)" fill="none" stroke="#00875f" stroke-width="1.5" opacity="0.35"/>
+
+  <!-- ── OTACON title ── -->
+  <text x="310" y="60"
+    text-anchor="middle"
+    font-family="'Courier New',Courier,monospace"
+    font-size="42"
+    font-weight="bold"
+    fill="#00d7af"
+    letter-spacing="10">OTACON</text>
+
+  <!-- ── Subtitle ── -->
+  <text x="310" y="83"
+    text-anchor="middle"
+    font-family="'Courier New',Courier,monospace"
+    font-size="13"
+    fill="#8a8a8a">domain impersonation detector</text>
+
+  <!-- ── Risk level colour bar (5 segments, centred) ── -->
+  <!-- total width = 5*30 + 4*5 = 170; start = 310 - 85 = 225 -->
+  <rect x="225" y="98" width="30" height="8" fill="#5fd700" rx="2"/>
+  <rect x="260" y="98" width="30" height="8" fill="#5fafff" rx="2"/>
+  <rect x="295" y="98" width="30" height="8" fill="#ffd700" rx="2"/>
+  <rect x="330" y="98" width="30" height="8" fill="#ff5f5f" rx="2"/>
+  <rect x="365" y="98" width="30" height="8" fill="#ff0000" rx="2"/>
+
+  <!-- Risk labels -->
+  <text x="240" y="117" text-anchor="middle" font-family="'Courier New',Courier,monospace" font-size="9" fill="#5fd700">safe</text>
+  <text x="275" y="117" text-anchor="middle" font-family="'Courier New',Courier,monospace" font-size="9" fill="#5fafff">low</text>
+  <text x="310" y="117" text-anchor="middle" font-family="'Courier New',Courier,monospace" font-size="9" fill="#ffd700">med</text>
+  <text x="345" y="117" text-anchor="middle" font-family="'Courier New',Courier,monospace" font-size="9" fill="#ff5f5f">high</text>
+  <text x="380" y="117" text-anchor="middle" font-family="'Courier New',Courier,monospace" font-size="9" fill="#ff0000">crit</text>
+
+  <!-- ── Bottom tagline ── -->
+  <text x="310" y="140"
+    text-anchor="middle"
+    font-family="'Courier New',Courier,monospace"
+    font-size="10"
+    fill="#8a8a8a"
+    opacity="0.55">typosquatting · homoglyph · combosquat · bitsquat · async · WHOIS</text>
+
+</svg>
