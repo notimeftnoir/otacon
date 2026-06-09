@@ -191,7 +191,9 @@ def has_high_priority_changes(diff: WatchDiff) -> bool:
 
 async def notify(url: str, diff: WatchDiff) -> None:
     """POSTs *diff* as JSON to *url*. Failures are swallowed — never abort the scan."""
-    if not url.startswith(("http://", "https://")):
+    from ._validate import is_safe_webhook_url
+    if not is_safe_webhook_url(url):
+        _log.debug("notify: refusing unsafe webhook URL %r", url)
         return
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:

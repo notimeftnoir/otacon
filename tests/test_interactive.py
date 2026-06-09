@@ -53,8 +53,16 @@ def test_validate_domain_valid():
     assert _validate_domain("example.com") is True
 
 
-def test_validate_domain_no_tld_allowed():
-    assert _validate_domain("example") is True
+def test_validate_domain_no_tld_rejected():
+    assert _validate_domain("example") != True  # bare label without TLD is invalid
+
+
+def test_validate_domain_invalid_scheme_rejected():
+    assert _validate_domain("http://example.com") != True
+
+
+def test_validate_domain_empty_rejected():
+    assert _validate_domain("   ") != True
 
 
 def test_validate_limit_zero():
@@ -299,14 +307,27 @@ def test_action_loop_back_returns_to_domain_picker():
 
 
 def test_action_loop_open_calls_webbrowser():
-    """Open action calls webbrowser.open with the correct URL."""
+    """Open action shows a warning, asks for confirmation, then calls webbrowser.open."""
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
     with patch("otacon.interactive.questionary") as mock_q, \
-         patch("otacon.interactive.webbrowser") as mock_wb:
+         patch("otacon.interactive.webbrowser") as mock_wb, \
+         patch("otacon.interactive._confirm", return_value=True):
         mock_q.select.return_value.ask.side_effect = [r, "open", "quit"]
         _action_loop(report, "example.com", MagicMock(), check_http=True)
     mock_wb.open.assert_called_once_with("https://googel.com")
+
+
+def test_action_loop_open_cancelled_when_user_declines():
+    """Declining the warning prompt cancels the browser open."""
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q, \
+         patch("otacon.interactive.webbrowser") as mock_wb, \
+         patch("otacon.interactive._confirm", return_value=False):
+        mock_q.select.return_value.ask.side_effect = [r, "open", "quit"]
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+    mock_wb.open.assert_not_called()
 
 
 def test_action_loop_whois_calls_show_whois():

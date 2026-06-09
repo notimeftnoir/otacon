@@ -16,14 +16,13 @@ build/
 .idea/
 .vscode/
 
+# Claude Code project data (session memory, worktrees)
+.claude/
+
 # Tool caches
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
-
-# Superpowers brainstorm sessions
-.superpowers/
-docs/superpowers/
 
 # Design project source — only the extracted assets in assets/brand/*.{png,svg} are committed
 assets/brand/assets/

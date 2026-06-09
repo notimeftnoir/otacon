@@ -22,6 +22,10 @@ from ._asyncutils import run_async
 from .models import DomainResult, ScanReport
 from .resolver import Resolver
 from .theme import BANNER, OTACON_THEME, RiskLevel
+from ._validate import is_valid_domain, is_safe_webhook_url, safe_relative_path
+import sys
+
+QUIET_MODE = False
 
 
 class _Threshold(str, Enum):
@@ -83,10 +87,21 @@ def _main(
         False, "--debug",
         help="Log graceful-degradation events (DNS/WHOIS/HTTP/webhook failures) to stderr.",
     ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q",
+        help="Disable UI, banner, and progress. Outputs JSON to stdout.",
+    ),
 ) -> None:
     """Shows the banner before any command; enters interactive mode when run bare."""
+    global QUIET_MODE
+    QUIET_MODE = quiet
+    if quiet:
+        console.quiet = True
+
     _configure_logging(debug)
-    _banner()
+    if not quiet:
+        _banner()
+        
     if ctx.invoked_subcommand is None:
         from .interactive import run as _interactive_run
         _interactive_run(console)
@@ -131,27 +146,38 @@ async def _run_scan(
         return report
 
     hits: list[DomainResult] = []
-    progress = Progress(
-        SpinnerColumn(style="brand"),
-        TextColumn("[field]{task.description}"),
-        BarColumn(complete_style="brand", finished_style="ok"),
-        TextColumn("[muted]{task.completed}/{task.total}"),
-        TimeElapsedColumn(),
-        console=console,
-    )
-    task = progress.add_task("Checking variants", total=len(perms))
-
-    with Live(progress, console=console, refresh_per_second=4, transient=True) as live:
+    
+    if QUIET_MODE:
         async with Resolver(concurrency=concurrency, check_http=check_http) as resolver:
             coros = [resolver.check_one(p) for p in perms]
             for coro in asyncio.as_completed(coros):
                 result = await coro
                 scored = scoring.score(result, target)
                 report.results.append(scored)
-                progress.advance(task)
                 if scored.is_registered:
                     hits.append(scored)
-                    live.update(Group(progress, reporters.build_live_table(hits, target)))
+    else:
+        progress = Progress(
+            SpinnerColumn(style="brand"),
+            TextColumn("[field]{task.description}"),
+            BarColumn(complete_style="brand", finished_style="ok"),
+            TextColumn("[muted]{task.completed}/{task.total}"),
+            TimeElapsedColumn(),
+            console=console,
+        )
+        task = progress.add_task("Checking variants", total=len(perms))
+
+        with Live(progress, console=console, refresh_per_second=4, transient=True) as live:
+            async with Resolver(concurrency=concurrency, check_http=check_http) as resolver:
+                coros = [resolver.check_one(p) for p in perms]
+                for coro in asyncio.as_completed(coros):
+                    result = await coro
+                    scored = scoring.score(result, target)
+                    report.results.append(scored)
+                    progress.advance(task)
+                    if scored.is_registered:
+                        hits.append(scored)
+                        live.update(Group(progress, reporters.build_live_table(hits, target)))
 
     return report
 
@@ -167,6 +193,9 @@ def scan(
     ),
     html_out: Path = typer.Option(
         None, "--html", help="Write a self-contained HTML report to a file."
+    ),
+    csv_out: Path = typer.Option(
+        None, "--csv", help="Write a CSV report to a file."
     ),
     no_http: bool = typer.Option(
         False, "--no-http", help="Skip HTTP/SSL probing (faster, fewer signals)."
@@ -193,8 +222,8 @@ def scan(
 ) -> None:
     """Scans domain variants and detects registered fakes."""
     domain = domain.strip().lower().removeprefix("www.")
-    if not domain:
-        console.print("[danger]Error: domain cannot be empty.[/danger]")
+    if not is_valid_domain(domain):
+        console.print("[danger]Error: invalid domain format.[/danger]")
         raise typer.Exit(1)
 
     exclusions = _load_exclusions(exclude, exclude_file)
@@ -212,27 +241,31 @@ def scan(
 
     reporters.render_table(report, console, show_safe=show_all)
 
+    if QUIET_MODE:
+        sys.stdout.write(reporters.to_json(report) + "\n")
+
+    def _safe_write(path: Path | None, content: str, label: str) -> None:
+        if not path:
+            return
+        safe_path = safe_relative_path(str(path))
+        if not safe_path:
+            console.print(f"[danger]Error: refusing to write to unsafe path: {path}[/danger]")
+            return
+        try:
+            Path(safe_path).write_text(content, encoding="utf-8")
+            console.print(f"[ok]\u2192 {label} saved:[/ok] [url]{safe_path}[/url]")
+        except OSError as exc:
+            console.print(f"[danger]Error saving {label}: {exc}[/danger]")
+
     if json_out:
-        try:
-            json_out.write_text(reporters.to_json(report), encoding="utf-8")
-            console.print(f"[ok]\u2192 JSON saved:[/ok] [url]{json_out}[/url]")
-        except OSError as exc:
-            console.print(f"[danger]Error saving JSON: {exc}[/danger]")
-
+        _safe_write(json_out, reporters.to_json(report), "JSON")
     if md_out:
-        try:
-            md_out.write_text(reporters.to_markdown(report), encoding="utf-8")
-            console.print(f"[ok]\u2192 Markdown saved:[/ok] [url]{md_out}[/url]")
-        except OSError as exc:
-            console.print(f"[danger]Error saving Markdown: {exc}[/danger]")
-
+        _safe_write(md_out, reporters.to_markdown(report), "Markdown")
+    if csv_out:
+        _safe_write(csv_out, reporters.to_csv(report), "CSV")
     if html_out:
-        try:
-            from .html_report import to_html
-            html_out.write_text(to_html(report), encoding="utf-8")
-            console.print(f"[ok]\u2192 HTML saved:[/ok] [url]{html_out}[/url]")
-        except OSError as exc:
-            console.print(f"[danger]Error saving HTML: {exc}[/danger]")
+        from .html_report import to_html
+        _safe_write(html_out, to_html(report), "HTML")
 
     if fail_on is not None:
         threshold = RiskLevel(fail_on.value)
@@ -268,8 +301,12 @@ def watch(
     Shows only NEW / CHANGED / GONE since the last run.
     """
     domain = domain.strip().lower().removeprefix("www.")
-    if not domain:
-        console.print("[danger]Error: domain cannot be empty.[/danger]")
+    if not is_valid_domain(domain):
+        console.print("[danger]Error: invalid domain format.[/danger]")
+        raise typer.Exit(1)
+        
+    if notify_url and not is_safe_webhook_url(notify_url):
+        console.print("[danger]Error: insecure or invalid notify URL.[/danger]")
         raise typer.Exit(1)
 
     interval_secs: int | None = None
@@ -301,11 +338,18 @@ def watch(
                 console.print(f"[danger]Warning: could not save baseline: {exc}[/danger]")
 
             if json_out:
-                try:
-                    json_out.write_text(diff.model_dump_json(indent=2), encoding="utf-8")
-                    console.print(f"[ok]→ Diff JSON saved:[/ok] [url]{json_out}[/url]")
-                except OSError as exc:
-                    console.print(f"[danger]Error saving diff: {exc}[/danger]")
+                safe_path = safe_relative_path(str(json_out))
+                if not safe_path:
+                    console.print(f"[danger]Error: unsafe path: {json_out}[/danger]")
+                else:
+                    try:
+                        Path(safe_path).write_text(diff.model_dump_json(indent=2), encoding="utf-8")
+                        console.print(f"[ok]→ Diff JSON saved:[/ok] [url]{safe_path}[/url]")
+                    except OSError as exc:
+                        console.print(f"[danger]Error saving diff: {exc}[/danger]")
+            
+            if QUIET_MODE and diff.has_changes:
+                sys.stdout.write(diff.model_dump_json() + "\n")
 
             if notify_url and _watch.has_high_priority_changes(diff):
                 await _watch.notify(notify_url, diff)
@@ -339,8 +383,8 @@ def generate(
 ) -> None:
     """Generates and prints variants WITHOUT network checks (offline, fast)."""
     domain = domain.strip().lower().removeprefix("www.")
-    if not domain:
-        console.print("[danger]Error: domain cannot be empty.[/danger]")
+    if not is_valid_domain(domain):
+        console.print("[danger]Error: invalid domain format.[/danger]")
         raise typer.Exit(1)
     exclusions = _load_exclusions(exclude, exclude_file)
     perms = permutations.generate(domain, exclude=exclusions)
@@ -361,11 +405,19 @@ def generate(
         console.print(f"\n[muted]... and {len(perms) - limit} more (use --limit 0)[/muted]")
 
     if output:
-        try:
-            output.write_text("\n".join(p.domain for p in perms) + "\n", encoding="utf-8")
-            console.print(f"[ok]→ Wordlist saved:[/ok] [url]{output}[/url]")
-        except OSError as exc:
-            console.print(f"[danger]Error saving wordlist: {exc}[/danger]")
+        safe_path = safe_relative_path(str(output))
+        if not safe_path:
+            console.print(f"[danger]Error: unsafe path: {output}[/danger]")
+        else:
+            try:
+                Path(safe_path).write_text("\n".join(p.domain for p in perms) + "\n", encoding="utf-8")
+                console.print(f"[ok]→ Wordlist saved:[/ok] [url]{safe_path}[/url]")
+            except OSError as exc:
+                console.print(f"[danger]Error saving wordlist: {exc}[/danger]")
+
+    if QUIET_MODE and not output:
+        import json
+        sys.stdout.write(json.dumps([p.domain for p in perms]) + "\n")
 
 
 if __name__ == "__main__":

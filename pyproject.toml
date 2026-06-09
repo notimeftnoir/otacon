@@ -1,6 +1,6 @@
 [project]
 name = "otacon"
-version = "1.0.0"
+version = "1.0.1"
 description = "Domain impersonation detector — typosquatting, homoglyph & combosquat detection."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -11,7 +11,7 @@ keywords = [
     "domain-monitoring", "pentest", "blue-team", "threat-intelligence",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Information Technology",
     "License :: OSI Approved :: MIT License",

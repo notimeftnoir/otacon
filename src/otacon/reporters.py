@@ -12,6 +12,8 @@ without touching the rest.
 
 from __future__ import annotations
 
+import csv
+import io
 from urllib.parse import urlparse
 
 from rich.console import Console
@@ -86,12 +88,14 @@ def _http_cell(status: int | None) -> Text:
 
 
 def _age_cell(age_days: int | None) -> Text:
-    """Compact age string, styled critical (red) for domains registered within 30 days."""
+    """Compact age string. <7d = critical (red), <30d = warn (yellow), older = neutral."""
     label = format_age(age_days)
     if age_days is None:
         return Text(label, style="muted")
-    if age_days < 30:
+    if age_days < 7:
         return Text(label, style="critical")
+    if age_days < 30:
+        return Text(label, style="warn")
     return Text(label, style="value")
 
 
@@ -323,3 +327,33 @@ def to_markdown(report: ScanReport) -> str:
         )
 
     return "\n".join(lines)
+
+
+def to_csv(report: ScanReport) -> str:
+    """Generates a CSV report containing all registered domains."""
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow([
+        "Domain", "Technique", "Risk Level", "Risk Score", "Age Days",
+        "Resolves (DNS)", "Has MX", "Has SSL", "HTTP Status",
+        "Redirects To", "Page Title", "Likely Defensive", "Notes"
+    ])
+    
+    for r in report.registered:
+        writer.writerow([
+            r.domain,
+            r.kind.value,
+            r.risk_level.value,
+            r.risk_score,
+            r.age_days if r.age_days is not None else "",
+            r.resolves,
+            r.has_mx,
+            r.has_ssl,
+            r.http_status if r.http_status is not None else "",
+            r.redirects_to or "",
+            r.page_title or "",
+            r.is_likely_defensive,
+            "; ".join(r.risk_reasons)
+        ])
+    return out.getvalue()
+

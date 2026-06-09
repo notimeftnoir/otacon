@@ -190,20 +190,21 @@ def test_to_html_escapes_target_in_title():
 # CLI integration
 # ---------------------------------------------------------------------------
 
-def test_scan_html_flag_writes_file(tmp_path):
+def test_scan_html_flag_writes_file(tmp_path, monkeypatch):
     from unittest.mock import AsyncMock, patch
 
     from typer.testing import CliRunner
 
     from otacon.cli import app
 
+    monkeypatch.chdir(tmp_path)
     out_file = tmp_path / "report.html"
     empty_report = ScanReport(target="example.com", total_permutations=0)
 
     runner = CliRunner()
     with patch("otacon.cli._run_scan", new_callable=AsyncMock) as mock_scan:
         mock_scan.return_value = empty_report
-        result = runner.invoke(app, ["scan", "example.com", "--html", str(out_file)])
+        result = runner.invoke(app, ["scan", "example.com", "--html", "report.html"])
 
     assert out_file.exists(), f"HTML not written. CLI output: {result.output}"
     content = out_file.read_text(encoding="utf-8")

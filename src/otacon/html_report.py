@@ -52,6 +52,7 @@ td{padding:.45em .75em;vertical-align:top}
 .http-4xx{color:var(--muted)}
 .http-5xx{color:var(--warn)}
 .age-fresh{color:var(--danger)}
+.age-warn{color:var(--warn)}
 details summary{cursor:pointer;color:var(--muted);font-size:.8em;margin-top:.3em}
 details ul{margin:.3em 0 0 1em;padding:0;font-size:.8em;color:var(--muted)}
 footer{margin-top:2em;border-top:1px solid var(--border);
@@ -101,7 +102,12 @@ def _age_cell(age_days: int | None) -> str:
     if age_days is None:
         return '<span class="check-no">—</span>'
     label = _h(format_age(age_days))
-    cls = "age-fresh" if age_days < 30 else "value"
+    if age_days < 7:
+        cls = "age-fresh"   # red — matches scoring threshold and verdict "fresh <7d"
+    elif age_days < 30:
+        cls = "age-warn"    # yellow — notable but not critical
+    else:
+        cls = "value"
     return f'<span class="{cls}">{label}</span>'
 
 

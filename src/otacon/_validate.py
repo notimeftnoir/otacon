@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import socket
 from urllib.parse import urlparse
 
 # RFC 1035-ish: labels are 1..63 chars of [a-z0-9-], must not start/end with '-'.
@@ -53,9 +54,7 @@ def is_safe_webhook_url(url: str) -> bool:
 
     Defends watch-mode webhooks against SSRF: refuses cloud metadata endpoints,
     RFC1918, link-local, loopback, multicast, and reserved ranges. Hostnames
-    that don't parse as an IP are accepted (we don't pre-resolve — httpx will,
-    and the host could still be internal, but pre-resolution races and the
-    common abuse path is the literal-IP form).
+    are resolved to IPs before checking to prevent bypasses and DNS rebinding.
     """
     try:
         parsed = urlparse(url)
@@ -66,19 +65,31 @@ def is_safe_webhook_url(url: str) -> bool:
     host = parsed.hostname
     if not host:
         return False
+
     try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        # Hostname — accept; httpx will resolve at request time.
-        return True
-    return not (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
+        # Resolve all IPs for the host. Port 80 is a placeholder.
+        addrinfo = socket.getaddrinfo(host, 80, proto=socket.IPPROTO_TCP)
+    except socket.gaierror:
+        return False
+
+    for family, _, _, _, sockaddr in addrinfo:
+        ip_str = sockaddr[0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+            
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
+            return False
+
+    return True
 
 
 def safe_relative_path(filename: str, base: str | None = None) -> str | None:

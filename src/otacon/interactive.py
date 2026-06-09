@@ -24,6 +24,7 @@ from rich.progress import (
 
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
+from ._validate import is_valid_domain
 from .models import DomainResult, Permutation, ScanReport
 from .resolver import DEFAULT_CONCURRENCY, Resolver
 from .whois import fetch_domain_age, format_age
@@ -100,8 +101,11 @@ def _confirm(message: str) -> bool | None:
 
 
 def _validate_domain(text: str) -> bool | str:
-    if not text.strip():
+    domain = text.strip().lower().removeprefix("www.")
+    if not domain:
         return "Domain cannot be empty"
+    if not is_valid_domain(domain):
+        return "Invalid domain (expected format: example.com)"
     return True
 
 
@@ -358,6 +362,13 @@ def _action_loop(
 
             if action == "open":
                 url = f"https://{selected.domain}"
+                console.print(
+                    f"[warn]⚠  Warning: {escape(selected.domain)} is a suspicious domain "
+                    f"(risk: {selected.risk_level.value}). Opening in your browser may expose "
+                    f"you to fingerprinting or malicious content.[/warn]"
+                )
+                if _confirm("Open anyway?") is not True:
+                    continue
                 webbrowser.open(url)
                 console.print(f"[ok]→ Opened[/ok] [url]{url}[/url]")
 
