@@ -7,8 +7,10 @@ import webbrowser
 from pathlib import Path
 
 import questionary
+from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.shortcuts import prompt as _pt_prompt
 from prompt_toolkit.validation import ValidationError, Validator
 from rich.console import Console, Group
@@ -54,7 +56,7 @@ _STYLE_DOMAIN = _make_style("#5fd700")
 
 
 class _YNValidator(Validator):
-    def validate(self, document) -> None:
+    def validate(self, document: Document) -> None:
         if document.text.strip().lower() not in ("y", "n", ""):
             raise ValidationError(message="Type y or n", cursor_position=len(document.text))
 
@@ -65,13 +67,13 @@ def _yn_bindings() -> KeyBindings:
 
     @kb.add("y")
     @kb.add("Y")
-    def _yes(event) -> None:
+    def _yes(event: KeyPressEvent) -> None:
         event.app.current_buffer.text = "y"
         event.app.current_buffer.validate_and_handle()
 
     @kb.add("n")
     @kb.add("N")
-    def _no(event) -> None:
+    def _no(event: KeyPressEvent) -> None:
         event.app.current_buffer.text = "n"
         event.app.current_buffer.validate_and_handle()
 

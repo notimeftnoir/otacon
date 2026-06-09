@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from enum import Enum
 from pathlib import Path
 
@@ -19,11 +20,10 @@ from rich.progress import (
 
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
+from ._validate import is_safe_webhook_url, is_valid_domain, safe_relative_path
 from .models import DomainResult, ScanReport
 from .resolver import Resolver
 from .theme import BANNER, OTACON_THEME, RiskLevel
-from ._validate import is_valid_domain, is_safe_webhook_url, safe_relative_path
-import sys
 
 QUIET_MODE = False
 
@@ -410,7 +410,9 @@ def generate(
             console.print(f"[danger]Error: unsafe path: {output}[/danger]")
         else:
             try:
-                Path(safe_path).write_text("\n".join(p.domain for p in perms) + "\n", encoding="utf-8")
+                Path(safe_path).write_text(
+                    "\n".join(p.domain for p in perms) + "\n", encoding="utf-8"
+                )
                 console.print(f"[ok]→ Wordlist saved:[/ok] [url]{safe_path}[/url]")
             except OSError as exc:
                 console.print(f"[danger]Error saving wordlist: {exc}[/danger]")

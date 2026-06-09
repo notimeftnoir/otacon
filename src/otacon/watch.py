@@ -57,7 +57,7 @@ class WatchDiff(BaseModel):
 def compute_diff(
     target: str,
     current: list[DomainResult],
-    baseline: dict[str, dict] | None,
+    baseline: dict[str, dict[str, object]] | None,
 ) -> WatchDiff:
     """Classifies *current* results as NEW / CHANGED / GONE vs *baseline*.
 
@@ -74,9 +74,11 @@ def compute_diff(
             diff.new_domains.append(result)
         else:
             old = baseline[domain]
-            old_score = int(old.get("risk_score", 0))
+            old_score_raw = old.get("risk_score", 0)
+            old_score = int(old_score_raw) if isinstance(old_score_raw, (int, str)) else 0
+            old_level_raw = old.get("risk_level", "safe")
             try:
-                old_level = RiskLevel(old.get("risk_level", "safe"))
+                old_level = RiskLevel(old_level_raw)
             except ValueError:
                 old_level = RiskLevel.SAFE
             if result.risk_score != old_score or result.risk_level != old_level:
@@ -128,15 +130,17 @@ def render_diff(diff: WatchDiff, console: Console) -> None:
     console.print()
 
     if diff.new_domains:
-        by_score = sorted(diff.new_domains, key=lambda r: r.risk_score, reverse=True)
+        new_by_score = sorted(diff.new_domains, key=lambda r: r.risk_score, reverse=True)
         console.print(f"[brand]NEW[/brand] ({len(diff.new_domains)})")
-        for r in by_score:
+        for r in new_by_score:
             _print_row(console, r.domain, None, None, r.risk_score, r.risk_level)
 
     if diff.changed_domains:
-        by_score = sorted(diff.changed_domains, key=lambda c: c.new_result.risk_score, reverse=True)
+        changed_by_score = sorted(
+            diff.changed_domains, key=lambda c: c.new_result.risk_score, reverse=True
+        )
         console.print(f"\n[warn]CHANGED[/warn] ({len(diff.changed_domains)})")
-        for c in by_score:
+        for c in changed_by_score:
             _print_row(
                 console,
                 c.domain,

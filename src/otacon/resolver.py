@@ -150,13 +150,15 @@ class Resolver:
     async def _probe_http(
         self, domain: str
     ) -> tuple[int | None, str | None, str | None, str | None]:
-        """Tries HTTPS and HTTP in parallel. Returns (status, server, redirect_target, page_title)."""
+        """Tries HTTPS and HTTP in parallel. Returns (status, server, redirect, title)."""
         if self._http is None:
             raise RuntimeError("Resolver._probe_http called outside async context manager")
 
+        http = self._http
+
         async def _get(scheme: str) -> tuple[int, str | None, str | None, str | None]:
             # stream() so we can bound the body read — see _read_capped.
-            async with self._http.stream("GET", f"{scheme}://{domain}") as resp:
+            async with http.stream("GET", f"{scheme}://{domain}") as resp:
                 location = resp.headers.get("location")
                 server = resp.headers.get("server")
                 title: str | None = None

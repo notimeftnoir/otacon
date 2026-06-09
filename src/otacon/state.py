@@ -32,7 +32,7 @@ def baseline_path(domain: str, home: Path | None = None) -> Path:
     return (home or Path.home()) / _OTACON_DIR / f"{_safe_filename(domain)}.json"
 
 
-def load_baseline(domain: str, home: Path | None = None) -> dict[str, dict] | None:
+def load_baseline(domain: str, home: Path | None = None) -> dict[str, dict[str, object]] | None:
     """Loads the baseline for *domain*.
 
     Returns a ``{domain_variant: snapshot_dict}`` mapping, or ``None`` when

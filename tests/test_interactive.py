@@ -54,15 +54,15 @@ def test_validate_domain_valid():
 
 
 def test_validate_domain_no_tld_rejected():
-    assert _validate_domain("example") != True  # bare label without TLD is invalid
+    assert _validate_domain("example") is not True  # bare label without TLD is invalid
 
 
 def test_validate_domain_invalid_scheme_rejected():
-    assert _validate_domain("http://example.com") != True
+    assert _validate_domain("http://example.com") is not True
 
 
 def test_validate_domain_empty_rejected():
-    assert _validate_domain("   ") != True
+    assert _validate_domain("   ") is not True
 
 
 def test_validate_limit_zero():

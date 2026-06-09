@@ -72,7 +72,7 @@ def is_safe_webhook_url(url: str) -> bool:
     except socket.gaierror:
         return False
 
-    for family, _, _, _, sockaddr in addrinfo:
+    for _family, _, _, _, sockaddr in addrinfo:
         ip_str = sockaddr[0]
         try:
             ip = ipaddress.ip_address(ip_str)
