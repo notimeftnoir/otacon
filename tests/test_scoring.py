@@ -293,3 +293,59 @@ def test_risk_level_rank_strict_ascending_order():
 def test_risk_level_rank_comparable_via_ge():
     assert RiskLevel.HIGH.rank >= RiskLevel.MEDIUM.rank
     assert RiskLevel.LOW.rank < RiskLevel.HIGH.rank
+
+
+# ---------------------------------------------------------------------------
+# Parking detection tests
+# ---------------------------------------------------------------------------
+
+def test_score_detects_parked_domain_by_title():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=200,
+        page_title="Domain is parked",
+    )
+    result = score(r)
+    assert result.is_parked is True
+    # base=18, HTTP and Resolves (15+10) are skipped.
+    assert result.risk_score == 18
+    assert any("detected as parked domain" in reason for reason in result.risk_reasons)
+
+
+def test_score_detects_parked_domain_by_server_header():
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=200,
+        server_header="ParkingCrew",
+    )
+    result = score(r)
+    assert result.is_parked is True
+    assert result.risk_score == 18
+
+
+def test_score_parked_domain_retains_mx_points():
+    """A parked domain with MX is still a risk (phishing)."""
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=200,
+        page_title="Sedo Parking",
+        has_mx=True,
+    )
+    result = score(r)
+    assert result.is_parked is True
+    # base=18 + 25 (MX) = 43. (HTTP and Resolves are skipped)
+    assert result.risk_score == 43
+
+
+def test_score_parked_domain_with_ssl_points():
+    """Active SSL on a parked domain is still scored (+15)."""
+    r = DomainResult(
+        domain="googel.com", kind=PermutationType.TYPO,
+        resolves=True, http_status=200,
+        page_title="Domain For Sale",
+        has_ssl=True,
+    )
+    result = score(r)
+    assert result.is_parked is True
+    # base=18 + 15 (SSL) = 33
+    assert result.risk_score == 33

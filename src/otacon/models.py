@@ -75,6 +75,7 @@ class DomainResult(BaseModel):
     risk_level: RiskLevel = RiskLevel.SAFE
     risk_reasons: list[str] = Field(default_factory=list)
     is_likely_defensive: bool = False
+    is_parked: bool = False
 
     @property
     def is_registered(self) -> bool:

@@ -32,6 +32,14 @@ _KIND_BASE: dict[PermutationType, int] = {
     PermutationType.TLD_SWAP: 10,
 }
 
+# Heuristics for detecting parked domains / domains for sale.
+_PARKING_TITLES = {
+    "parked", "domain for sale", "this domain is available", "buy this domain",
+    "hugedomains", "sedo", "dan.com", "afternic", "go daddy", "godaddy",
+    "unregistered", "parkingcrew", "cashpark", "bodis", "domainname",
+}
+_PARKING_SERVERS = {"parkingcrew", "sedo", "bodis"}
+
 
 def score(result: DomainResult, target: str = "") -> DomainResult:
     """Computes risk_score, risk_level, reasons, and is_likely_defensive. Mutates and returns."""
@@ -40,6 +48,14 @@ def score(result: DomainResult, target: str = "") -> DomainResult:
         result.risk_level = RiskLevel.SAFE
         result.risk_reasons = []
         return result
+
+    # Parking detection: titles or headers indicating the domain is not in active use.
+    title = (result.page_title or "").lower()
+    server = (result.server_header or "").lower()
+    if any(sig in title for sig in _PARKING_TITLES) or any(
+        sig in server for sig in _PARKING_SERVERS
+    ):
+        result.is_parked = True
 
     # Defensive-registration detection: redirect points back to the original domain.
     if result.redirects_to and target:
@@ -61,9 +77,27 @@ def score(result: DomainResult, target: str = "") -> DomainResult:
     points += base
     reasons.append(f"technique: {result.kind.value} (+{base})")
 
-    if result.resolves:
-        points += 10
-        reasons.append("resolves to an IP (+10)")
+    if result.is_parked:
+        reasons.append("detected as parked domain (HTTP/DNS signals ignored)")
+    else:
+        if result.resolves:
+            points += 10
+            reasons.append("resolves to an IP (+10)")
+
+        if result.http_status is not None:
+            status = result.http_status
+            if 200 <= status < 300:
+                points += 15
+                reasons.append(f"responds HTTP {status} — active site (+15)")
+            elif 300 <= status < 400:
+                points += 10
+                reasons.append(f"responds HTTP {status} — redirect (+10)")
+            elif 400 <= status < 500:
+                points += 5
+                reasons.append(f"responds HTTP {status} — registered, no content (+5)")
+            else:
+                points += 3
+                reasons.append(f"responds HTTP {status} — server error (+3)")
 
     if result.has_mx:
         points += 25
@@ -72,21 +106,6 @@ def score(result: DomainResult, target: str = "") -> DomainResult:
     if result.has_ssl:
         points += 15
         reasons.append("active SSL certificate (+15)")
-
-    if result.http_status is not None:
-        status = result.http_status
-        if 200 <= status < 300:
-            points += 15
-            reasons.append(f"responds HTTP {status} — active site (+15)")
-        elif 300 <= status < 400:
-            points += 10
-            reasons.append(f"responds HTTP {status} — redirect (+10)")
-        elif 400 <= status < 500:
-            points += 5
-            reasons.append(f"responds HTTP {status} — registered, no content (+5)")
-        else:
-            points += 3
-            reasons.append(f"responds HTTP {status} — server error (+3)")
 
     # Only add redirect bonus when the HTTP status doesn't already capture it
     # (2xx/3xx responses are already scored above — adding +5 here would double-count)
