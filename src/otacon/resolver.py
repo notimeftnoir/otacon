@@ -17,9 +17,10 @@ import asyncio
 import html as _html
 import logging
 import re
+import secrets
 import ssl
-import warnings
 from datetime import datetime
+from typing import Literal
 
 import aiodns
 import httpx
@@ -47,6 +48,10 @@ def _parse_title(body: str) -> str | None:
 DEFAULT_CONCURRENCY = 50
 _DNS_TIMEOUT = 3.0
 _HTTP_TIMEOUT = 4.0
+# Wall-clock ceiling for one HTTP probe. httpx timeouts apply per read, so a
+# hostile server trickling one byte per read could otherwise hold a concurrency
+# slot almost indefinitely (slow-loris against the scanner).
+_HTTP_DEADLINE = 15.0
 # Hard cap on how much (decompressed) HTTP body we ever read. The page <title>
 # lives in <head>, so 64 KB is plenty — and the cap is what stops a hostile
 # lookalike server from OOM-ing the scanner with a giant body or a gzip bomb.
@@ -71,41 +76,75 @@ class Resolver:
         # Per-run WHOIS cache — keyed by domain; stores an asyncio.Task so
         # concurrent check_one calls for the same domain share a single lookup.
         self._whois_cache: dict[str, asyncio.Task[tuple[datetime | None, int | None]]] = {}
+        # Lazy wildcard-DNS canary (see _wildcard_ips) — created on first hit.
+        self._wildcard_task: asyncio.Task[frozenset[str]] | None = None
 
     async def __aenter__(self) -> Resolver:
-        # We intentionally probe with verify=False (suspicious certs are the
-        # point). Scope the "Unverified HTTPS request" suppression to client
-        # construction instead of polluting the process-wide warnings filter.
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="Unverified HTTPS request")
-            self._http = httpx.AsyncClient(
-                timeout=_HTTP_TIMEOUT,
-                follow_redirects=False,   # we want to see redirects, not follow them blindly
-                verify=False,             # fakes often have bad certs — we inspect them anyway
-                headers={"User-Agent": f"Otacon/{__version__} (+domain-monitoring)"},
-                # Bound the connection pool to the scan's concurrency so a burst
-                # of slow hostile hosts can't pile up file descriptors.
-                limits=httpx.Limits(
-                    max_connections=self._concurrency,
-                    max_keepalive_connections=self._concurrency,
-                ),
-            )
+        self._http = httpx.AsyncClient(
+            timeout=_HTTP_TIMEOUT,
+            follow_redirects=False,   # we want to see redirects, not follow them blindly
+            verify=False,             # fakes often have bad certs — we inspect them anyway
+            headers={"User-Agent": f"Otacon/{__version__} (+domain-monitoring)"},
+            # Bound the connection pool to the scan's concurrency so a burst
+            # of slow hostile hosts can't pile up file descriptors.
+            limits=httpx.Limits(
+                max_connections=self._concurrency,
+                max_keepalive_connections=self._concurrency,
+            ),
+        )
         return self
 
     async def __aexit__(self, *exc: object) -> None:
         if self._http is not None:
             await self._http.aclose()
 
-    async def _resolve_a(self, domain: str) -> list[str]:
-        """Returns the list of IP addresses (A record). Empty = does not resolve."""
+    async def _query_ips(self, domain: str, rtype: Literal["A", "AAAA"]) -> list[str]:
         try:
-            records = await self._dns.query(domain, "A")
+            records = await self._dns.query(domain, rtype)
             return [r.host for r in records]
         except Exception as exc:
             # pycares.AresError is not a subclass of aiodns.error.DNSError in all
             # versions, so we catch broadly — DNS queries are fire-and-forget.
-            _log.debug("A lookup failed for %s: %r", domain, exc)
+            _log.debug("%s lookup failed for %s: %r", rtype, domain, exc)
             return []
+
+    async def _resolve_a(self, domain: str) -> list[str]:
+        """Returns IPv4 + IPv6 addresses (A and AAAA). Empty = does not resolve.
+
+        AAAA matters: an IPv6-only lookalike resolves fine in every modern
+        browser, so reporting it as unregistered would be a false negative.
+        """
+        v4, v6 = await asyncio.gather(
+            self._query_ips(domain, "A"), self._query_ips(domain, "AAAA")
+        )
+        return v4 + v6
+
+    async def _probe_wildcard(self) -> frozenset[str]:
+        """Resolves a random nonexistent domain to detect NXDOMAIN hijacking.
+
+        Some ISP/captive-portal resolvers answer every query with their own
+        "search helper" IP, which would make *every* variant look registered.
+        A nonce that should never exist exposes that: any IPs returned here are
+        the hijacker's, and variants resolving only to them are treated as
+        unregistered.
+        """
+        nonce = f"otacon-wildcard-{secrets.token_hex(8)}.com"
+        ips = frozenset(await self._resolve_a(nonce))
+        if ips:
+            _log.debug("NXDOMAIN hijack detected: %s resolved to %s", nonce, sorted(ips))
+        return ips
+
+    async def _wildcard_ips(self) -> frozenset[str]:
+        """Lazy, shared canary lookup — runs at most once per Resolver."""
+        if self._wildcard_task is None:
+            self._wildcard_task = asyncio.create_task(self._probe_wildcard())
+        return await self._wildcard_task
+
+    @property
+    def dns_hijack_detected(self) -> bool:
+        """True when the canary fired — the local resolver hijacks NXDOMAIN."""
+        t = self._wildcard_task
+        return bool(t is not None and t.done() and not t.cancelled() and t.result())
 
     async def _resolve_mx(self, domain: str) -> list[str]:
         """Returns MX records. Presence = the domain can send/receive mail."""
@@ -166,24 +205,20 @@ class Resolver:
                     title = _parse_title(await self._read_capped(resp))
                 return resp.status_code, server, location, title
 
-        # Check both in parallel to free up concurrency slots faster.
-        tasks = [asyncio.create_task(_get("https")), asyncio.create_task(_get("http"))]
-        done, pending = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
-
-        for task in tasks:
-            if task in done:
-                try:
-                    # Prioritize HTTPS result if it succeeded.
-                    # We check the https task (index 0) first.
-                    res_https = tasks[0].result()
-                    return res_https
-                except (httpx.HTTPError, UnicodeError, OSError):
-                    # If HTTPS failed, try to return the HTTP result.
-                    try:
-                        res_http = tasks[1].result()
-                        return res_http
-                    except (httpx.HTTPError, UnicodeError, OSError):
-                        break
+        # Check both schemes in parallel; each gets a hard wall-clock deadline
+        # (httpx timeouts are per read — see _HTTP_DEADLINE). HTTPS wins ties.
+        outcomes = await asyncio.gather(
+            asyncio.wait_for(_get("https"), _HTTP_DEADLINE),
+            asyncio.wait_for(_get("http"), _HTTP_DEADLINE),
+            return_exceptions=True,
+        )
+        for outcome in outcomes:
+            if not isinstance(outcome, BaseException):
+                return outcome
+            if not isinstance(
+                outcome, (httpx.HTTPError, UnicodeError, OSError, asyncio.TimeoutError)
+            ):
+                raise outcome  # unexpected bug — surface it to check_one's logger
         return None, None, None, None
 
     async def _fetch_whois(self, domain: str) -> tuple[datetime | None, int | None]:
@@ -204,13 +239,22 @@ class Resolver:
                     domain=perm.domain, kind=perm.kind, note=perm.note
                 )
 
-                ips = await self._resolve_a(perm.domain)
-                result.ip_addresses = ips
-                result.resolves = bool(ips)
-
                 # MX is checked independently of A — mail-only phishing domains
                 # often have MX but no A record (no web presence by design).
-                mx = await self._resolve_mx(perm.domain)
+                ips, mx = await asyncio.gather(
+                    self._resolve_a(perm.domain), self._resolve_mx(perm.domain)
+                )
+
+                if ips:
+                    # Discard hits that only point at an NXDOMAIN-hijacking
+                    # resolver's IPs — they'd register as false positives.
+                    wildcard = await self._wildcard_ips()
+                    if wildcard and set(ips) <= wildcard:
+                        _log.debug("ignoring hijacked answer for %s: %s", perm.domain, ips)
+                        ips = []
+
+                result.ip_addresses = ips
+                result.resolves = bool(ips)
                 result.mx_records = mx
                 result.has_mx = bool(mx)
 

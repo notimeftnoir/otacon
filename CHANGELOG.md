@@ -4,6 +4,31 @@ All notable changes to Otacon are documented here.
 
 ## [Unreleased]
 
+### Added
+- AAAA (IPv6) resolution: IPv6-only lookalikes are no longer reported as
+  unregistered.
+- NXDOMAIN-hijack detection: a random canary domain exposes ISP/captive-portal
+  resolvers that answer every query; hijacked answers are discarded, a warning
+  is printed, and the JSON report carries a new `dns_hijack_detected` field.
+
+### Fixed
+- Crash on non-UTF-8 consoles (e.g. Windows cp1250): the banner glyphs raised
+  `UnicodeEncodeError` on startup. Output streams are now reconfigured to UTF-8
+  on Windows and degrade gracefully elsewhere.
+- `watch` no longer crashes on a hand-edited/corrupt baseline with a
+  non-numeric `risk_score` or malformed `risk_level`.
+
+### Reliability
+- Hard 15 s wall-clock deadline per HTTP probe — httpx timeouts are per read,
+  so a hostile server trickling bytes could previously hold a concurrency slot
+  almost indefinitely.
+- Baseline saves are atomic (write-then-rename): a crash mid-write can no
+  longer corrupt watch-mode state.
+- Webhook URL safety check (blocking DNS resolution) moved off the event loop.
+- A/MX lookups for each variant now run in parallel.
+- `--concurrency` is capped at 500 (file-descriptor safety) and
+  `generate --limit` rejects negative values.
+
 ## [1.0.1] — 2026-06-09
 
 ### Security

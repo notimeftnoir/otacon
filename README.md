@@ -476,8 +476,8 @@ Partially. Otacon accepts unicode input but the permutation engine is tuned for 
 
 Most likely causes, in order:
 
-1. **DNS-only mode missed them** — without `--http`, you only see variants that resolve. Try a full scan.
-2. **They're behind Cloudflare / a CDN** — they resolve but the SSL/HTTP probe times out. Increase `--concurrency` doesn't help; raise the per-request timeout in `resolver.py` if it's a recurring issue.
+1. **DNS-only mode missed them** — with `--no-http`, you only see variants that resolve. Try a full scan.
+2. **They're behind Cloudflare / a CDN** — they resolve but the SSL/HTTP probe times out. Increasing `--concurrency` doesn't help; raise the per-request timeout in `resolver.py` if it's a recurring issue.
 3. **Your DNS resolver is rate-limiting** — try with a different resolver or lower `--concurrency`.
 4. **The fakes are on a TLD not in our default list** — open an issue with the TLD.
 

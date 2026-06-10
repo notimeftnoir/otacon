@@ -26,7 +26,7 @@ from rich.progress import (
 
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
-from ._validate import is_valid_domain
+from ._validate import is_valid_domain, safe_relative_path
 from .models import DomainResult, Permutation, ScanReport
 from .resolver import DEFAULT_CONCURRENCY, Resolver
 from .whois import fetch_domain_age, format_age
@@ -251,17 +251,16 @@ def _export_result(result: DomainResult, console: Console) -> None:
     if filename is None:
         return
 
+    # safe_relative_path rejects absolute paths, `..` escapes, and Windows
+    # reserved device names — same policy as the CLI report writers.
+    safe_path = safe_relative_path(filename)
+    if not safe_path:
+        console.print(
+            "[danger]Error: refusing to write outside the current directory[/danger]"
+        )
+        return
     try:
-        cwd = Path.cwd().resolve()
-        file_path = (cwd / filename).resolve()
-        # is_relative_to catches both absolute paths (which discard `cwd`) and
-        # any `..` sequence that climbs above the working directory.
-        if not file_path.is_relative_to(cwd):
-            console.print(
-                "[danger]Error: refusing to write outside the current directory[/danger]"
-            )
-            return
-
+        file_path = Path(safe_path)
         file_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
         console.print(f"[ok]→ Saved:[/ok] [url]{escape(file_path.name)}[/url]")
     except (OSError, ValueError) as exc:
@@ -295,15 +294,18 @@ def _suggest_defensive_whitelist(report: ScanReport, console: Console) -> None:
     if _confirm("Write to whitelist.txt?") is not True:
         return
     path = Path("whitelist.txt")
-    existing = set(path.read_text(encoding="utf-8").splitlines()) if path.exists() else set()
-    new_entries = [r.domain for r in defensive if r.domain not in existing]
-    if new_entries:
-        with path.open("a", encoding="utf-8") as f:
-            for d in new_entries:
-                f.write(d + "\n")
-        console.print(f"[ok]→ Added {len(new_entries)} domain(s) to {path}[/ok]")
-    else:
-        console.print("[muted]All already in whitelist.[/muted]")
+    try:
+        existing = set(path.read_text(encoding="utf-8").splitlines()) if path.exists() else set()
+        new_entries = [r.domain for r in defensive if r.domain not in existing]
+        if new_entries:
+            with path.open("a", encoding="utf-8") as f:
+                for d in new_entries:
+                    f.write(d + "\n")
+            console.print(f"[ok]→ Added {len(new_entries)} domain(s) to {path}[/ok]")
+        else:
+            console.print("[muted]All already in whitelist.[/muted]")
+    except OSError as exc:
+        console.print(f"[danger]Error updating whitelist: {exc}[/danger]")
 
 
 def _action_loop(
@@ -435,5 +437,12 @@ async def _scan(
                 if scored.is_registered:
                     hits.append(scored)
                     live.update(Group(progress, reporters.build_live_table(hits, domain)))
+            report.dns_hijack_detected = resolver.dns_hijack_detected
 
+    if report.dns_hijack_detected:
+        console.print(
+            "[warn]⚠  Your DNS resolver answers nonexistent domains (NXDOMAIN hijacking)."
+            " Hijacked answers were discarded; consider scanning with a clean resolver"
+            " (e.g. 1.1.1.1).[/warn]"
+        )
     return report
