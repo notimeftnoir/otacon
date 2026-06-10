@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import sys
 from enum import Enum
@@ -28,6 +29,30 @@ from .theme import BANNER, OTACON_THEME, RiskLevel
 QUIET_MODE = False
 
 
+def _ensure_unicode_output() -> None:
+    """Keeps the Unicode UI (⬢, █, ✓, →) from crashing non-UTF-8 consoles.
+
+    Windows consoles often default to a legacy codepage (cp1250/cp852) whose
+    charmap codec raises UnicodeEncodeError on the banner glyphs. Re-encode to
+    UTF-8 there; elsewhere just make sure an exotic locale degrades to '?'
+    instead of a traceback.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if not isinstance(stream, io.TextIOWrapper):
+            continue
+        try:
+            if (stream.encoding or "").lower().replace("-", "") != "utf8":
+                if sys.platform == "win32":
+                    stream.reconfigure(encoding="utf-8", errors="replace")
+                else:
+                    stream.reconfigure(errors="replace")
+        except (OSError, ValueError):
+            pass
+
+
+_ensure_unicode_output()
+
+
 class _Threshold(str, Enum):
     """Valid threshold levels for --fail-on (excludes 'safe')."""
 
@@ -35,6 +60,7 @@ class _Threshold(str, Enum):
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
 
 app = typer.Typer(
     name="otacon",
@@ -101,7 +127,7 @@ def _main(
     _configure_logging(debug)
     if not quiet:
         _banner()
-        
+
     if ctx.invoked_subcommand is None:
         from .interactive import run as _interactive_run
         _interactive_run(console)
@@ -146,7 +172,7 @@ async def _run_scan(
         return report
 
     hits: list[DomainResult] = []
-    
+
     if QUIET_MODE:
         async with Resolver(concurrency=concurrency, check_http=check_http) as resolver:
             coros = [resolver.check_one(p) for p in perms]
@@ -156,6 +182,7 @@ async def _run_scan(
                 report.results.append(scored)
                 if scored.is_registered:
                     hits.append(scored)
+            report.dns_hijack_detected = resolver.dns_hijack_detected
     else:
         progress = Progress(
             SpinnerColumn(style="brand"),
@@ -178,7 +205,14 @@ async def _run_scan(
                     if scored.is_registered:
                         hits.append(scored)
                         live.update(Group(progress, reporters.build_live_table(hits, target)))
+                report.dns_hijack_detected = resolver.dns_hijack_detected
 
+    if report.dns_hijack_detected:
+        console.print(
+            "[warn]⚠  Your DNS resolver answers nonexistent domains (NXDOMAIN hijacking)."
+            " Hijacked answers were discarded; consider scanning with a clean resolver"
+            " (e.g. 1.1.1.1).[/warn]"
+        )
     return report
 
 
@@ -201,7 +235,7 @@ def scan(
         False, "--no-http", help="Skip HTTP/SSL probing (faster, fewer signals)."
     ),
     concurrency: int = typer.Option(
-        50, "--concurrency", "-c", help="Number of concurrent checks.", min=1
+        50, "--concurrency", "-c", help="Number of concurrent checks.", min=1, max=500
     ),
     show_all: bool = typer.Option(
         False, "--all", help="Show unregistered variants too."
@@ -287,7 +321,7 @@ def watch(
     json_out: Path = typer.Option(None, "--json", help="Write diff JSON to this file."),
     no_http: bool = typer.Option(False, "--no-http", help="Skip HTTP/SSL probing."),
     concurrency: int = typer.Option(
-        50, "--concurrency", "-c", min=1, help="Max concurrent DNS/HTTP checks."
+        50, "--concurrency", "-c", min=1, max=500, help="Max concurrent DNS/HTTP checks."
     ),
     exclude: str = typer.Option(
         None, "--exclude", "-x", help="Domains to skip (comma-separated)."
@@ -304,7 +338,7 @@ def watch(
     if not is_valid_domain(domain):
         console.print("[danger]Error: invalid domain format.[/danger]")
         raise typer.Exit(1)
-        
+
     if notify_url and not is_safe_webhook_url(notify_url):
         console.print("[danger]Error: insecure or invalid notify URL.[/danger]")
         raise typer.Exit(1)
@@ -347,7 +381,7 @@ def watch(
                         console.print(f"[ok]→ Diff JSON saved:[/ok] [url]{safe_path}[/url]")
                     except OSError as exc:
                         console.print(f"[danger]Error saving diff: {exc}[/danger]")
-            
+
             if QUIET_MODE and diff.has_changes:
                 sys.stdout.write(diff.model_dump_json() + "\n")
 
@@ -369,7 +403,7 @@ def watch(
 @app.command()
 def generate(
     domain: str = typer.Argument(..., help="Domain to permute."),
-    limit: int = typer.Option(0, "--limit", "-n", help="Display limit (0 = all)."),
+    limit: int = typer.Option(0, "--limit", "-n", min=0, help="Display limit (0 = all)."),
     output: Path = typer.Option(
         None, "--output", "-o",
         help="Write variant domains (one per line) to a file — useful as a wordlist.",

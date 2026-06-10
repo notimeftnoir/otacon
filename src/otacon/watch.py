@@ -75,11 +75,19 @@ def compute_diff(
         else:
             old = baseline[domain]
             old_score_raw = old.get("risk_score", 0)
-            old_score = int(old_score_raw) if isinstance(old_score_raw, (int, str)) else 0
+            if isinstance(old_score_raw, int):
+                old_score = old_score_raw
+            elif isinstance(old_score_raw, str):
+                try:
+                    old_score = int(old_score_raw)
+                except ValueError:
+                    old_score = 0
+            else:
+                old_score = 0
             old_level_raw = old.get("risk_level", "safe")
             try:
                 old_level = RiskLevel(old_level_raw)
-            except ValueError:
+            except (ValueError, TypeError):
                 old_level = RiskLevel.SAFE
             if result.risk_score != old_score or result.risk_level != old_level:
                 diff.changed_domains.append(
@@ -196,7 +204,9 @@ def has_high_priority_changes(diff: WatchDiff) -> bool:
 async def notify(url: str, diff: WatchDiff) -> None:
     """POSTs *diff* as JSON to *url*. Failures are swallowed — never abort the scan."""
     from ._validate import is_safe_webhook_url
-    if not is_safe_webhook_url(url):
+    # is_safe_webhook_url resolves DNS with blocking getaddrinfo — keep it off
+    # the event loop so a slow resolver can't stall every in-flight check.
+    if not await asyncio.to_thread(is_safe_webhook_url, url):
         _log.debug("notify: refusing unsafe webhook URL %r", url)
         return
     try:

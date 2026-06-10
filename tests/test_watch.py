@@ -98,6 +98,28 @@ def test_diff_changed_level_only_detected() -> None:
     assert len(diff.changed_domains) == 1
 
 
+def test_diff_corrupt_baseline_values_do_not_crash() -> None:
+    """A hand-edited / corrupt baseline must never crash the diff."""
+    baseline = {
+        "googel.com": {"risk_score": "garbage", "risk_level": ["not", "a", "level"]},
+    }
+    diff = compute_diff(
+        "google.com",
+        [_result("googel.com", risk_score=28, risk_level=RiskLevel.LOW)],
+        baseline=baseline,
+    )
+    # Unparseable old values degrade to 0/safe → the domain reports as CHANGED.
+    assert len(diff.changed_domains) == 1
+    assert diff.changed_domains[0].old_score == 0
+    assert diff.changed_domains[0].old_level == RiskLevel.SAFE
+
+
+def test_diff_baseline_score_as_string_is_parsed() -> None:
+    baseline = {"googel.com": {"risk_score": "28", "risk_level": "low"}}
+    diff = compute_diff("google.com", [_result("googel.com")], baseline=baseline)
+    assert diff.changed_domains == []
+
+
 def test_diff_unregistered_domain_not_classified_as_new() -> None:
     diff = compute_diff("google.com", [_result("googel.com", resolves=False)], baseline=None)
     assert diff.new_domains == []

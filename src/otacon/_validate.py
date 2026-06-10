@@ -78,7 +78,7 @@ def is_safe_webhook_url(url: str) -> bool:
             ip = ipaddress.ip_address(ip_str)
         except ValueError:
             continue
-            
+
         if (
             ip.is_private
             or ip.is_loopback

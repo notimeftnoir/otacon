@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,4 +76,8 @@ def save_baseline(
             if r.is_registered
         },
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # Write-then-rename so a crash mid-write can't leave a corrupt baseline —
+    # in watch mode that file is the only memory between runs.
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(tmp, path)

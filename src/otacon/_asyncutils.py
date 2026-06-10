@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Coroutine
 from typing import Any, TypeVar
 
 __all__ = ["run_async"]
@@ -21,18 +22,12 @@ if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
-def run_async(coro: Any) -> Any:
+def run_async(coro: Coroutine[Any, Any, T]) -> T:
     """Run an async coroutine with platform-appropriate event loop configuration.
-    
+
     On Windows, uses SelectorEventLoop to avoid ConnectionResetError on HTTP teardowns.
     On Python 3.12+, uses loop_factory parameter; on older versions relies on
     set_event_loop_policy configuration.
-    
-    Args:
-        coro: Coroutine to execute.
-        
-    Returns:
-        Result of the coroutine.
     """
     if _WIN_LOOP_FACTORY is not None:
         return asyncio.run(coro, loop_factory=_WIN_LOOP_FACTORY)  # type: ignore[call-arg]

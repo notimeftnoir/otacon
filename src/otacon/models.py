@@ -90,6 +90,9 @@ class ScanReport(BaseModel):
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     total_permutations: int = 0
     results: list[DomainResult] = Field(default_factory=list)
+    # True when the local resolver answered a random nonexistent domain —
+    # NXDOMAIN hijacking. Affected answers were discarded (see Resolver).
+    dns_hijack_detected: bool = False
 
     @property
     def registered(self) -> list[DomainResult]:

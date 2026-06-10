@@ -98,3 +98,10 @@ def test_save_baseline_empty_results(tmp_path: Path) -> None:
     save_baseline("target.com", [], home=tmp_path)
     loaded = load_baseline("target.com", home=tmp_path)
     assert loaded == {}
+
+
+def test_save_baseline_leaves_no_temp_file(tmp_path: Path) -> None:
+    """Atomic write: only the final baseline file remains after a save."""
+    save_baseline("target.com", [_registered("a.com")], home=tmp_path)
+    files = list((tmp_path / ".otacon").iterdir())
+    assert [f.name for f in files] == ["target.com.json"]

@@ -256,7 +256,7 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
     for kind, variants, note in pipeline:
         for v in sorted(variants):
             fqdn = f"{v}.{tld}" if tld else v
-            
+
             # Normalize to Punycode (ACE) for strict deduplication.
             # A domain might be Unicode from one technique and Punycode from another.
             try:

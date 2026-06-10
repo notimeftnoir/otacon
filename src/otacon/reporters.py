@@ -338,7 +338,7 @@ def to_csv(report: ScanReport) -> str:
         "Resolves (DNS)", "Has MX", "Has SSL", "HTTP Status",
         "Redirects To", "Page Title", "Likely Defensive", "Notes"
     ])
-    
+
     for r in report.registered:
         writer.writerow([
             r.domain,
