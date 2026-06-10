@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/otacon-readme-header.svg" alt="Otacon — domain impersonation detector" width="620">
+  <img src="assets/brand/otacon-header-v2.svg" alt="Otacon — domain impersonation detection" width="760">
 </p>
 
 <p align="center">
