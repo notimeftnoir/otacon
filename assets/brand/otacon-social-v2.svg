@@ -1,0 +1,74 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Otacon — domain impersonation detection">
+
+  <!-- ============================================================
+       OTACON social card v2 (1280x640 — GitHub social preview)
+       Same system as the README header, scaled with more air.
+       ============================================================ -->
+
+  <rect width="1280" height="640" fill="#0a0a0c"/>
+
+  <!-- faint structural hexagons -->
+  <polygon points="900,320 760,562.5 480,562.5 340,320 480,77.5 760,77.5"
+    fill="none" stroke="#ffffff" stroke-width="1" opacity="0.04"/>
+  <polygon points="1330,320 1255,449.9 1105,449.9 1030,320 1105,190.1 1255,190.1"
+    fill="none" stroke="#ffffff" stroke-width="1" opacity="0.03"/>
+  <polygon points="250,320 175,449.9 25,449.9 -50,320 25,190.1 175,190.1"
+    fill="none" stroke="#ffffff" stroke-width="1" opacity="0.03"/>
+
+  <!-- corner registration ticks -->
+  <g stroke="#3a3a3e" stroke-width="1.2">
+    <path d="M 36 60 V 36 H 60" fill="none"/>
+    <path d="M 1220 36 H 1244 V 60" fill="none"/>
+    <path d="M 1244 580 V 604 H 1220" fill="none"/>
+    <path d="M 60 604 H 36 V 580" fill="none"/>
+  </g>
+
+  <!-- ── mark: dual hexagon, top centre ── -->
+  <g transform="translate(640,140)">
+    <polygon points="34,0 17,29.45 -17,29.45 -34,0 -17,-29.45 17,-29.45"
+      fill="none" stroke="#00d7af" stroke-width="2"/>
+    <polygon points="0,-13 11.26,-6.5 11.26,6.5 0,13 -11.26,6.5 -11.26,-6.5"
+      fill="#00d7af"/>
+  </g>
+
+  <!-- ── wordmark: fixed per-letter positions ── -->
+  <g font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+     font-size="92" font-weight="600" fill="#f2f2f2" text-anchor="middle">
+    <text x="390" y="358">O</text>
+    <text x="490" y="358">T</text>
+    <text x="590" y="358">A</text>
+    <text x="690" y="358">C</text>
+    <!-- the impostor: Cyrillic о (U+043E) — visually identical, flagged -->
+    <text x="790" y="358" fill="#00d7af">&#x041E;</text>
+    <text x="890" y="358">N</text>
+  </g>
+
+  <!-- ── targeting brackets around the flagged glyph ── -->
+  <g stroke="#00d7af" stroke-width="1.6" fill="none" opacity="0.9">
+    <path d="M 744 296 V 280 H 760"/>
+    <path d="M 820 280 H 836 V 296"/>
+    <path d="M 836 358 V 374 H 820"/>
+    <path d="M 760 374 H 744 V 358"/>
+  </g>
+
+  <!-- ── descriptor ── -->
+  <text x="640" y="436" text-anchor="middle"
+    font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+    font-size="22" letter-spacing="10" fill="#8a8a90">DOMAIN IMPERSONATION DETECTION</text>
+
+  <!-- thin rule -->
+  <line x1="440" y1="472" x2="840" y2="472" stroke="#00875f" stroke-width="1" opacity="0.5"/>
+
+  <!-- capability line -->
+  <text x="640" y="504" text-anchor="middle"
+    font-family="ui-monospace,'Cascadia Mono',Consolas,'Courier New',monospace"
+    font-size="14" letter-spacing="2" fill="#5a5a60">TYPOSQUAT &#183; HOMOGLYPH &#183; IDN &#183; COMBOSQUAT &#183; BITSQUAT</text>
+
+  <!-- ── footer readouts ── -->
+  <g font-family="ui-monospace,'Cascadia Mono',Consolas,'Courier New',monospace"
+     font-size="13" fill="#4a4a50" letter-spacing="1">
+    <text x="74" y="596">PASSIVE RECON // DNS &#183; MX &#183; TLS &#183; WHOIS</text>
+    <text x="1206" y="596" text-anchor="end">github.com/notimeftnoir/otacon</text>
+  </g>
+
+</svg>
