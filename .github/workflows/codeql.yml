@@ -34,6 +34,16 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-extended,security-and-quality
+          # Scan shipped code only. Every finding under tests/ was the
+          # "incomplete URL substring sanitization" rule firing on plain
+          # assertions -- `assert "gogle.com" in domains` over a set of
+          # strings is exact membership, not a host check -- and 43 such
+          # false positives drown out anything real. Host comparison in
+          # src/ goes through urlparse plus an exact/suffix match, which
+          # the same rule correctly leaves alone.
+          config: |
+            paths-ignore:
+              - tests
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@dd903d2e4f5405488e5ef1422510ee31c8b32357  # v3.36.2
