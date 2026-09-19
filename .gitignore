@@ -13,6 +13,8 @@ build/
 
 # Editor / OS
 .DS_Store
+Thumbs.db
+desktop.ini
 .idea/
 .vscode/
 
@@ -24,10 +26,21 @@ build/
 .ruff_cache/
 .mypy_cache/
 .coverage
+.coverage.*
 htmlcov/
 coverage.xml
 
-# Runtime artefacts (created by Otacon at scan/watch time)
+# Secrets — never commit local credentials or keys.
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+
+# SBOMs generated locally by the CI recipe (published as workflow artefacts).
+otacon-sbom.cdx.*
+
+# Runtime artefacts (created by Otacon at scan time)
 .otacon/
 whitelist.txt
 report.json

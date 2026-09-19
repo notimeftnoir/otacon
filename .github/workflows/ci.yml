@@ -30,7 +30,7 @@ jobs:
 
       - name: Install system deps (c-ares for aiodns)
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y libc-ares-dev
+        run: sudo apt-get update && sudo apt-get install -y libc-ares-dev
 
       - name: Install package + dev extras
         run: pip install -e ".[dev]"
@@ -114,7 +114,7 @@ jobs:
 
       - name: Install system deps (c-ares for aiodns)
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y libc-ares-dev
+        run: sudo apt-get update && sudo apt-get install -y libc-ares-dev
 
       - name: Install project + cyclonedx-bom
         run: |

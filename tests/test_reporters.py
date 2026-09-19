@@ -823,3 +823,28 @@ def test_aggregate_json_summary_includes_low_count() -> None:
     }
     payload = json.loads(aggregate_json(reports))
     assert payload["summary"]["low"] == 1
+
+
+def test_domain_cell_renders_bracketed_page_title_verbatim() -> None:
+    """A hostile page title containing markup brackets must not gain a backslash.
+
+    rich.Text.append takes literal text and never parses console markup, so
+    passing the title through rich.markup.escape rendered the escape character
+    itself, leaking a stray backslash into the results table.
+    """
+    from rich.console import Console
+
+    from otacon.reporters import _domain_cell
+
+    result = DomainResult(
+        domain="exampl3.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        page_title="[b] domain for sale",
+        risk_level=RiskLevel.CRITICAL,
+    )
+    console = Console(file=StringIO(), force_terminal=False, width=120)
+    console.print(_domain_cell(result))
+    rendered = console.file.getvalue()
+    assert "[b] domain for sale" in rendered
+    assert r"\[b]" not in rendered

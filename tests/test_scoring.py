@@ -487,3 +487,31 @@ def test_scoring_weights_skips_bad_kind_base_entries_without_crashing() -> None:
     weights = ScoringWeights({"kind_base": {"typo": None, "homoglyph": 42}})
     assert weights.kind_base[PermutationType.HOMOGLYPH] == 42
     assert weights.kind_base[PermutationType.TYPO] == 18  # untouched default, entry was skipped
+
+
+def test_scoring_weights_ignores_non_dict_kind_base() -> None:
+    """A malformed 'kind_base' override must be dropped, not coerced to an int.
+
+    setattr-ing an int over the dict left every later kind_base.get() raising
+    AttributeError mid-scan instead of failing loudly at load time.
+    """
+    from otacon.scoring import ScoringWeights
+
+    weights = ScoringWeights({"kind_base": 5, "points_mx": 40})
+    assert isinstance(weights.kind_base, dict)
+    assert weights.kind_base[PermutationType.HOMOGLYPH] == 25
+    assert weights.points_mx == 40
+
+
+def test_malformed_redirect_does_not_crash_scoring_or_clear_risk() -> None:
+    """A hostile Location must neither abort the scan nor pass as a defensive redirect."""
+    result = DomainResult(
+        domain="exampl3.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        http_status=302,
+        redirects_to="http://[evil",
+    )
+    scored = score(result, "example.com")
+    assert scored.is_likely_defensive is False
+    assert scored.risk_score > 0

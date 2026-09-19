@@ -28,7 +28,7 @@ jobs:
           cache: pip
 
       - name: Install system deps (c-ares for aiodns)
-        run: sudo apt-get install -y libc-ares-dev
+        run: sudo apt-get update && sudo apt-get install -y libc-ares-dev
 
       - name: Install dev extras (run tests before publish)
         run: pip install -e ".[dev]"

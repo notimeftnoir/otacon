@@ -1,0 +1,13 @@
+# Normalise line endings in the repository regardless of contributor platform.
+# Without this, whether a Windows checkout commits CRLF depends on each
+# contributor's local core.autocrlf — and CRLF fails the `ruff format --check`
+# gate in CI as well as the `end_of_line = lf` rule in .editorconfig.
+* text=auto eol=lf
+
+# Binary assets: never touch the bytes, never diff them as text.
+*.png binary
+*.ico binary
+*.pdf binary
+
+# SVGs are text (and diff usefully), but keep them LF like everything else.
+*.svg text eol=lf

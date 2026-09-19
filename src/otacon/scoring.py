@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import urlparse
 
+from ._validate import parse_redirect
 from .models import DomainResult, PermutationType
 from .theme import RiskLevel
 
@@ -68,6 +68,10 @@ class ScoringWeights:
                         self.kind_base[p_type] = int(val)
                     except (ValueError, TypeError):
                         pass
+            elif k == "kind_base":
+                # A non-dict "kind_base" would otherwise be coerced to an int
+                # and blow up later in _technique_points; ignore it instead.
+                continue
             elif hasattr(self, k) and not k.startswith("_"):
                 setattr(self, k, int(v))
 
@@ -114,15 +118,19 @@ def _detect_defensive(result: DomainResult, target: str) -> None:
     """Sets ``result.is_likely_defensive`` when the redirect points back to *target*."""
     if not (result.redirects_to and target):
         return
-    parsed = urlparse(result.redirects_to)
-    host = (parsed.hostname or "").lower().rstrip(".")
+    parsed = parse_redirect(result.redirects_to)
+    if parsed is None:
+        # Unparseable Location from a hostile host — never treat that as proof
+        # of a defensive registration, which would zero the risk score.
+        return
+    host, scheme = parsed
     canonical = target.lower().rstrip(".")
     if host and (host == canonical or host.endswith("." + canonical)):
         result.is_likely_defensive = True
         return
     if (
         not host
-        and not parsed.scheme
+        and not scheme
         and (result.http_status is not None and 300 <= result.http_status < 400)
     ):
         # Relative-path Location header (e.g. "/") from a 3xx is same-origin.

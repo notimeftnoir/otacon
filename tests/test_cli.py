@@ -776,3 +776,27 @@ def test_scan_multi_csv_warns_not_supported(monkeypatch) -> None:
     monkeypatch.setattr("otacon.cli._run_scan", fake_scan)
     result = CliRunner().invoke(app, ["scan", "a.com", "b.com", "--csv", "out.csv"])
     assert "not supported" in result.output
+
+
+def test_scan_quiet_emits_single_report_when_only_one_domain_survives(monkeypatch) -> None:
+    """Two domains requested, one unscannable — stdout must still carry a report.
+
+    The quiet-mode emitters used to key off `len(domains)` for the single case and
+    `len(all_reports)` for the aggregate one, so a partial failure fell between
+    both branches and printed nothing at all.
+    """
+    import json
+
+    from otacon.models import ScanReport
+
+    async def fake_scan(domain, *args, **kwargs):
+        if domain == "beta.com":
+            raise RuntimeError("boom")
+        return ScanReport(target=domain, total_permutations=3)
+
+    monkeypatch.setattr("otacon.cli._run_scan", fake_scan)
+    result = CliRunner().invoke(app, ["--quiet", "scan", "alpha.com", "beta.com"])
+    assert result.exit_code == 0
+    payload = json.loads(result.output.strip())
+    # Single-report shape (not the aggregate envelope), for the one that worked.
+    assert payload["target"] == "alpha.com"

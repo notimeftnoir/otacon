@@ -345,3 +345,20 @@ def test_aggregate_html_clean_domains_show_no_results_message() -> None:
     }
     out = aggregate_html(reports)
     assert out.count("No registered variants detected") == 2
+
+
+def test_html_report_survives_a_malformed_redirect_target() -> None:
+    """The defensive-marker branch parsed the Location header with no guard at all."""
+    from otacon.html_report import to_html
+    from otacon.models import DomainResult, PermutationType, ScanReport
+
+    result = DomainResult(
+        domain="exampl3.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        http_status=302,
+        redirects_to="http://[evil",
+        is_likely_defensive=True,
+    )
+    html = to_html(ScanReport(target="example.com", total_permutations=1, results=[result]))
+    assert "exampl3.com" in html

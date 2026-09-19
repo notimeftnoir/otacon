@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import html
 from datetime import timezone
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
 
+from ._validate import parse_redirect
 from .models import DomainResult, ScanReport
 from .theme import RiskLevel
 from .whois import format_age
@@ -150,7 +151,8 @@ def _domain_cell(r: DomainResult) -> str:
         f'<br><span class="technique">{_h(r.kind.value)}</span>',
     ]
     if r.is_likely_defensive and r.redirects_to:
-        host = urlparse(r.redirects_to).hostname or r.redirects_to
+        parsed = parse_redirect(r.redirects_to)
+        host = (parsed[0] if parsed else "") or r.redirects_to
         parts.append(f'<span class="defensive"> ⚑ → {_h(host)}</span>')
     if r.page_title:
         parts.append(f'<br><span class="page-title">"{_h(r.page_title)}"</span>')

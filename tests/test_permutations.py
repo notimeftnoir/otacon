@@ -338,3 +338,53 @@ def test_keyboard_insertion_produces_supersequence_not_seen_by_other_typo_mechan
     # "test" intact as a substring — impossible via omission/duplication/
     # transposition/replacement of a single character.
     assert "rtest.com" in domains
+
+
+def test_every_emitted_variant_is_ascii_compatible_even_for_an_idn_target():
+    """TLD-swap and subdomain-spoof variants must be punycode like the rest.
+
+    Both were built by string concatenation and appended without passing
+    through the IDNA step the main pipeline applies, so an IDN target emitted
+    them as raw Unicode — a second spelling of names the pipeline already had
+    in ACE form, which defeated the cross-technique dedup.
+    """
+    perms = permutations.generate("ex\u00e4mple.com")
+    assert perms, "an IDN target should still produce variants"
+    non_ascii = [p.domain for p in perms if not p.domain.isascii()]
+    assert non_ascii == []
+
+
+def test_exclusion_given_in_unicode_suppresses_the_punycode_variant():
+    """A whitelist entry must match regardless of which spelling the user typed.
+
+    Variants are emitted as 'xn--' ACE, so an unnormalised Unicode entry could
+    never match one and the exclusion was silently dead.
+    """
+    ace = "xn--exampe-7db.com"
+    unicode_form = ace.encode("ascii").decode("idna")
+
+    assert ace in {p.domain for p in permutations.generate("example.com")}
+    suppressed = {p.domain for p in permutations.generate("example.com", exclude={unicode_form})}
+    assert ace not in suppressed
+
+
+def test_hyphenation_never_places_a_hyphen_against_a_label_boundary():
+    """'foo-.example.com' is unregistrable — RFC 1035 bars a leading/trailing hyphen.
+
+    The generator keeps dots inside the label for multi-label targets, so an
+    unguarded insertion loop produced a variant that could only waste a query.
+    """
+    domains = {p.domain for p in permutations.generate("foo.example.com")}
+    assert "foo-.example.com" not in domains
+    assert "foo.-example.com" not in domains
+    # The technique still works away from the boundary.
+    assert "f-oo.example.com" in domains
+
+
+def test_all_generated_variants_pass_the_project_domain_validator():
+    """Nothing the generator emits should be rejected by our own FQDN validator."""
+    from otacon._validate import is_valid_domain
+
+    for target in ("example.com", "foo.example.com", "shop.example.co.uk", "my-corp.com"):
+        invalid = [p.domain for p in permutations.generate(target) if not is_valid_domain(p.domain)]
+        assert invalid == [], f"{target} produced unregistrable variants: {invalid[:5]}"

@@ -339,9 +339,17 @@ def _bitsquats(label: str) -> set[str]:
 
 
 def _hyphenation(label: str) -> set[str]:
-    """Inserts a hyphen between characters (and removes it if already present)."""
+    """Inserts a hyphen between characters (and removes it if already present).
+
+    *label* keeps its dots for multi-label targets ('foo.example'), so positions
+    touching a dot are skipped: RFC 1035 forbids a label starting or ending with
+    a hyphen, and 'foo-.example.com' is an unregistrable string that would only
+    burn a DNS query.
+    """
     out: set[str] = set()
     for i in range(1, len(label)):
+        if label[i - 1] == "." or label[i] == ".":
+            continue
         out.add(label[:i] + "-" + label[i:])
     if "-" in label:
         out.add(label.replace("-", ""))
@@ -400,6 +408,22 @@ def _www_merge(label: str) -> set[str]:
     return {"www" + label}
 
 
+def _to_ace(fqdn: str) -> str | None:
+    """Canonicalises *fqdn* to its ASCII-compatible (punycode) form, or None.
+
+    Every domain this module emits goes through here, so a variant is
+    represented exactly one way no matter which technique produced it —
+    otherwise the same name reached ``seen`` as Unicode from one generator and
+    as ``xn--`` from another, and both were emitted. None means the string is
+    not encodable as a domain at all (empty or over-long label), which is the
+    signal to drop the variant.
+    """
+    try:
+        return fqdn.encode("idna").decode("ascii")
+    except UnicodeError:
+        return None
+
+
 def _idn_squats(homoglyph_variants: set[str]) -> set[str]:
     """Punycode-encode non-ASCII homoglyph variants → xn-- ACE labels.
 
@@ -438,12 +462,21 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
     # domain rather than its parts. The trailing root dot goes so a dotted FQDN
     # (e.g. 'example.net.') matches the dotless variants every technique emits —
     # mirrors _split_domain.
-    base = domain.lower().strip().rstrip(".")
+    # ACE form, so it compares against the punycode the pipeline emits.
+    base = _to_ace(domain.lower().strip().rstrip(".")) or domain.lower().strip().rstrip(".")
 
     # Original domain + whitelist start in `seen` => they will be skipped.
     seen: set[str] = {base}
     if exclude:
-        seen.update(d.lower().strip().rstrip(".") for d in exclude)
+        # Whitelist entries go through the same ACE canonicalisation as the
+        # variants they are matched against; without it a Unicode entry
+        # ('--exclude exampĺe.com') could never match the 'xn--' form every
+        # technique emits, and the exclusion was silently dead.
+        for entry in exclude:
+            cleaned = entry.lower().strip().rstrip(".")
+            if not cleaned:
+                continue
+            seen.add(_to_ace(cleaned) or cleaned)
 
     result: list[Permutation] = []
 
@@ -480,9 +513,8 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
 
             # Normalize to Punycode (ACE) for strict deduplication.
             # A domain might be Unicode from one technique and Punycode from another.
-            try:
-                normalized = fqdn.encode("idna").decode("ascii")
-            except UnicodeError:
+            normalized = _to_ace(fqdn)
+            if normalized is None:
                 continue
 
             if normalized in seen:
@@ -495,13 +527,13 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
         for alt in _ALT_TLDS:
             if alt == tld:
                 continue
-            fqdn = f"{label}.{alt}"
-            if fqdn in seen:
+            swapped = _to_ace(f"{label}.{alt}")
+            if swapped is None or swapped in seen:
                 continue
-            seen.add(fqdn)
+            seen.add(swapped)
             result.append(
                 Permutation(
-                    domain=fqdn,
+                    domain=swapped,
                     kind=PermutationType.TLD_SWAP,
                     note=f"different TLD (.{alt})",
                 )
@@ -509,13 +541,13 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
 
     # Subdomain spoof — original domain embedded as a label in a spoof registrar.
     for suffix in _SPOOF_SUFFIXES:
-        fqdn = f"{base}.{suffix}"
-        if fqdn in seen:
+        spoofed = _to_ace(f"{base}.{suffix}")
+        if spoofed is None or spoofed in seen:
             continue
-        seen.add(fqdn)
+        seen.add(spoofed)
         result.append(
             Permutation(
-                domain=fqdn,
+                domain=spoofed,
                 kind=PermutationType.SUBDOMAIN,
                 note=f"original domain as subdomain of .{suffix}",
             )

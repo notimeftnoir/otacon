@@ -15,13 +15,12 @@ from __future__ import annotations
 import csv
 import io
 import re
-from urllib.parse import urlparse
 
 from rich.console import Console
-from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
+from ._validate import parse_redirect
 from .models import DomainResult, ScanReport
 from .theme import RiskLevel
 from .whois import format_age
@@ -51,11 +50,10 @@ def _signals(result: DomainResult) -> str:
 
 def _redirect_host(url: str) -> str:
     """Extracts the hostname from a redirect URL; falls back to the raw value."""
-    try:
-        host = urlparse(url).hostname
-        return host if host else url
-    except ValueError:
+    parsed = parse_redirect(url)
+    if parsed is None:
         return url
+    return parsed[0] or url
 
 
 def _risk_bar(score: int, style: str) -> Text:
@@ -117,7 +115,10 @@ def _domain_cell(result: DomainResult) -> Text:
         t.append(_redirect_host(result.redirects_to), style="warn")
     if result.page_title and result.risk_level in _HIGH_RISK_LEVELS:
         t.append("\n")
-        t.append(f'"{escape(result.page_title)}"', style="muted")
+        # No escape() here: Text.append takes literal text and never parses
+        # console markup, so escaping would render the backslash itself —
+        # a hostile title "[b] sale" would show up as "\[b] sale".
+        t.append(f'"{result.page_title}"', style="muted")
     return t
 
 
@@ -136,9 +137,13 @@ def _verdict_banner(report: ScanReport) -> Text:
         )
         return t
 
+    from .scoring import AGE_FRESH_DAYS
+
     crit_count = sum(1 for r in threats if r.risk_level == RiskLevel.CRITICAL)
     mx_count = sum(1 for r in registered if r.has_mx)
-    fresh_count = sum(1 for r in registered if r.age_days is not None and r.age_days < 7)
+    fresh_count = sum(
+        1 for r in registered if r.age_days is not None and r.age_days < AGE_FRESH_DAYS
+    )
 
     t = Text()
     if crit_count:
@@ -302,10 +307,14 @@ def _verdict_banner_md(report: ScanReport) -> str:
     registered = report.registered
     if not registered:
         return f"✓ **clean** — {report.total_permutations} permutations checked, none registered"
+    from .scoring import AGE_FRESH_DAYS
+
     threats = report.threats
     crit_count = sum(1 for r in threats if r.risk_level == RiskLevel.CRITICAL)
     mx_count = sum(1 for r in registered if r.has_mx)
-    fresh_count = sum(1 for r in registered if r.age_days is not None and r.age_days < 7)
+    fresh_count = sum(
+        1 for r in registered if r.age_days is not None and r.age_days < AGE_FRESH_DAYS
+    )
     icon = "⚠" if crit_count else "●"
     return (
         f"{icon} **{len(registered)} registered** · "

@@ -193,3 +193,23 @@ def test_first_safe_ip_rejects_nat64_embedded_link_local() -> None:
     """NAT64 well-known prefix (64:ff9b::/96) embedding a link-local IPv4 address
     must also be rejected — same bypass class as the IPv4-mapped form above."""
     assert first_safe_ip(["64:ff9b::169.254.169.254"]) is None
+
+
+def test_parse_redirect_returns_none_for_a_malformed_ipv6_authority() -> None:
+    """urlparse raises ValueError on 'http://[evil' rather than degrading.
+
+    A Location header is verbatim attacker output, so the unguarded call was a
+    remote crash: one hostile lookalike aborted scoring for the whole target.
+    """
+    from otacon._validate import parse_redirect
+
+    assert parse_redirect("http://[evil") is None
+    assert parse_redirect("http://[::1") is None
+
+
+def test_parse_redirect_normalises_host_and_reports_scheme() -> None:
+    from otacon._validate import parse_redirect
+
+    assert parse_redirect("https://EXAMPLE.com./path") == ("example.com", "https")
+    # A relative Location has neither host nor scheme — how same-origin is spotted.
+    assert parse_redirect("/login") == ("", "")

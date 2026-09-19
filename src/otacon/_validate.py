@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+from urllib.parse import urlparse
 
 # RFC 1035-ish: labels are 1..63 chars of [a-z0-9-], must not start/end with '-'.
 # We allow uppercase too (normalised later) and ACE/punycode labels (xn--...).
@@ -97,6 +98,24 @@ def first_safe_ip(ips: list[str]) -> str | None:
         if safe_ip is None:
             safe_ip = ip_str
     return safe_ip
+
+
+def parse_redirect(url: str) -> tuple[str, str] | None:
+    """Splits a ``Location`` header into ``(hostname, scheme)``, or None if unparseable.
+
+    *hostname* comes back lowercased with the root dot stripped, and is ``""``
+    for a relative Location (``/login``); *scheme* is ``""`` when absent.
+
+    A Location header is verbatim attacker-controlled output from a lookalike
+    host, and ``urlparse`` raises ValueError on a malformed IPv6 authority
+    (``http://[evil``) rather than degrading. Every consumer goes through here
+    so one hostile redirect cannot take down a scan, a score, or a report.
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    return (parsed.hostname or "").lower().rstrip("."), parsed.scheme
 
 
 def safe_relative_path(filename: str, base: str | None = None) -> str | None:

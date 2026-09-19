@@ -344,9 +344,6 @@ def scan(
         reporters.render_table(report, console, show_safe=show_all)
         all_reports[d] = report
 
-        if quiet and len(domains) == 1:
-            sys.stdout.write(reporters.to_json(report) + "\n")
-
     if not all_reports:
         raise typer.Exit(1)
 
@@ -405,8 +402,18 @@ def scan(
             content = to_html(next(iter(all_reports.values())))
         _safe_write(html_out, content, "HTML")
 
-    if quiet and multi:
-        sys.stdout.write(reporters.aggregate_json(all_reports) + "\n")
+    if quiet:
+        # Keyed off the reports we actually produced, not the domains requested:
+        # asking for two domains and having one fail must still emit that one
+        # report on stdout rather than falling between both branches.
+        sys.stdout.write(
+            (
+                reporters.aggregate_json(all_reports)
+                if multi
+                else reporters.to_json(next(iter(all_reports.values())))
+            )
+            + "\n"
+        )
 
     if fail_on is not None:
         threshold = RiskLevel(fail_on.value)
