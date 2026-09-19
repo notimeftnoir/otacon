@@ -119,13 +119,13 @@ jobs:
       - name: Install project + cyclonedx-bom
         run: |
           pip install -e .
-          pip install cyclonedx-bom
+          pip install 'cyclonedx-bom>=7,<8'  # CLI flags change across majors
 
       - name: Generate SBOM (JSON)
-        run: cyclonedx-py environment --output-format JSON --outfile otacon-sbom.cdx.json
+        run: cyclonedx-py environment --output-format JSON --output-file otacon-sbom.cdx.json
 
       - name: Generate SBOM (XML)
-        run: cyclonedx-py environment --output-format XML --outfile otacon-sbom.cdx.xml
+        run: cyclonedx-py environment --output-format XML --output-file otacon-sbom.cdx.xml
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
