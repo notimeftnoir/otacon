@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import runpy
 import sys
 from pathlib import Path
@@ -14,6 +15,20 @@ from typer.testing import CliRunner
 
 from otacon import cli
 from otacon.cli import app
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def plain(output: str) -> str:
+    """Strips ANSI styling so help text can be asserted on as plain text.
+
+    Typer styles an option name as several separate spans — '--fail-on' is
+    emitted as '-' + '-fail' + '-on', each individually wrapped in escape
+    codes — so the literal string is absent from coloured output. Colour is off
+    in a plain local terminal but forced on in CI, which is exactly the kind of
+    gap that only ever fails after a push.
+    """
+    return _ANSI_RE.sub("", output)
 
 
 def test_load_exclusions_parses_comma_separated_values() -> None:
@@ -167,7 +182,7 @@ def test_scan_fail_on_low_exits_0_for_empty_scan(monkeypatch) -> None:
 def test_scan_fail_on_help_shows_valid_choices() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "--help"])
-    assert "--fail-on" in result.output
+    assert "--fail-on" in plain(result.output)
 
 
 def test_version_flag_prints_version() -> None:
@@ -800,3 +815,17 @@ def test_scan_quiet_emits_single_report_when_only_one_domain_survives(monkeypatc
     payload = json.loads(result.output.strip())
     # Single-report shape (not the aggregate envelope), for the one that worked.
     assert payload["target"] == "alpha.com"
+
+
+def test_help_option_names_survive_forced_colour(monkeypatch) -> None:
+    """Guards the CI-only failure mode: colour splits option names across spans.
+
+    With colour on, Typer emits '--fail-on' as three separately styled spans, so
+    asserting on the raw output passes locally (colour off) and fails in CI
+    (colour forced). Every help assertion must go through plain().
+    """
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    result = CliRunner().invoke(app, ["scan", "--help"])
+
+    assert "--fail-on" in plain(result.output)
+    assert "--domains-file" in plain(result.output)
