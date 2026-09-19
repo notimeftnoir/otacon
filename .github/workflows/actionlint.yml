@@ -1,0 +1,33 @@
+name: actionlint
+
+# Lints every workflow file in .github/workflows/ on every PR that touches one.
+# Catches: invalid `uses:` refs, shellcheck issues in `run:`, deprecated `set-output`,
+# malformed `if:` expressions, missing `permissions:` blocks, etc.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/actionlint*"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actionlint*"
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Download actionlint
+        id: get_actionlint
+        # Upstream-recommended install script — pinned commit prevents tag drift.
+        run: bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.5/scripts/download-actionlint.bash)
+
+      - name: Run actionlint
+        run: ${{ steps.get_actionlint.outputs.executable }} -color

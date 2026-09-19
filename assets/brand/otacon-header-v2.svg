@@ -1,0 +1,64 @@
+<svg width="880" height="220" viewBox="0 0 880 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Otacon — domain impersonation detection">
+
+  <!-- ============================================================
+       OTACON header v2 — defense-tech aesthetic
+       Near-black field, hairline geometry, tracked grotesque caps.
+       Core motif: one glyph of the wordmark is a Cyrillic homoglyph,
+       bracketed and annotated — the tool's purpose, told typographically.
+       ============================================================ -->
+
+  <rect width="880" height="220" fill="#0a0a0c"/>
+
+  <!-- faint structural hexagon behind the composition -->
+  <polygon points="560,110 500,213.9 380,213.9 320,110 380,6.1 500,6.1"
+    fill="none" stroke="#ffffff" stroke-width="1" opacity="0.04"/>
+
+  <!-- corner registration ticks -->
+  <g stroke="#3a3a3e" stroke-width="1">
+    <path d="M 14 26 V 14 H 26" fill="none"/>
+    <path d="M 854 14 H 866 V 26" fill="none"/>
+    <path d="M 866 194 V 206 H 854" fill="none"/>
+    <path d="M 26 206 H 14 V 194" fill="none"/>
+  </g>
+
+  <!-- ── mark: dual hexagon, top centre ── -->
+  <g transform="translate(440,44)">
+    <polygon points="22,0 11,19.05 -11,19.05 -22,0 -11,-19.05 11,-19.05"
+      fill="none" stroke="#00d7af" stroke-width="1.5"/>
+    <polygon points="0,-8.5 7.36,-4.25 7.36,4.25 0,8.5 -7.36,4.25 -7.36,-4.25"
+      fill="#00d7af"/>
+  </g>
+
+  <!-- ── wordmark: fixed per-letter positions (font-metric independent) ── -->
+  <g font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+     font-size="54" font-weight="600" fill="#f2f2f2" text-anchor="middle">
+    <text x="280" y="134">O</text>
+    <text x="344" y="134">T</text>
+    <text x="408" y="134">A</text>
+    <text x="472" y="134">C</text>
+    <!-- the impostor: Cyrillic о (U+043E) — visually identical, flagged -->
+    <text x="536" y="134" fill="#00d7af">&#x041E;</text>
+    <text x="600" y="134">N</text>
+  </g>
+
+  <!-- ── targeting brackets around the flagged glyph ── -->
+  <g stroke="#00d7af" stroke-width="1.2" fill="none" opacity="0.9">
+    <path d="M 508 96 V 86 H 518"/>
+    <path d="M 554 86 H 564 V 96"/>
+    <path d="M 564 134 V 144 H 554"/>
+    <path d="M 518 144 H 508 V 134"/>
+  </g>
+
+  <!-- ── descriptor ── -->
+  <text x="440" y="178" text-anchor="middle"
+    font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+    font-size="13" letter-spacing="6" fill="#8a8a90">DOMAIN IMPERSONATION DETECTION</text>
+
+  <!-- ── footer readouts ── -->
+  <g font-family="ui-monospace,'Cascadia Mono',Consolas,'Courier New',monospace"
+     font-size="9" fill="#4a4a50" letter-spacing="1">
+    <text x="14" y="209">PASSIVE RECON // DNS &#183; MX &#183; TLS &#183; WHOIS</text>
+    <text x="866" y="209" text-anchor="end">TYPO &#183; HOMOGLYPH &#183; IDN &#183; COMBO</text>
+  </g>
+
+</svg>

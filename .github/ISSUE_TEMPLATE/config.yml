@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability (private disclosure)
+    url: https://github.com/notimeftnoir/otacon/blob/main/SECURITY.md
+    about: Email gabriel.bieszczad@gmail.com — do NOT open a public issue.
+  - name: Documentation, install, usage
+    url: https://github.com/notimeftnoir/otacon/blob/main/README.md
+    about: Check the README and FAQ before filing an issue.

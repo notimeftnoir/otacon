@@ -1,0 +1,26 @@
+name: Release Drafter
+
+# Maintains a draft release on main with PR-driven changelog. The actual tag
+# + PyPI publish lives in publish.yml.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  update_release_draft:
+    name: Update draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # draft + autolabeling
+      pull-requests: write
+    steps:
+      - uses: release-drafter/release-drafter@b1476f6e6eb133afa41ed8589daba6dc69b4d3f5  # v6.1.0
+        with:
+          config-name: release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

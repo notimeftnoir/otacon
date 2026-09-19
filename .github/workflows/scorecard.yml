@@ -1,0 +1,47 @@
+name: OpenSSF Scorecard
+
+# Audits the repo against the OpenSSF Scorecard checks: branch-protection,
+# pinned dependencies, signed releases, code-review, fuzzing, etc.
+# Results land in the Security tab and are publishable to the OpenSSF
+# Scorecard ranking via publish_results: true.
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: "27 6 * * 2"   # weekly, Tuesday morning UTC
+  push:
+    branches: [main]
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # upload SARIF to the Security tab
+      id-token: write          # OIDC for publish_results
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@f49aabe0b5af0936a0987cfb85d86b75731b0186  # v2.4.1
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 14
+
+      - name: Upload SARIF to GitHub code-scanning
+        uses: github/codeql-action/upload-sarif@aa578102511db1f4524ed59b8cc2bae4f6e88195  # v3.30.0
+        with:
+          sarif_file: results.sarif

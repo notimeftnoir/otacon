@@ -1,0 +1,28 @@
+name: Dependency review
+
+# Fails the PR when it introduces a dependency with a known vulnerability or an
+# incompatible licence. Runs ONLY on PRs because the action diffs the lockfile
+# between the base and the head ref.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write   # so the action can leave a summary comment on the PR
+
+jobs:
+  review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Block PRs that introduce vulnerable / GPL deps
+        uses: actions/dependency-review-action@5b00ddc4bb35b6c9eeb5dc28b7e3a7d3c39c5c7e  # v4.10.0
+        with:
+          # moderate, not high — a tool built around catching threats early
+          # shouldn't wave through a moderate-severity dep itself.
+          fail-on-severity: moderate
+          # Otacon is MIT — keep copyleft transitives out of the dep graph.
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-1.0, AGPL-3.0
+          comment-summary-in-pr: on-failure

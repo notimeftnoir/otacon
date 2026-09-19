@@ -1,0 +1,43 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+
+dist/
+build/
+*.egg-info/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code project data (session memory, worktrees)
+.claude/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Runtime artefacts (created by Otacon at scan/watch time)
+.otacon/
+whitelist.txt
+report.json
+report.md
+report.html
+report.csv
+
+# Design project source — only the extracted assets in assets/brand/*.{png,svg} are committed
+assets/brand/assets/
+
+# Claude Code "superpowers" skill session data / plans (tool artefacts, not project source)
+.superpowers/
+docs/superpowers/

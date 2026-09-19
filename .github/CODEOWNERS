@@ -1,0 +1,15 @@
+# Otacon code ownership — keeps a human on the loop for every change.
+# Lines later in the file take precedence over earlier ones (GitHub semantics).
+# Reference: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo.
+*                                      @notimeftnoir
+
+# Security-critical paths — always require a review even if branch protection
+# is relaxed for trivial doc PRs.
+/src/otacon/_validate.py               @notimeftnoir
+/src/otacon/resolver.py                @notimeftnoir
+/src/otacon/html_report.py             @notimeftnoir
+/src/otacon/reporters.py               @notimeftnoir
+/.github/workflows/                    @notimeftnoir
+/SECURITY.md                           @notimeftnoir
