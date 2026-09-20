@@ -1,0 +1,78 @@
+# Mirrors the lint gates in .github/workflows/ci.yml so a contributor finds out
+# locally, in seconds, instead of via a red matrix ten minutes after pushing.
+#
+#   pip install pre-commit && pre-commit install
+#   pre-commit run --all-files     # first run, or after changing this file
+#
+# Hook versions are pinned and kept current by Dependabot, which reads this
+# file through its `pre-commit` ecosystem support.
+minimum_pre_commit_version: "3.5.0"
+
+default_language_version:
+  python: python3
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        # Markdown uses two trailing spaces as a hard line break.
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict        # Otacon is developed on Windows and tested on Linux
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        # CI runs `mypy --strict src/otacon`; match it, including the third-party
+        # stubs the run needs to resolve imports.
+        args: [--strict]
+        files: ^src/otacon/
+        # mypy runs in its own isolated env, so every runtime dependency that
+        # contributes types has to be repeated here. Without them typer, httpx
+        # and questionary resolve to Any and --strict reports subclassing and
+        # decorator errors that CI — which installs the package — never sees.
+        additional_dependencies:
+          - typer>=0.12.0
+          - rich>=13.7.0
+          - httpx>=0.27.0
+          - httpcore>=1.0.0
+          - cryptography>=42.0.0
+          - pydantic>=2.6.0
+          - questionary>=2.0.0
+          - prompt_toolkit>=3.0.0
+          - asyncwhois>=1.1.0
+          - aiodns>=3.1.0
+          - types-setuptools
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4
+    hooks:
+      - id: bandit
+        # Same confidence/severity floor as CI — low-severity picks are already
+        # justified in code and would only add noise here.
+        args: [-ll, -ii]
+        files: ^src/otacon/
+
+  - repo: https://github.com/econchick/interrogate
+    rev: 1.7.0
+    hooks:
+      - id: interrogate
+        args: [-c, pyproject.toml]
+        files: ^src/otacon/

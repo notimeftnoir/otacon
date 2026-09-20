@@ -17,14 +17,31 @@ pip install -e ".[dev]"
 pytest
 ```
 
-## Linting
+## Pre-commit hooks
+
+Install them once and the same gates CI enforces run on every commit, in
+seconds, instead of failing a 12-job matrix ten minutes after you push:
 
 ```bash
-ruff check .
-ruff format --check .
+pip install pre-commit
+pre-commit install
+pre-commit run --all-files     # first run, or after changing the config
 ```
 
-All checks must pass before a PR is merged.
+## Linting
+
+`pre-commit` covers all of these; run them directly if you prefer:
+
+```bash
+ruff check .                   # lint
+ruff format --check .          # formatting
+mypy --strict src/otacon       # types
+bandit -r src/otacon -ll -ii   # security lint
+interrogate -c pyproject.toml src/otacon   # docstring coverage
+```
+
+All checks must pass before a PR is merged, on Python 3.10–3.13 and on Linux,
+macOS and Windows.
 
 ## Pull requests
 
