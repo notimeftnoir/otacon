@@ -4,22 +4,20 @@
 
 <p align="center">
   <a href="https://github.com/notimeftnoir/otacon/actions/workflows/ci.yml"><img
-    src="https://img.shields.io/github/actions/workflow/status/notimeftnoir/otacon/ci.yml?branch=main&style=flat-square&labelColor=0a0a0c&label=CI"
+    src="https://img.shields.io/github/actions/workflow/status/notimeftnoir/otacon/ci.yml?branch=main&style=for-the-badge&labelColor=0a0a0c&logoColor=white&logo=githubactions&label=CI"
     alt="CI"></a>
   <a href="https://github.com/notimeftnoir/otacon/actions/workflows/codeql.yml"><img
-    src="https://img.shields.io/github/actions/workflow/status/notimeftnoir/otacon/codeql.yml?branch=main&style=flat-square&labelColor=0a0a0c&label=CodeQL"
+    src="https://img.shields.io/github/actions/workflow/status/notimeftnoir/otacon/codeql.yml?branch=main&style=for-the-badge&labelColor=0a0a0c&logoColor=white&logo=github&label=CodeQL"
     alt="CodeQL"></a>
   <a href="https://pypi.org/project/otacon/"><img
-    src="https://img.shields.io/pypi/v/otacon?style=flat-square&labelColor=0a0a0c&color=00d7af"
+    src="https://img.shields.io/pypi/v/otacon?style=for-the-badge&labelColor=0a0a0c&logoColor=white&color=00d7af&logo=pypi"
     alt="PyPI version"></a>
   <a href="https://pypi.org/project/otacon/"><img
-    src="https://img.shields.io/pypi/pyversions/otacon?style=flat-square&labelColor=0a0a0c&color=00d7af"
+    src="https://img.shields.io/pypi/pyversions/otacon?style=for-the-badge&labelColor=0a0a0c&logoColor=white&color=00d7af&logo=python"
     alt="Supported Python versions"></a>
   <a href="LICENSE"><img
-    src="https://img.shields.io/pypi/l/otacon?style=flat-square&labelColor=0a0a0c&color=00d7af"
+    src="https://img.shields.io/pypi/l/otacon?style=for-the-badge&labelColor=0a0a0c&logoColor=white&color=00d7af&logo=opensourceinitiative"
     alt="MIT licence"></a>
-  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-8a8a90?style=flat-square&labelColor=0a0a0c"
-    alt="Linux, macOS and Windows">
 </p>
 
 > **Otacon** finds domains impersonating yours — **typosquats, homoglyph fakes, combosquats, IDN/punycode tricks** and more. It generates hundreds of variants, checks which are actually registered, and scores each by real-world phishing risk. One command, ~10 seconds, no paid APIs.
