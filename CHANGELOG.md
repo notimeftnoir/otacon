@@ -7,38 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security
-- A malformed `Location` header from a scanned host (`http://[evil`) made
-  `urlparse` raise, which aborted scoring for the entire target and discarded
-  every other result — one hostile lookalike could deny the whole scan. All
-  redirect parsing now goes through a single guarded helper, and an
-  unparseable redirect can no longer pass as a defensive registration (which
-  would have zeroed that domain's risk score)
+_Nothing yet._
 
-### Fixed
-- TLD-swap and subdomain-spoof variants skipped the IDNA step the rest of the
-  pipeline applies, so an internationalised target emitted 33 variants in raw
-  Unicode — a second spelling of names already present in `xn--` form, which
-  defeated cross-technique deduplication
-- Whitelist entries are canonicalised to punycode before matching; a Unicode
-  `--exclude` entry could never match the ACE variants and was silently dead
-- Hyphenation no longer emits a hyphen against a label boundary
-  (`foo-.example.com`), which RFC 1035 forbids and no registry can serve
-- `--quiet` printed no report at all when a multi-domain scan had some targets
-  fail: the single and aggregate emitters keyed off different counts, so a
-  partial success fell between both branches
-- Page titles shown in the results table no longer leak a stray backslash —
-  `rich.Text` takes literal text, so the markup escaping was rendering itself
-- A malformed `kind_base` in a `--weights-file` was coerced to an integer and
-  surfaced as an unrelated error mid-scan; it is now ignored
-- The `fresh <7d` counters in the table and Markdown verdict read the shared
-  `AGE_FRESH_DAYS` constant instead of an inlined `7`
-
-### Changed
-- CI installs `libc-ares-dev` after `apt-get update`, so a stale runner package
-  index cannot fail the Linux jobs
-
-## [1.0.0] — 2026-09-19
+## [1.0.0] — 2026-09-20
 
 Initial public release.
 
@@ -56,6 +27,11 @@ Initial public release.
 - Plural — singular/plural suffix variation
 - www-merge — the `www` label merged into the domain (dot omission)
 
+Every technique runs through the same IDNA step, so an internationalised
+target yields one canonical `xn--` spelling per variant and cross-technique
+deduplication holds. Hyphenation never places a hyphen against a label
+boundary (`foo-.example.com`), which RFC 1035 forbids and no registry serves.
+
 ### Signals collected per variant
 - A and AAAA records — an IPv6-only lookalike resolves in every modern browser
 - MX record — readiness for email phishing
@@ -68,7 +44,9 @@ Initial public release.
 - Transparent rule-based 0–100 score with per-result `risk_reasons`; no ML,
   so an operator can always see why a domain scored what it did
 - Levels: safe · low · medium · high · critical
-- Weights overridable from a JSON file via `--weights-file`
+- Weights overridable from a JSON file via `--weights-file`; a malformed
+  `kind_base` is ignored and reported under `--debug` rather than coerced
+  into an integer that fails later mid-scan
 - Parked-domain and defensive-registration (⚑) detection, so registrations
   that redirect back to the original are not reported as threats
 
@@ -77,7 +55,8 @@ Initial public release.
 - Fully concurrent (`--concurrency`, default 50), bounded to protect the DNS
   resolver and the local file-descriptor limit
 - `--no-http` for a DNS-only pass
-- Whitelisting via `--exclude` and `--exclude-file`
+- Whitelisting via `--exclude` and `--exclude-file`, canonicalised to
+  punycode before matching so a Unicode entry matches its ACE variants
 - NXDOMAIN-hijack detection — resolvers that answer every query are caught by
   a random-nonce canary, and their answers discarded instead of reported as
   hundreds of false positives
@@ -87,7 +66,8 @@ Initial public release.
 - JSON, Markdown, HTML and CSV reports; JSON and HTML also in aggregated form
   covering every target of a multi-domain run
 - `--fail-on <level>` exits 2, for use as a CI/CD gate
-- `--quiet` writes JSON to stdout for piping
+- `--quiet` writes JSON to stdout for piping, including when a multi-domain
+  scan succeeds only partially
 
 ### Modes
 - `scan` — full DNS/MX/TLS/HTTP scan
@@ -103,6 +83,10 @@ is treated as the attack surface:
   steering the scanner at cloud-metadata or RFC1918 addresses
 - Response bodies are capped and every probe carries a wall-clock deadline, so
   a hostile host cannot exhaust memory or hold a slot open indefinitely
+- A malformed `Location` header from a scanned host (`http://[evil`) cannot
+  abort scoring and discard the rest of the run: all redirect parsing goes
+  through one guarded helper, and an unparseable redirect can no longer pass
+  as a defensive registration and zero that domain's risk score
 - CSV cells are neutralised against spreadsheet formula injection (CWE-1236)
 - Every value interpolated into the HTML report is escaped, and report paths
   are confined to the working directory
