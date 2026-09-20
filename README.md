@@ -6,9 +6,6 @@
   <a href="https://github.com/notimeftnoir/otacon/actions/workflows/ci.yml"><img
     src="https://img.shields.io/github/actions/workflow/status/notimeftnoir/otacon/ci.yml?branch=main&style=for-the-badge&labelColor=0a0a0c&logoColor=white&logo=githubactions&label=CI"
     alt="CI"></a>
-  <a href="https://github.com/notimeftnoir/otacon/actions/workflows/codeql.yml"><img
-    src="https://img.shields.io/github/actions/workflow/status/notimeftnoir/otacon/codeql.yml?branch=main&style=for-the-badge&labelColor=0a0a0c&logoColor=white&logo=github&label=CodeQL"
-    alt="CodeQL"></a>
   <a href="https://pypi.org/project/otacon/"><img
     src="https://img.shields.io/pypi/v/otacon?style=for-the-badge&labelColor=0a0a0c&logoColor=white&color=00d7af&logo=pypi"
     alt="PyPI version"></a>
