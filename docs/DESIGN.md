@@ -1,5 +1,9 @@
 # Otacon — Architecture & Design Notes
 
+_[← back to the README](../README.md)_ · [Usage](USAGE.md) · [Scoring](SCORING.md) · [Output](OUTPUT.md) · [CI/CD](CI.md) · [FAQ](FAQ.md) · [Design](DESIGN.md)
+
+---
+
 This document explains *why* Otacon is built the way it is. For *how to use it*, see the [README](../README.md).
 
 ---
