@@ -32,8 +32,9 @@ jobs:
 
       - name: Download actionlint
         id: get_actionlint
-        # Upstream-recommended install script — pinned commit prevents tag drift.
-        run: bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.5/scripts/download-actionlint.bash)
+        # Fetched by commit SHA, not by tag: a tag can be repointed, and this
+        # script is piped straight into bash. e11169d is tag v1.7.5.
+        run: bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/e11169d0656294827d65370a3c76a2325406da85/scripts/download-actionlint.bash)
 
       - name: Run actionlint
         run: ${{ steps.get_actionlint.outputs.executable }} -color
