@@ -18,6 +18,7 @@ jobs:
     environment: pypi
     permissions:
       id-token: write   # OIDC token for PyPI Trusted Publishing (no API token needed)
+      contents: write   # attach the signed distributions to the GitHub release
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -50,20 +51,34 @@ jobs:
       - name: Move Sigstore bundles aside
         # PyPI rejects non-distribution files in the upload directory, so we
         # park the keyless-signing bundles in a sibling folder. They are
-        # uploaded as a GitHub Actions artifact for verification.
+        # attached to the release below, and kept as a run artifact too.
         run: |
           mkdir -p signatures
           shopt -s nullglob
           mv dist/*.sigstore dist/*.sigstore.json signatures/ 2>/dev/null || true
           ls -la signatures/
 
-      - name: Upload Sigstore bundles
+      - name: Attach signed distributions to the GitHub release
+        # A workflow artifact expires and needs a login to download, so the
+        # signatures were effectively unreachable: nobody could verify a
+        # release. Attaching them to the release itself makes
+        #   sigstore verify identity --bundle <file>.sigstore.json
+        # something a user can actually run.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --title "Otacon ${GITHUB_REF_NAME#v}" --generate-notes
+          fi
+          gh release upload "$GITHUB_REF_NAME" dist/* signatures/* --clobber
+
+      - name: Upload Sigstore bundles as a workflow artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: sigstore-bundles
           path: signatures/
 
       - name: Publish to PyPI
-        # Pinned to the v1.14.0 commit SHA — a mutable ref (release/v1) could be
+        # Pinned to the v1.14.2 commit SHA — a mutable ref (release/v1) could be
         # repointed at malicious code. Bump the SHA + comment together.
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2

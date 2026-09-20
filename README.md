@@ -5,7 +5,6 @@
 <p align="center">
   <a href="https://github.com/notimeftnoir/otacon/actions/workflows/ci.yml"><img src="https://github.com/notimeftnoir/otacon/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/notimeftnoir/otacon/actions/workflows/codeql.yml"><img src="https://github.com/notimeftnoir/otacon/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/notimeftnoir/otacon"><img src="https://api.scorecard.dev/projects/github.com/notimeftnoir/otacon/badge" alt="OpenSSF Scorecard"></a>
   <a href="https://pypi.org/project/otacon/"><img src="https://img.shields.io/pypi/v/otacon" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT">
