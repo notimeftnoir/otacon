@@ -55,7 +55,7 @@ repos:
           - httpcore>=1.0.0
           - cryptography>=50.0.1
           - pydantic>=2.6.0
-          - questionary>=2.0.0
+          - questionary>=2.1.1
           - prompt_toolkit>=3.0.53
           - asyncwhois>=1.1.14
           - aiodns>=3.1.0
