@@ -5,6 +5,7 @@ name: OpenSSF Scorecard
 # Results land in the Security tab and are publishable to the OpenSSF
 # Scorecard ranking via publish_results: true.
 on:
+  workflow_dispatch:      # re-run the analysis after a fix, without a push
   branch_protection_rule:
   schedule:
     - cron: "27 6 * * 2"   # weekly, Tuesday morning UTC
