@@ -9,8 +9,8 @@
   <a href="https://pypi.org/project/otacon/"><img
     src="https://img.shields.io/pypi/v/otacon?style=plastic&labelColor=0a0a0c&logoColor=white&color=00d7af&logo=pypi" alt="PyPI version"></a>
   <a href="https://pypi.org/project/otacon/"><img
-    src="https://img.shields.io/pypi/pyversions/otacon?style=plastic&labelColor=0a0a0c&logoColor=white&color=3776AB&logo=python"
-    alt="Supported Python versions"></a>
+    src="https://img.shields.io/badge/python-3.10%2B-3776AB?style=plastic&labelColor=0a0a0c&logoColor=white&logo=python"
+    alt="Python 3.10 and newer"></a>
   <a href="LICENSE"><img
     src="https://img.shields.io/pypi/l/otacon?style=plastic&labelColor=0a0a0c&logoColor=white&color=5fd700&logo=opensourceinitiative" alt="MIT licence"></a>
 </p>
