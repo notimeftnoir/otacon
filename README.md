@@ -24,23 +24,13 @@
 
 > **Otacon** finds domains impersonating yours — **typosquats, homoglyph fakes, combosquats, IDN/punycode tricks** and more. It generates hundreds of variants, checks which are actually registered, and scores each by real-world phishing risk. One command, ~10 seconds, no paid APIs.
 
-```text
-⚠ 3 registered · crit: 1 · mx: 1 · fresh <7d: 1
+<p align="center">
+  <img src="assets/brand/demo-scan.svg"
+    alt="otacon scan example.com — 234 permutations checked, 13 registered, ranked by risk"
+    width="860">
+</p>
 
-Otacon · target: github.com
-┌──────────────────────────────────────┬────────────────┬────────┬───────┬───────┬───────┬─────────┐
-│ Domain                               │ Risk           │    Age │  DNS  │  MX   │  SSL  │  HTTP   │
-├──────────────────────────────────────┼────────────────┼────────┼───────┼───────┼───────┼─────────┤
-│ githubupdate.com                     │ ███████░  92   │     3d │   ✓   │   ✓   │   ✓   │   200   │
-│ combosquat                           │                │        │       │       │       │         │
-│ "GitHub - Security Update Required"  │                │        │       │       │       │         │
-│ bithub.com                           │ █████░░░  68   │     2y │   ✓   │   —   │   ✓   │   301   │
-│ typo                                 │                │        │       │       │       │         │
-│ githuub.com                          │ ████░░░░  48   │    8mo │   ✓   │   —   │   —   │   404   │
-│ typo                                 │                │        │       │       │       │         │
-└──────────────────────────────────────┴────────────────┴────────┴───────┴───────┴───────┴─────────┘
-Permutations: 143 · registered: 3 · med: 1 · high: 1 · crit: 1
-```
+<sub><i>Real output: a full scan of <code>example.com</code> — 234 permutations, 13 registered lookalikes, ranked by risk. Regenerate with <code>python tools/render_demo_svg.py</code>.</i></sub>
 
 ---
 
