@@ -16,16 +16,17 @@
 ⚠ 3 registered · crit: 1 · mx: 1 · fresh <7d: 1
 
 Otacon · target: github.com
-┌────────────────────────────────┬────────────────────┬──────────┬─────┬────┬─────┬──────┐
-│ Domain                         │ Risk               │      Age │ DNS │ MX │ SSL │ HTTP │
-├────────────────────────────────┼────────────────────┼──────────┼─────┼────┼─────┼──────┤
-│ githubupdate.com               │ #######-  92 crit  │       3d │  +  │ +  │  +  │  200 │
-│ combosquat . "GitHub - Security Update Required"                                       │
-│ bithub.com                     │ #####---  68 high  │       2y │  +  │ -  │  +  │  301 │
-│ typo                                                                                   │
-│ githuub.com                    │ ####----  48 med   │      8mo │  +  │ -  │  -  │  404 │
-│ typo                                                                                   │
-└────────────────────────────────┴────────────────────┴──────────┴─────┴────┴─────┴──────┘
+┌──────────────────────────────────────┬────────────────┬────────┬───────┬───────┬───────┬─────────┐
+│ Domain                               │ Risk           │    Age │  DNS  │  MX   │  SSL  │  HTTP   │
+├──────────────────────────────────────┼────────────────┼────────┼───────┼───────┼───────┼─────────┤
+│ githubupdate.com                     │ ███████░  92   │     3d │   ✓   │   ✓   │   ✓   │   200   │
+│ combosquat                           │                │        │       │       │       │         │
+│ "GitHub - Security Update Required"  │                │        │       │       │       │         │
+│ bithub.com                           │ █████░░░  68   │     2y │   ✓   │   —   │   ✓   │   301   │
+│ typo                                 │                │        │       │       │       │         │
+│ githuub.com                          │ ████░░░░  48   │    8mo │   ✓   │   —   │   —   │   404   │
+│ typo                                 │                │        │       │       │       │         │
+└──────────────────────────────────────┴────────────────┴────────┴───────┴───────┴───────┴─────────┘
 Permutations: 143 · registered: 3 · med: 1 · high: 1 · crit: 1
 ```
 
@@ -206,6 +207,15 @@ otacon scan example.com --weights-file weights.json
 
 </details>
 
+**`generate` options** (after `otacon generate`):
+
+| Flag | Default | Description |
+|---|---|---|
+| `-n`, `--limit` | `0` (all) | Print only the first N variants. The file written by `--output` always contains every variant. |
+| `-o`, `--output` | — | Write the variants, one per line, to a file — a wordlist for `subfinder`, `nuclei`, `ffuf`, etc. |
+| `-x`, `--exclude` | — | Comma-separated whitelist, same syntax as `scan`. |
+| `--exclude-file` | — | Path to a whitelist file, one domain per line. |
+
 ### Exit codes (for CI gating)
 
 | Code | Meaning |
@@ -333,18 +343,33 @@ covers all 26 letters, not just the handful that are easy to eyeball.
 
 | Technique | Example (`example.com`) | Real attack vector |
 |---|---|---|
-| **Homoglyph** | `exаmple.com` *(Cyrillic а)* | Visual identity — humans can't tell the difference |
-| **IDN / Punycode** | `xn--exmple-4ve.com` | ACE-encoded unicode that browsers may render natively |
+| **Homoglyph** | `examp1e.com`, `ex4mple.com` | Visual identity — humans can't tell the difference |
+| **IDN / Punycode** | `xn--exampe-7db.com` *(`l` → ł)* | ACE-encoded unicode that browsers may render natively |
 | **Typo** | `exmple.com`, `exsmple.com`, `exampel.com` | Fat-finger typing on QWERTY keyboards |
 | **Combosquat** | `example-login.com`, `secureexample.com` | Adds "trust" keyword — common in phishing email links |
 | **TLD swap** | `example.io`, `example.top`, `example.icu` | Same name, different (often cheap/abused) TLD |
 | **Subdomain spoof** | `example.com.login.net` | Original domain as a label; URL-bar trickery |
-| **Bitsquat** | `dxample.com` (`e`→`d` is one bit flip) | DRAM/DNS memory errors flip a single bit |
+| **Bitsquat** | `axample.com` (`e`→`a` is one bit flip) | DRAM/DNS memory errors flip a single bit |
 | **Hyphenation** | `ex-ample.com` | Insert/remove a hyphen |
-| **Soundsquat** | `egzample.com`, `eksample.com` | Phonetic substitution (ph/f, c/k, s/z, x/ks) |
+| **Soundsquat** | `eksample.com` | Phonetic substitution (ph/f, c/k, s/z, x/ks) |
 | **Vowel swap** | `exomple.com`, `exumple.com` | Replace one vowel with another |
-| **Plural** | `examples.com` | Singular ↔ plural variation |
+| **Plural** | `shops.com` ← `shop.com` | Singular ↔ plural variation |
 | **WWW-merge** | `wwwexample.com` | Dot dropped between "www" and the domain — easy to misread |
+
+Every example above is real output, not an illustration. Two details worth
+knowing before you read a report:
+
+- **Unicode look-alikes are emitted as punycode.** Swapping the `l` in
+  `example.com` for a Polish `ł` is reported as `xn--exampe-7db.com`, because
+  that is the name DNS actually resolves and the form you will see in logs.
+  Those land under **IDN**, which leaves the **Homoglyph** rows for the ASCII
+  confusables (`1`/`l`, `4`/`a`, `rn`/`m`).
+- **Each variant is reported once, under the first technique that produced it.**
+  Techniques overlap, and the priority order is the one in this table. That is
+  why `examples.com` is labelled a typo rather than a plural for a target like
+  `example.com`: `s` sits next to `e` on QWERTY, so the typo generator reaches
+  it first. On `shop.com`, where no adjacent key produces it, `shops.com`
+  comes through as a plural.
 
 The generator deduplicates results and **never includes the original domain** in the output.
 
