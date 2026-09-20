@@ -8,8 +8,10 @@ version-resolver:
   minor:
     labels: ['feature', 'enhancement']
   patch:
-    labels: ['bug', 'fix', 'security', 'docs', 'chore', 'test', 'ci']
+    labels: ['bug', 'fix', 'security', 'docs', 'chore', 'test', 'ci', 'build', 'dependencies']
   default: patch
+
+exclude-labels: ['skip-changelog']
 
 # Bucketed changelog sections.
 categories:
@@ -25,6 +27,8 @@ categories:
     labels: ['ci', 'build', 'chore']
   - title: '📝 Docs'
     labels: ['docs']
+  - title: '📦 Dependencies'
+    labels: ['dependencies']
   - title: '🧹 Refactor'
     labels: ['refactor']
 
@@ -54,6 +58,9 @@ autolabeler:
   - label: 'ci'
     title:
       - '/^ci(\(.*\))?:/i'
+  - label: 'build'
+    title:
+      - '/^build(\(.*\))?:/i'
   - label: 'chore'
     title:
       - '/^chore(\(.*\))?:/i'
