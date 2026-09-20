@@ -6,6 +6,12 @@ name: Dependency review
 on:
   pull_request:
 
+# One run per ref: a new push cancels the superseded run rather than spending
+# a runner on a commit nobody will look at again.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: write   # so the action can leave a summary comment on the PR

@@ -8,6 +8,12 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, labeled, unlabeled]
 
+# One run per ref: a new push cancels the superseded run rather than spending
+# a runner on a commit nobody will look at again.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
