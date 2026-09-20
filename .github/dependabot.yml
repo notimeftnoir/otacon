@@ -8,7 +8,17 @@ updates:
     open-pull-requests-limit: 5
 
   # GitHub Actions — keeps pinned action SHAs current with their security fixes.
+  # Limit raised from 5: every action here is SHA-pinned, so a backlog at the cap
+  # silently holds back security bumps with no sign that anything is queued.
   - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+
+  # Hook versions in .pre-commit-config.yaml, which mirrors the CI lint gates —
+  # left unattended they drift out of step with the versions CI installs.
+  - package-ecosystem: pre-commit
     directory: "/"
     schedule:
       interval: weekly
