@@ -10,11 +10,32 @@
     src="https://img.shields.io/pypi/v/otacon?style=for-the-badge&labelColor=0a0a0c&logoColor=white&color=00d7af&logo=pypi"
     alt="PyPI version"></a>
   <a href="https://pypi.org/project/otacon/"><img
-    src="https://img.shields.io/pypi/pyversions/otacon?style=for-the-badge&labelColor=0a0a0c&logoColor=white&color=00d7af&logo=python"
+    src="https://img.shields.io/pypi/pyversions/otacon?style=for-the-badge&labelColor=0a0a0c&logoColor=white&color=3776AB&logo=python"
     alt="Supported Python versions"></a>
   <a href="LICENSE"><img
-    src="https://img.shields.io/pypi/l/otacon?style=for-the-badge&labelColor=0a0a0c&logoColor=white&color=00d7af&logo=opensourceinitiative"
+    src="https://img.shields.io/pypi/l/otacon?style=for-the-badge&labelColor=0a0a0c&logoColor=white&color=5fd700&logo=opensourceinitiative"
     alt="MIT licence"></a>
+</p>
+
+<p align="center">
+  <a href="#detection-techniques"><img
+    src="https://img.shields.io/badge/techniques-12-8a5cf6?style=for-the-badge&labelColor=0a0a0c&logoColor=white" alt="12 permutation techniques"></a>
+  <a href="docs/SCORING.md"><img
+    src="https://img.shields.io/badge/signals-DNS%20%C2%B7%20MX%20%C2%B7%20TLS%20%C2%B7%20HTTP%20%C2%B7%20WHOIS-5fafff?style=for-the-badge&labelColor=0a0a0c&logoColor=white"
+    alt="Signals collected per variant"></a>
+  <a href="#license--ethics"><img
+    src="https://img.shields.io/badge/recon-passive%20only-ff5f5f?style=for-the-badge&labelColor=0a0a0c&logoColor=white" alt="Passive reconnaissance only"></a>
+  <img src="https://img.shields.io/badge/api%20keys-none-ffa500?style=for-the-badge&labelColor=0a0a0c&logoColor=white" alt="No API keys required">
+</p>
+
+<p align="center">
+  <a href="#install"><b>Install</b></a> ·
+  <a href="#quick-start"><b>Quick start</b></a> ·
+  <a href="#detection-techniques"><b>Techniques</b></a> ·
+  <a href="docs/USAGE.md"><b>Usage</b></a> ·
+  <a href="docs/SCORING.md"><b>Scoring</b></a> ·
+  <a href="docs/CI.md"><b>CI/CD</b></a> ·
+  <a href="docs/FAQ.md"><b>FAQ</b></a>
 </p>
 
 > **Otacon** finds domains impersonating yours — **typosquats, homoglyph fakes, combosquats, IDN/punycode tricks** and more. It generates hundreds of variants, checks which are actually registered, and scores each by real-world phishing risk. One command, ~10 seconds, no paid APIs.
