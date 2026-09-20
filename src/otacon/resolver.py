@@ -150,7 +150,9 @@ class Resolver:
         """
         try:
             ips = await self._resolve_a(self.target)
-            _ssl_info, (_status, _server, _redirect, title) = await self._probe(self.target, ips)
+            # _probe returns (ssl_info, (status, server, redirect, title));
+            # only the title is wanted here.
+            _, (_, _, _, title) = await self._probe(self.target, ips)
             return title
         except Exception as exc:
             _log.debug("Failed to fetch target domain '%s' title: %r", self.target, exc)

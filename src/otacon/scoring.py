@@ -14,12 +14,15 @@ a pentester should understand WHY something received a given score.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 from ._validate import parse_redirect
 from .models import DomainResult, PermutationType
 from .theme import RiskLevel
+
+_log = logging.getLogger("otacon.scoring")
 
 
 class ScoringWeights:
@@ -67,7 +70,11 @@ class ScoringWeights:
                         p_type = PermutationType(p_name)
                         self.kind_base[p_type] = int(val)
                     except (ValueError, TypeError):
-                        pass
+                        # An unknown technique name or a non-numeric weight is
+                        # skipped rather than aborting the whole file, but say so
+                        # under --debug: a silent drop looks like the override
+                        # was applied.
+                        _log.debug("ignoring kind_base override %r=%r", p_name, val)
             elif k == "kind_base":
                 # A non-dict "kind_base" would otherwise be coerced to an int
                 # and blow up later in _technique_points; ignore it instead.

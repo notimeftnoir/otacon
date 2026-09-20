@@ -56,8 +56,10 @@ def _ensure_unicode_output() -> None:
                     stream.reconfigure(encoding="utf-8", errors="replace")
                 else:
                     stream.reconfigure(errors="replace")
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as exc:
+            # Best effort only: a console that refuses reconfiguration still
+            # works, it just may mangle the banner glyphs.
+            logging.getLogger("otacon.cli").debug("stream reconfigure failed: %r", exc)
 
 
 _ensure_unicode_output()
