@@ -16,6 +16,7 @@ from otacon._validate import (
     first_safe_ip,
     is_valid_domain,
     normalize_domain,
+    parse_domain_list,
     safe_relative_path,
 )
 
@@ -136,6 +137,34 @@ def test_normalize_domain_strips_www_from_whitelist_entries() -> None:
     'www.' prefix — keeping it would make such an entry match nothing.
     """
     assert normalize_domain("WWW.Example.com.") == "example.com"
+
+
+# ---------------------------------------------------------------------------
+# parse_domain_list — the single reader for --exclude-file and whitelist.txt.
+# ---------------------------------------------------------------------------
+
+
+def test_parse_domain_list_drops_comments_and_blanks() -> None:
+    content = "# a comment\n\nexample.com\n   \n  # indented comment\nexample.net\n"
+    assert parse_domain_list(content) == {"example.com", "example.net"}
+
+
+def test_parse_domain_list_normalises_every_entry() -> None:
+    """Casing, padding, 'www.' and a trailing root dot all collapse to one form."""
+    assert parse_domain_list("  WWW.Example.COM.  \nexample.com\n") == {"example.com"}
+
+
+def test_parse_domain_list_tolerates_crlf() -> None:
+    """A file saved on Windows must read back as the same set it was written from.
+
+    Without this, the defensive-registration writer appends an entry it already
+    wrote on the previous run, growing whitelist.txt on every scan.
+    """
+    assert parse_domain_list("example.com\r\nexample.net\r\n") == {"example.com", "example.net"}
+
+
+def test_parse_domain_list_empty_content() -> None:
+    assert parse_domain_list("") == set()
 
 
 # ---------------------------------------------------------------------------

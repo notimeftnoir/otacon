@@ -53,7 +53,8 @@ macOS and Windows.
 ## Code style
 
 - Python 3.10+, type-annotated throughout
-- `ruff` enforces style (line length 100, E/F/I/UP/B rules)
+- `ruff` enforces style (line length 100; rule sets E, W, F, I, UP, B, N, S, SIM and RUF —
+  see `[tool.ruff.lint]` in `pyproject.toml` for the exact selection and the documented ignores)
 - No unnecessary comments — code should be self-explanatory; add a comment only when the *why* is non-obvious
 
 ## Security

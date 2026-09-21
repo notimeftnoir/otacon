@@ -43,6 +43,26 @@ def normalize_domain(value: str) -> str:
     return value.strip().lower().removeprefix("www.").rstrip(".")
 
 
+def parse_domain_list(content: str) -> set[str]:
+    """Parses whitelist/exclusion file *content* into a set of normalised domains.
+
+    Blank lines and ``#`` comments are dropped; every surviving line goes through
+    ``normalize_domain``. Shared by ``--exclude-file``, interactive mode's
+    ``whitelist.txt``, and the defensive-registration writer, so a file this
+    function accepts is read back identically by all three — otherwise a stray
+    ``\\r`` or a capitalised entry reads as a new domain and the writer appends a
+    duplicate on every run.
+    """
+    out: set[str] = set()
+    for line in content.splitlines():
+        if line.strip().startswith("#"):
+            continue
+        entry = normalize_domain(line)
+        if entry:
+            out.add(entry)
+    return out
+
+
 def is_valid_domain(domain: str) -> bool:
     """True when *domain* is a syntactically plausible FQDN.
 

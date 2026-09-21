@@ -74,27 +74,32 @@ _KEYBOARD_LAYOUTS: tuple[dict[str, str], ...] = (
 # Homoglyphs: visually similar characters. We mix ASCII (1/l, 0/o) with
 # Unicode (Cyrillic/Greek/Armenian), since both are used in real-world attacks.
 # Non-ASCII entries are cross-checked against Unicode's confusables.txt
-# (unicode.org/Public/security/latest/confusables.txt) \u2014 each is a documented
-# single-codepoint confusable for that Latin letter, not a guess.
+# (unicode.org/Public/security/latest/confusables.txt): 19 of the 25 share a
+# UTS #39 skeleton with the Latin letter they imitate. The other six are kept
+# deliberately. UTS #39 folds Cyrillic pe to Greek pi and Cyrillic ka to Latin
+# kra rather than to n and k, but both render close enough to the Latin letter
+# in the sans-serif fonts browsers and mail clients use that real campaigns
+# exploit them. Each of the six is annotated inline below, so no entry in this
+# table is an unlabelled guess.
 _HOMOGLYPHS: dict[str, list[str]] = {
     "a": ["\u0430", "4"],  # Cyrillic a  (@ removed \u2014 invalid DNS char)
-    "b": ["\u044c"],  # Cyrillic soft sign \u044c
+    "b": ["\u044c"],  # Cyrillic soft sign \u044c \u2014 font look-alike, not a UTS #39 confusable
     "c": ["\u0441"],  # Cyrillic c  (( removed \u2014 invalid DNS char)
     "e": ["\u0435", "3"],  # Cyrillic e
     "f": ["\u0192"],  # Latin small letter f with hook \u0192
     "g": ["\u0261"],  # Latin small letter script g \u0261
     "h": ["\u04bb"],  # Cyrillic shha \u04bb
-    "i": ["1", "l", "\u00ed", "\u0131"],
+    "i": ["1", "l", "\u00ed", "\u0131"],  # i-acute: font look-alike; dotless i: UTS #39
     "j": ["\u0458"],  # Cyrillic je \u0458
-    "k": ["\u043a"],  # Cyrillic ka \u043a
-    "l": ["1", "i", "\u0142"],
-    "n": ["\u043f"],
+    "k": ["\u043a"],  # Cyrillic ka \u043a \u2014 font look-alike (UTS #39 folds it to kra \u0138)
+    "l": ["1", "i", "\u0142"],  # \u0142 is a font look-alike (UTS #39 folds it to l + slash)
+    "n": ["\u043f"],  # Cyrillic pe \u043f \u2014 font look-alike (UTS #39 folds it to Greek \u03c0)
     "o": ["\u043e", "0", "\u03bf"],  # Cyrillic o + Greek omicron
     "p": ["\u0440"],  # Cyrillic p
     "q": ["\u051b"],  # Cyrillic qa \u051b
     "r": ["\u0433"],  # Cyrillic ghe \u0433
     "s": ["\u0455", "5"],  # Cyrillic s  ($ removed \u2014 invalid DNS char)
-    "t": ["\u0442"],  # Cyrillic te \u0442
+    "t": ["\u0442"],  # Cyrillic te \u0442 \u2014 font look-alike (UTS #39: small cap)
     "u": ["\u057d"],  # Armenian seh \u057d
     "v": ["\u03bd"],  # Greek nu \u03bd
     "x": ["\u0445"],  # Cyrillic x
