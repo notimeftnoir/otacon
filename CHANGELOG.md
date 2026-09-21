@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entry added by a previous interactive scan is recognised even when the file
   carries CRLF endings or hand-edited casing. Previously the defensive-registration
   writer re-appended those entries on every run.
+- The defensive-registration writer now starts a new line before appending to a
+  `whitelist.txt` that does not end in one, instead of fusing the file's last
+  entry with the first appended domain.
 
 ### Changed
 - `--exclude-file`, interactive mode's `whitelist.txt`, and the defensive-registration

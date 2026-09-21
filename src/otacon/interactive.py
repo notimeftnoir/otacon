@@ -311,10 +311,15 @@ def _suggest_defensive_whitelist(report: ScanReport, console: Console) -> None:
         # Read back through the same parser the whitelist is loaded with, so an
         # entry written by an earlier run is recognised even if the file picked
         # up CRLF endings or the user hand-edited the casing.
-        existing = parse_domain_list(path.read_text(encoding="utf-8")) if path.exists() else set()
+        content = path.read_text(encoding="utf-8") if path.exists() else ""
+        existing = parse_domain_list(content)
         new_entries = [r.domain for r in defensive if normalize_domain(r.domain) not in existing]
         if new_entries:
             with path.open("a", encoding="utf-8") as f:
+                # A hand-edited file need not end in a newline; appending straight
+                # onto it would fuse its last entry with the first new one.
+                if content and not content.endswith(("\n", "\r")):
+                    f.write("\n")
                 for d in new_entries:
                     f.write(d + "\n")
             console.print(f"[ok]→ Added {len(new_entries)} domain(s) to {escape(str(path))}[/ok]")
