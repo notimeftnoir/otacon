@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- `whitelist.txt` is now read back through the same parser that writes it, so an
+  entry added by a previous interactive scan is recognised even when the file
+  carries CRLF endings or hand-edited casing. Previously the defensive-registration
+  writer re-appended those entries on every run.
+
+### Changed
+- `--exclude-file`, interactive mode's `whitelist.txt`, and the defensive-registration
+  writer share one reader (`_validate.parse_domain_list`) instead of three copies of
+  the same parse-and-normalise loop.
+- Documented the homoglyph table's provenance accurately: 19 of the 25 Unicode
+  entries share a UTS #39 skeleton with the letter they imitate, and the other six
+  are now labelled in the source as deliberate font-level look-alikes. The previous
+  wording claimed every entry was a documented confusable.
 
 ## [1.0.0] — 2026-09-20
 

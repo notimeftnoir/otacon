@@ -17,7 +17,12 @@ from rich.markup import escape
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
 from ._scanner import run_scan
-from ._validate import is_valid_domain, normalize_domain, safe_relative_path
+from ._validate import (
+    is_valid_domain,
+    normalize_domain,
+    parse_domain_list,
+    safe_relative_path,
+)
 from .models import ScanReport
 from .theme import BANNER, OTACON_THEME, RiskLevel
 
@@ -181,10 +186,7 @@ def _load_exclusions(raw: str | None, file: Path | None) -> set[str]:
         except OSError as exc:
             raise typer.BadParameter(f"cannot read exclude-file: {file}") from exc
 
-        for line in content.splitlines():
-            entry = normalize_domain(line)
-            if entry and not entry.startswith("#"):
-                out.add(entry)
+        out.update(parse_domain_list(content))
     return out
 
 

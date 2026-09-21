@@ -19,7 +19,12 @@ from rich.markup import escape
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
 from ._scanner import run_scan
-from ._validate import is_valid_domain, normalize_domain, safe_relative_path
+from ._validate import (
+    is_valid_domain,
+    normalize_domain,
+    parse_domain_list,
+    safe_relative_path,
+)
 from .models import DomainResult, Permutation, ScanReport
 from .resolver import DEFAULT_CONCURRENCY, Resolver
 from .whois import fetch_domain_age, format_age
@@ -175,10 +180,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
     whitelist_path = Path("whitelist.txt")
     if whitelist_path.exists():
         try:
-            for line in whitelist_path.read_text(encoding="utf-8").splitlines():
-                entry = normalize_domain(line)
-                if entry and not entry.startswith("#"):
-                    exclusions.add(entry)
+            exclusions = parse_domain_list(whitelist_path.read_text(encoding="utf-8"))
         except OSError as exc:
             _log.debug("Could not read whitelist.txt: %s", exc)
 
@@ -306,8 +308,11 @@ def _suggest_defensive_whitelist(report: ScanReport, console: Console) -> None:
         return
     path = Path("whitelist.txt")
     try:
-        existing = set(path.read_text(encoding="utf-8").splitlines()) if path.exists() else set()
-        new_entries = [r.domain for r in defensive if r.domain not in existing]
+        # Read back through the same parser the whitelist is loaded with, so an
+        # entry written by an earlier run is recognised even if the file picked
+        # up CRLF endings or the user hand-edited the casing.
+        existing = parse_domain_list(path.read_text(encoding="utf-8")) if path.exists() else set()
+        new_entries = [r.domain for r in defensive if normalize_domain(r.domain) not in existing]
         if new_entries:
             with path.open("a", encoding="utf-8") as f:
                 for d in new_entries:

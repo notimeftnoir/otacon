@@ -63,7 +63,7 @@ everything else goes after it.
 
 | Exit code | Meaning |
 |---|---|
-| `0` | Clean — nothing at or above the `--fail-on` threshold |
+| `0` | Scan completed — nothing at or above `--fail-on`, or `--fail-on` was not passed |
 | `1` | Runtime error (bad input, file I/O) |
 | `2` | Threshold breached — at least one registered variant met it |
 
@@ -92,10 +92,15 @@ Otacon is **fully passive**: DNS queries, a TLS handshake, one HTTP GET per vari
 ## Detection techniques
 
 Otacon implements **12 permutation techniques** modeled on real-world attacks. The
-homoglyph table is cross-checked against Unicode's own
-[confusables.txt](https://www.unicode.org/Public/security/latest/confusables.txt)
-so every look-alike character is a documented substitution, not a guess — it
-covers all 26 letters, not just the handful that are easy to eyeball.
+homoglyph table covers all 26 letters, not just the handful that are easy to
+eyeball, and every Unicode entry in it is cross-checked against Unicode's own
+[confusables.txt](https://www.unicode.org/Public/security/latest/confusables.txt):
+19 of the 25 share a UTS&nbsp;#39 skeleton with the letter they imitate. The
+other six (Cyrillic `к`, `п`, `т`, `ь`, plus `ł` and `í`) are kept on purpose —
+UTS&nbsp;#39 folds them elsewhere, but they render close enough in the
+sans-serif fonts browsers and mail clients use that real campaigns exploit them.
+Each of the six is labelled as such in the source, so nothing in the table is an
+unlabelled guess.
 
 | Technique | Example (`example.com`) | Real attack vector |
 |---|---|---|
