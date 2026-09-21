@@ -89,6 +89,33 @@ def test_strip_unsafe_chars_leaves_normal_text_untouched():
     assert _strip_unsafe_chars("Ordinary Title – 100% safe") == "Ordinary Title – 100% safe"  # noqa: RUF001 — en-dash is deliberate, not a stray control char
 
 
+def test_strip_unsafe_chars_removes_other_bidi_overrides_and_isolates():
+    from otacon.resolver import _strip_unsafe_chars
+
+    assert _strip_unsafe_chars("safe‭text") == "safetext"  # LRO
+    assert _strip_unsafe_chars("safe⁦text⁩") == "safetext"  # LRI/PDI
+
+
+def test_strip_unsafe_chars_keeps_joiners_and_directional_marks():
+    """Cf also contains ZWJ/ZWNJ/LRM/RLM, needed to correctly shape legitimate
+    Arabic/Persian/Indic-script text — those are allowlisted even though the
+    rest of Cf is stripped."""
+    from otacon.resolver import _strip_unsafe_chars
+
+    assert _strip_unsafe_chars("a‌b‍c‎d‏e") == "a‌b‍c‎d‏e"
+
+
+def test_strip_unsafe_chars_removes_invisible_cf_steganography_chars():
+    """Cf codepoints outside the allowlist — ZERO WIDTH SPACE, BOM, and the
+    Unicode "tag" block (a known vector for hiding payloads in text) — are
+    stripped, not just the named bidi overrides."""
+    from otacon.resolver import _strip_unsafe_chars
+
+    assert _strip_unsafe_chars("safe​text") == "safetext"  # ZWSP
+    assert _strip_unsafe_chars("safe﻿text") == "safetext"  # BOM
+    assert _strip_unsafe_chars("safe\U000e0001\U000e0041text") == "safetext"  # tag chars
+
+
 def test_parse_title_strips_unsafe_chars_from_extracted_title():
     html = "<title>evil\x1b[31mtitle</title>"
     assert _parse_title(html) == "evil[31mtitle"
@@ -512,6 +539,37 @@ async def test_probe_http_strips_unsafe_chars_from_location_header():
         with patch.object(r._http, "stream", return_value=_FakeStream()):
             _status, _server, redirect, _title = await r._probe_http("x.example.com")
     assert redirect == "https://evil[31m.example/"
+
+
+@pytest.mark.asyncio
+async def test_probe_http_caps_location_header_length():
+    """A hostile Location header with no unsafe chars can still be huge —
+    it must be capped the same way page_title is, so a report can't be
+    bloated by an arbitrarily long redirect target."""
+    from otacon.resolver import _REDIRECT_MAX
+
+    class _FakeHeaders(dict):
+        def get(self, key, default=None):
+            return super().get(key.lower(), default)
+
+    huge_location = "https://evil.example/" + "a" * 1000
+
+    class _FakeResp:
+        status_code = 302
+        headers = _FakeHeaders(location=huge_location)
+
+    class _FakeStream:
+        async def __aenter__(self):
+            return _FakeResp()
+
+        async def __aexit__(self, *exc):
+            return False
+
+    async with Resolver() as r:
+        with patch.object(r._http, "stream", return_value=_FakeStream()):
+            _status, _server, redirect, _title = await r._probe_http("x.example.com")
+    assert redirect == huge_location[:_REDIRECT_MAX]
+    assert len(redirect) == _REDIRECT_MAX
 
 
 @pytest.mark.asyncio
