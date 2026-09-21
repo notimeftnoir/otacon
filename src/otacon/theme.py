@@ -87,6 +87,4 @@ class RiskLevel(str, Enum):
 _LOGO_TOP = " [brand]⬢ ⬢ ⬢ ⬡ ⬡ ⬡[/]"
 _LOGO_MID = "   [brand]OTACON[/]"
 _LOGO_BOT = " [brand]⬡ ⬡ ⬡ ⬢ ⬢ ⬢[/]  [muted]domain impersonation detector[/]"
-_BAR = "[ok]█[/][info]█[/][warn]█[/][danger]█[/][crit.bar]█[/]"
-_LEGEND = "[ok]safe[/] [info]low[/] [warn]med[/] [danger]high[/] [crit.bar]crit[/]"
-BANNER = f"\n{_LOGO_TOP}\n{_LOGO_MID}\n{_LOGO_BOT}\n          {_BAR} {_LEGEND}\n"
+BANNER = f"\n{_LOGO_TOP}\n{_LOGO_MID}\n{_LOGO_BOT}\n"
