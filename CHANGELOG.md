@@ -12,6 +12,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entry added by a previous interactive scan is recognised even when the file
   carries CRLF endings or hand-edited casing. Previously the defensive-registration
   writer re-appended those entries on every run.
+- `--weights-file` with syntactically-valid but non-object JSON (e.g. a
+  top-level list) no longer crashes with a raw `AttributeError` traceback —
+  the type check now lives on `ScoringWeights` itself (the class that
+  actually assumes a dict) rather than duplicated at the CLI call site, and
+  raises a clean `typer.BadParameter`/`TypeError` like every other malformed
+  weights-file case. A weights-file containing literal JSON `null` is still
+  treated as "no overrides" (falls back to defaults), unchanged from before.
+- Terminal/Markdown/HTML verdict banners' "fresh <Nd>" count and label now
+  all read the actual `AGE_FRESH_DAYS` threshold via a single shared
+  `scoring.count_fresh()` helper instead of three separately hardcoded/
+  duplicated computations, and the printed label now always matches the
+  threshold instead of a hardcoded `<7d`.
+- CSV export now runs the `domain` column through the same formula-injection
+  guard (`_csv_safe`) already applied to `page_title`/`redirects_to`.
+
+### Security
+- The resolver strips Unicode control/format/line-separator characters
+  (categories Cc, Cf, Zl, Zp — covering C0 and C1 control codes, e.g. the
+  8-bit CSI equivalent U+009B, plus format chars like U+202E right-to-left
+  override and the U+2028/U+2029 separators) from a page `<title>` and the
+  redirect `Location` header before either is echoed to the terminal, HTML
+  report, or CSV export.
 
 ### Changed
 - `--exclude-file`, interactive mode's `whitelist.txt`, and the defensive-registration

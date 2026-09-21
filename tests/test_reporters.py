@@ -419,6 +419,27 @@ def test_verdict_banner_shows_fresh_count():
     assert "fresh <7d: 1" in banner.plain
 
 
+def test_verdict_banner_fresh_label_tracks_age_fresh_days_constant(monkeypatch) -> None:
+    """The '<Nd>' label must read AGE_FRESH_DAYS, not a hardcoded '<7d>'."""
+    from otacon import scoring
+
+    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 14)
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        age_days=10,
+        risk_score=40,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    report.results.append(r)
+
+    banner = _verdict_banner(report)
+
+    assert "fresh <14d: 1" in banner.plain
+
+
 def test_verdict_banner_md_clean():
     report = ScanReport(target="example.com", total_permutations=5)
     md = _verdict_banner_md(report)
@@ -439,6 +460,26 @@ def test_verdict_banner_md_with_threats():
     md = _verdict_banner_md(report)
     assert "registered" in md
     assert "crit:" in md
+
+
+def test_verdict_banner_md_fresh_label_tracks_age_fresh_days_constant(monkeypatch) -> None:
+    from otacon import scoring
+
+    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 14)
+    report = ScanReport(target="example.com", total_permutations=10)
+    r = DomainResult(
+        domain="exmaple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        age_days=10,
+        risk_score=40,
+        risk_level=RiskLevel.MEDIUM,
+    )
+    report.results.append(r)
+
+    md = _verdict_banner_md(report)
+
+    assert "fresh <14d: 1" in md
 
 
 def test_to_markdown_includes_verdict_banner():
@@ -574,6 +615,16 @@ def test_to_csv_neutralizes_formula_with_leading_whitespace() -> None:
     report = ScanReport(target="example.com", total_permutations=1, results=[r])
     csv_text = to_csv(report)
     assert "'  =1+1" in csv_text
+
+
+def test_to_csv_neutralizes_formula_in_domain() -> None:
+    r = _make_hit("=cmd|'/c calc'!A0", 70, RiskLevel.HIGH)
+    report = ScanReport(target="example.com", total_permutations=1, results=[r])
+
+    csv_text = to_csv(report)
+
+    row = csv_text.splitlines()[1]
+    assert "'=cmd|" in row
 
 
 # ---------------------------------------------------------------------------

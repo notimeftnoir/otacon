@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterable
 from typing import Any
 
 from ._validate import parse_redirect
@@ -29,6 +30,12 @@ class ScoringWeights:
     """Configurable scoring weights for risk calculation."""
 
     def __init__(self, overrides: dict[str, Any] | None = None) -> None:
+        if overrides is not None and not isinstance(overrides, dict):
+            # Lives here (not just at the CLI call site) because this class is
+            # what actually assumes a dict — _apply_overrides calls .items() on
+            # it. A JSON `null` (None) still means "no overrides" and falls
+            # through unchanged, matching the pre-existing `if overrides:` check.
+            raise TypeError("overrides must be a dict")
         self.points_resolves = 10
         self.points_http_2xx = 15
         self.points_http_3xx = 10
@@ -109,6 +116,16 @@ _PARKING_SERVERS = {"parkingcrew", "sedo", "bodis"}
 AGE_FRESH_DAYS = 7
 AGE_NEW_DAYS = 30
 AGE_RECENT_DAYS = 90
+
+
+def count_fresh(results: Iterable[DomainResult]) -> int:
+    """Counts results whose WHOIS age is under AGE_FRESH_DAYS.
+
+    Single source of truth for the three verdict renderers (terminal,
+    Markdown, HTML) so they can't drift from each other or from the
+    threshold they claim to report.
+    """
+    return sum(1 for r in results if r.age_days is not None and r.age_days < AGE_FRESH_DAYS)
 
 
 def _detect_parking(result: DomainResult) -> None:

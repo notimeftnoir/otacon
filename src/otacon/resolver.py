@@ -20,6 +20,7 @@ import logging
 import re
 import secrets
 import ssl
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -38,6 +39,19 @@ _log = logging.getLogger("otacon.resolver")
 
 _TITLE_RE = re.compile(r"<title[^>]*>([^<]{1,200})", re.IGNORECASE)
 _TITLE_MAX = 80
+# Unicode general categories unsafe to echo verbatim to a terminal: Cc covers
+# C0 *and* C1 control bytes (e.g. ESC and its 8-bit CSI equivalent U+009B),
+# Cf covers format chars like U+202E (right-to-left override, used to spoof
+# displayed text), Zl/Zp cover line/paragraph separators.
+_UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+
+
+def _strip_unsafe_chars(text: str) -> str:
+    """Strips control/format/line-separator characters a hostile HTTP response
+    could use to inject terminal escape sequences or spoof displayed text —
+    applied to any attacker-controlled string printed verbatim (page title,
+    redirect Location header)."""
+    return "".join(ch for ch in text if unicodedata.category(ch) not in _UNSAFE_CATEGORIES)
 
 
 def _parse_title(body: str) -> str | None:
@@ -45,7 +59,7 @@ def _parse_title(body: str) -> str | None:
     m = _TITLE_RE.search(body)
     if not m:
         return None
-    title = _html.unescape(" ".join(m.group(1).split()))
+    title = _strip_unsafe_chars(_html.unescape(" ".join(m.group(1).split())))
     return title[:_TITLE_MAX] if title else None
 
 
@@ -365,6 +379,8 @@ class Resolver:
             # stream() so we can bound the body read — see _read_capped.
             async with http.stream("GET", f"{scheme}://{domain}") as resp:
                 location = resp.headers.get("location")
+                if location is not None:
+                    location = _strip_unsafe_chars(location)
                 server = resp.headers.get("server")
                 title: str | None = None
                 if 200 <= resp.status_code < 300:
