@@ -515,3 +515,48 @@ def test_malformed_redirect_does_not_crash_scoring_or_clear_risk() -> None:
     scored = score(result, "example.com")
     assert scored.is_likely_defensive is False
     assert scored.risk_score > 0
+
+
+def test_scoring_weights_rejects_non_dict_top_level_overrides() -> None:
+    """A syntactically-valid but non-object --weights-file (e.g. a top-level
+    JSON list) must raise a clean TypeError, not an unhandled AttributeError
+    from _apply_overrides calling .items() on something that isn't a dict."""
+    from otacon.scoring import ScoringWeights
+
+    with pytest.raises(TypeError):
+        ScoringWeights([1, 2, 3])  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError):
+        ScoringWeights("points_mx")  # type: ignore[arg-type]
+
+
+def test_scoring_weights_none_overrides_falls_back_to_defaults() -> None:
+    """A JSON `null` weights-file still means 'no overrides', unchanged behaviour."""
+    from otacon.scoring import ScoringWeights
+
+    weights = ScoringWeights(None)
+    assert weights.points_mx == 25
+
+
+def test_count_fresh_tracks_age_fresh_days_constant(monkeypatch) -> None:
+    from otacon import scoring
+
+    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 20)
+    results = [
+        DomainResult(domain="a.com", kind=PermutationType.TYPO, age_days=15),
+        DomainResult(domain="b.com", kind=PermutationType.TYPO, age_days=25),
+    ]
+
+    assert scoring.count_fresh(results) == 1
+
+
+def test_count_fresh_counts_only_results_under_the_threshold() -> None:
+    from otacon.scoring import AGE_FRESH_DAYS, count_fresh
+
+    results = [
+        DomainResult(domain="a.com", kind=PermutationType.TYPO, age_days=1),
+        DomainResult(domain="b.com", kind=PermutationType.TYPO, age_days=AGE_FRESH_DAYS),
+        DomainResult(domain="c.com", kind=PermutationType.TYPO, age_days=None),
+    ]
+
+    assert count_fresh(results) == 1

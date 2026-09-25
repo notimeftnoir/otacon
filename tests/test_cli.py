@@ -428,6 +428,23 @@ def test_load_weights_raises_clean_error_for_non_numeric_value(tmp_path: Path) -
         cli._load_weights(file_path)
 
 
+def test_load_weights_raises_clean_error_for_non_object_top_level_json(tmp_path: Path) -> None:
+    """A syntactically-valid JSON top-level list must surface as typer.BadParameter,
+    not an unhandled AttributeError from ScoringWeights calling .items() on a list."""
+    file_path = tmp_path / "weights.json"
+    file_path.write_text("[1, 2, 3]")
+    with pytest.raises(typer.BadParameter, match="cannot read/parse weights-file"):
+        cli._load_weights(file_path)
+
+
+def test_load_weights_treats_top_level_null_as_no_overrides(tmp_path: Path) -> None:
+    """A JSON `null` weights-file body means 'no overrides', not an error."""
+    file_path = tmp_path / "weights.json"
+    file_path.write_text("null")
+    weights = cli._load_weights(file_path)
+    assert weights.points_mx == 25
+
+
 # ---------------------------------------------------------------------------
 # _run_scan — real function body, network mocked out via a fake Resolver
 # ---------------------------------------------------------------------------

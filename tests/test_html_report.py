@@ -103,6 +103,18 @@ def test_to_html_fresh_count_in_verdict():
     assert "1" in out
 
 
+def test_to_html_fresh_label_tracks_age_fresh_days_constant(monkeypatch) -> None:
+    """The '&lt;Nd&gt;' label must read AGE_FRESH_DAYS, not a hardcoded '&lt;7d&gt;'."""
+    from otacon import scoring
+
+    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 14)
+    r = _result(age_days=10)
+
+    out = to_html(_report(r))
+
+    assert "fresh &lt;14d: 1" in out
+
+
 # ---------------------------------------------------------------------------
 # Table content
 # ---------------------------------------------------------------------------

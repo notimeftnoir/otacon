@@ -137,13 +137,11 @@ def _verdict_banner(report: ScanReport) -> Text:
         )
         return t
 
-    from .scoring import AGE_FRESH_DAYS
+    from .scoring import AGE_FRESH_DAYS, count_fresh
 
     crit_count = sum(1 for r in threats if r.risk_level == RiskLevel.CRITICAL)
     mx_count = sum(1 for r in registered if r.has_mx)
-    fresh_count = sum(
-        1 for r in registered if r.age_days is not None and r.age_days < AGE_FRESH_DAYS
-    )
+    fresh_count = count_fresh(registered)
 
     t = Text()
     if crit_count:
@@ -157,7 +155,9 @@ def _verdict_banner(report: ScanReport) -> Text:
     t.append(" · ", style="muted")
     t.append(f"mx: {mx_count}", style="danger" if mx_count else "muted")
     t.append(" · ", style="muted")
-    t.append(f"fresh <7d: {fresh_count}", style="critical" if fresh_count else "muted")
+    t.append(
+        f"fresh <{AGE_FRESH_DAYS}d: {fresh_count}", style="critical" if fresh_count else "muted"
+    )
     return t
 
 
@@ -308,18 +308,16 @@ def _verdict_banner_md(report: ScanReport) -> str:
     registered = report.registered
     if not registered:
         return f"✓ **clean** — {report.total_permutations} permutations checked, none registered"
-    from .scoring import AGE_FRESH_DAYS
+    from .scoring import AGE_FRESH_DAYS, count_fresh
 
     threats = report.threats
     crit_count = sum(1 for r in threats if r.risk_level == RiskLevel.CRITICAL)
     mx_count = sum(1 for r in registered if r.has_mx)
-    fresh_count = sum(
-        1 for r in registered if r.age_days is not None and r.age_days < AGE_FRESH_DAYS
-    )
+    fresh_count = count_fresh(registered)
     icon = "⚠" if crit_count else "●"
     return (
         f"{icon} **{len(registered)} registered** · "
-        f"crit: {crit_count} · mx: {mx_count} · fresh <7d: {fresh_count}"
+        f"crit: {crit_count} · mx: {mx_count} · fresh <{AGE_FRESH_DAYS}d: {fresh_count}"
     )
 
 
@@ -463,7 +461,7 @@ def to_csv(report: ScanReport) -> str:
     for r in report.registered:
         writer.writerow(
             [
-                r.domain,
+                _csv_safe(r.domain),
                 r.kind.value,
                 r.risk_level.value,
                 r.risk_score,

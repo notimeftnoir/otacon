@@ -174,11 +174,9 @@ def _verdict_html(report: ScanReport) -> str:
     threats = report.threats
     crit_count = sum(1 for r in threats if r.risk_level == RiskLevel.CRITICAL)
     mx_count = sum(1 for r in registered if r.has_mx)
-    from .scoring import AGE_FRESH_DAYS
+    from .scoring import AGE_FRESH_DAYS, count_fresh
 
-    fresh_count = sum(
-        1 for r in registered if r.age_days is not None and r.age_days < AGE_FRESH_DAYS
-    )
+    fresh_count = count_fresh(registered)
     icon = '<span class="critical">⚠</span>' if crit_count else '<span class="warn">●</span>'
     crit_cls = "critical" if crit_count else "muted"
     mx_cls = "danger" if mx_count else "muted"
@@ -190,7 +188,7 @@ def _verdict_html(report: ScanReport) -> str:
         f' <span class="muted">·</span>'
         f' <span class="{mx_cls}">mx: {mx_count}</span>'
         f' <span class="muted">·</span>'
-        f' <span class="{fresh_cls}">fresh &lt;7d: {fresh_count}</span>'
+        f' <span class="{fresh_cls}">fresh &lt;{AGE_FRESH_DAYS}d: {fresh_count}</span>'
     )
 
 

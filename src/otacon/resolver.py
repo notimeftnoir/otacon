@@ -20,6 +20,7 @@ import logging
 import re
 import secrets
 import ssl
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -38,6 +39,35 @@ _log = logging.getLogger("otacon.resolver")
 
 _TITLE_RE = re.compile(r"<title[^>]*>([^<]{1,200})", re.IGNORECASE)
 _TITLE_MAX = 80
+_REDIRECT_MAX = 200
+# Unicode general categories unsafe to echo verbatim to a terminal: Cc covers
+# C0 *and* C1 control bytes (e.g. ESC and its 8-bit CSI equivalent U+009B),
+# Cf covers invisible/format characters (bidi overrides, ZERO WIDTH SPACE,
+# BOM, the Unicode "tag" block — a known steganography vector for hiding
+# payloads in text), Zl/Zp cover line/paragraph separators. These have no
+# legitimate use in a page title or Location header, so the whole category
+# is stripped, except for the handful of Cf codepoints below.
+_UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+# Cf codepoints with a legitimate use in text: ZERO WIDTH JOINER/NON-JOINER
+# (U+200C/U+200D) and LRM/RLM (U+200E/U+200F), required for correctly shaping
+# Arabic/Persian/Indic-script text. Allowlisted rather than trying to
+# enumerate every unsafe Cf codepoint by name.
+#
+# Written as \uXXXX escapes rather than raw literals: a source file
+# containing the literal characters (a bidi override among them) is itself
+# the Trojan Source pattern (CWE-838) that bandit's B613 check flags,
+# regardless of intent.
+_CF_ALLOWED = frozenset("\u200c\u200d\u200e\u200f")
+
+
+def _strip_unsafe_chars(text: str) -> str:
+    """Strips control/format/line-separator characters a hostile HTTP response
+    could use to inject terminal escape sequences or spoof/hide displayed text —
+    applied to any attacker-controlled string printed verbatim (page title,
+    redirect Location header)."""
+    return "".join(
+        ch for ch in text if ch in _CF_ALLOWED or unicodedata.category(ch) not in _UNSAFE_CATEGORIES
+    )
 
 
 def _parse_title(body: str) -> str | None:
@@ -45,7 +75,7 @@ def _parse_title(body: str) -> str | None:
     m = _TITLE_RE.search(body)
     if not m:
         return None
-    title = _html.unescape(" ".join(m.group(1).split()))
+    title = _strip_unsafe_chars(_html.unescape(" ".join(m.group(1).split())))
     return title[:_TITLE_MAX] if title else None
 
 
@@ -365,6 +395,8 @@ class Resolver:
             # stream() so we can bound the body read — see _read_capped.
             async with http.stream("GET", f"{scheme}://{domain}") as resp:
                 location = resp.headers.get("location")
+                if location is not None:
+                    location = _strip_unsafe_chars(location)[:_REDIRECT_MAX]
                 server = resp.headers.get("server")
                 title: str | None = None
                 if 200 <= resp.status_code < 300:
