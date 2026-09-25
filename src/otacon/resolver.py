@@ -61,9 +61,7 @@ def _strip_unsafe_chars(text: str) -> str:
     applied to any attacker-controlled string printed verbatim (page title,
     redirect Location header)."""
     return "".join(
-        ch
-        for ch in text
-        if ch in _CF_ALLOWED or unicodedata.category(ch) not in _UNSAFE_CATEGORIES
+        ch for ch in text if ch in _CF_ALLOWED or unicodedata.category(ch) not in _UNSAFE_CATEGORIES
     )
 
 
