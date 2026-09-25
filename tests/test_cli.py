@@ -767,7 +767,7 @@ def test_scan_multi_html_flag_writes_aggregate_format(monkeypatch, tmp_path: Pat
     monkeypatch.setattr("otacon.cli._run_scan", fake_scan)
     monkeypatch.chdir(tmp_path)
     CliRunner().invoke(app, ["scan", "a.com", "b.com", "--html", "out.html"])
-    content = (tmp_path / "out.html").read_text()
+    content = (tmp_path / "out.html").read_text(encoding="utf-8")
     assert "Summary" in content and "Multi-domain" in content
 
 

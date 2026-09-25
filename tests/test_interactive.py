@@ -866,6 +866,20 @@ def test_suggest_defensive_whitelist_skips_already_present_entries(tmp_path, mon
     assert "already in whitelist" in printed
 
 
+def test_suggest_defensive_whitelist_adds_newline_before_appending(tmp_path, monkeypatch):
+    """A whitelist.txt lacking a trailing newline gets one inserted before the
+    new entry instead of fusing with the file's last line (regression test for
+    commit 728df09 — the file here has no test coverage before this)."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "whitelist.txt").write_text("existing.com", encoding="utf-8")  # no trailing \n
+    r = _defensive()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive._confirm", return_value=True):
+        _suggest_defensive_whitelist(report, MagicMock())
+    content = (tmp_path / "whitelist.txt").read_text(encoding="utf-8")
+    assert content == "existing.com\ngoogel.com\n"
+
+
 def test_suggest_defensive_whitelist_handles_write_error(tmp_path, monkeypatch):
     """A write failure while updating whitelist.txt is reported, not raised."""
     monkeypatch.chdir(tmp_path)

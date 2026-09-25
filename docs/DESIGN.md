@@ -127,7 +127,7 @@ Every network call is wrapped. A failure returns `None` / `[]` / `False` and the
 The `check_one()` method has a broad `except Exception` at the outermost level. This is deliberate and documented: an unhandled exception there would close the shared `httpx.AsyncClient` and cascade-kill every other concurrent coroutine. We accept the precision loss in exchange for scan integrity.
 
 ### Defensive-redirect detection
-Brand owners often register their own lookalikes and 301 them back. We detect this in `scoring.py` by parsing the `Location` header from a 3xx response and matching the hostname against the target (exact or subdomain). Flagged with ⚑ in the output and **does not** lower the score — it's informational; the user decides.
+Brand owners often register their own lookalikes and 301 them back. We detect this in `scoring.py` by parsing the `Location` header from a 3xx response and matching the hostname against the target (exact or subdomain). Flagged with `»` in the output and **does not** lower the score — it's informational; the user decides.
 
 ### Self-contained HTML report
 `html_report.py` produces a single `.html` file with inlined CSS, no JavaScript, no external assets. Hand it to legal, attach it to a ticket, upload it to S3 — it just works. No Jinja2 dependency; we use pure f-strings and `html.escape()`.
