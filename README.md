@@ -13,6 +13,8 @@
     alt="Python 3.10 and newer"></a>
   <a href="LICENSE"><img
     src="https://img.shields.io/pypi/l/otacon?style=plastic&labelColor=0a0a0c&logoColor=white&color=5fd700&logo=opensourceinitiative" alt="MIT licence"></a>
+  <a href="tests/"><img
+    src="https://img.shields.io/badge/coverage-97%25-5fafff?style=plastic&labelColor=0a0a0c&logoColor=white&logo=pytest" alt="Test coverage"></a>
 </p>
 
 <p align="center">
