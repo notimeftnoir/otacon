@@ -71,6 +71,12 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --title "Otacon ${GITHUB_REF_NAME#v}" --generate-notes
           fi
           gh release upload "$GITHUB_REF_NAME" dist/* signatures/* --clobber
+          # release-drafter pre-creates this release as a draft; a draft isn't
+          # listed on the Releases page even after assets land on it, so a tag
+          # push here would otherwise publish to PyPI while the matching
+          # GitHub release stayed invisible until someone noticed and
+          # un-drafted it by hand.
+          gh release edit "$GITHUB_REF_NAME" --draft=false
 
       - name: Upload Sigstore bundles as a workflow artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
