@@ -27,6 +27,7 @@ from ._validate import (
 )
 from .models import DomainResult, Permutation, ScanReport
 from .resolver import DEFAULT_CONCURRENCY, Resolver
+from .theme import GLYPH_DEFENSIVE
 from .whois import fetch_domain_age, format_age
 
 _log = logging.getLogger("otacon.interactive")
@@ -296,27 +297,42 @@ def _rescan_result(
 
 
 def _suggest_defensive_whitelist(report: ScanReport, console: Console) -> None:
-    """After a scan, if ⚑ defensive domains were found, offer to write them to whitelist.txt."""
+    """After a scan, if defensive domains were found, offer to write them to whitelist.txt."""
     defensive = [r for r in report.registered if r.is_likely_defensive]
     if not defensive:
         return
     console.print(
-        f"[warn]⚑  {len(defensive)} domain(s) appear defensive "
+        f"[warn]{GLYPH_DEFENSIVE}  {len(defensive)} domain(s) appear defensive "
         f"(redirect → original). Add to whitelist?[/warn]"
     )
     if _confirm("Write to whitelist.txt?") is not True:
         return
     path = Path("whitelist.txt")
     try:
-        # Read back through the same parser the whitelist is loaded with, so an
-        # entry written by an earlier run is recognised even if the file picked
-        # up CRLF endings or the user hand-edited the casing.
-        existing = parse_domain_list(path.read_text(encoding="utf-8")) if path.exists() else set()
-        new_entries = [r.domain for r in defensive if normalize_domain(r.domain) not in existing]
-        if new_entries:
-            with path.open("a", encoding="utf-8") as f:
+        # One handle for both the read and the append, rather than a
+        # read_text() followed by a separate open("a"): a second `otacon`
+        # process writing to the same whitelist.txt between those two calls
+        # could otherwise leave the "does the file already end in a newline"
+        # check below stale, re-fusing entries under a race the same way a
+        # hand-edited file without one does.
+        with path.open("a+", encoding="utf-8") as f:
+            f.seek(0)
+            # Read back through the same parser the whitelist is loaded with,
+            # so an entry written by an earlier run is recognised even if the
+            # file picked up CRLF endings or the user hand-edited the casing.
+            content = f.read()
+            existing = parse_domain_list(content)
+            new_entries = [
+                r.domain for r in defensive if normalize_domain(r.domain) not in existing
+            ]
+            if new_entries:
+                # A hand-edited file need not end in a newline; appending straight
+                # onto it would fuse its last entry with the first new one.
+                if content and not content.endswith(("\n", "\r")):
+                    f.write("\n")
                 for d in new_entries:
                     f.write(d + "\n")
+        if new_entries:
             console.print(f"[ok]→ Added {len(new_entries)} domain(s) to {escape(str(path))}[/ok]")
         else:
             console.print("[muted]All already in whitelist.[/muted]")

@@ -21,7 +21,7 @@ from otacon.reporters import (
     to_json,
     to_markdown,
 )
-from otacon.theme import RiskLevel
+from otacon.theme import GLYPH_DEFENSIVE, RiskLevel
 
 
 def test_to_markdown_no_threats_contains_clear_message() -> None:
@@ -125,14 +125,14 @@ def test_domain_cell_defensive_shows_flag_and_host():
         is_likely_defensive=True,
     )
     cell = _domain_cell(r)
-    assert "⚑" in cell.plain
+    assert GLYPH_DEFENSIVE in cell.plain
     assert "google.com" in cell.plain
 
 
 def test_domain_cell_non_defensive_no_flag():
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
     cell = _domain_cell(r)
-    assert "⚑" not in cell.plain
+    assert GLYPH_DEFENSIVE not in cell.plain
 
 
 def _make_console(no_color: bool = True):
@@ -173,7 +173,7 @@ def test_render_table_shows_defensive_flag():
     report.results.append(r)
     console, buf = _make_console()
     render_table(report, console)
-    assert "⚑" in buf.getvalue()
+    assert GLYPH_DEFENSIVE in buf.getvalue()
 
 
 def test_render_table_no_defensive_flag_when_not_defensive():
@@ -188,7 +188,7 @@ def test_render_table_no_defensive_flag_when_not_defensive():
     report.results.append(r)
     console, buf = _make_console()
     render_table(report, console)
-    assert "⚑" not in buf.getvalue()
+    assert GLYPH_DEFENSIVE not in buf.getvalue()
 
 
 def test_render_table_shows_risk_bar_characters():

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from otacon.html_report import to_html
 from otacon.models import DomainResult, PermutationType, ScanReport
-from otacon.theme import RiskLevel
+from otacon.theme import GLYPH_DEFENSIVE, RiskLevel
 
 
 def _report(*results: DomainResult, total: int = 10) -> ScanReport:
@@ -152,7 +152,7 @@ def test_to_html_defensive_flag_shown():
         redirects_to="https://example.com",
     )
     out = to_html(_report(r))
-    assert "⚑" in out
+    assert GLYPH_DEFENSIVE in out
 
 
 def test_to_html_age_fresh_styled_as_danger():

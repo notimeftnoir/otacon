@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 from ._validate import parse_redirect
 from .models import DomainResult, ScanReport
-from .theme import RiskLevel
+from .theme import GLYPH_DEFENSIVE, LOGO_DOTS_BOT, LOGO_DOTS_TOP, RiskLevel
 from .whois import format_age
 
 _CSS = """
@@ -141,7 +141,7 @@ def _risk_cell(score: int, level: RiskLevel) -> str:
 
 
 def _domain_cell(r: DomainResult) -> str:
-    """Domain name + technique, with optional ⚑ defensive marker, page title and reason list."""
+    """Domain name + technique, with optional defensive marker, page title and reason list."""
     dom = _h(r.domain)
     href = quote(r.domain, safe=".-")
     parts: list[str] = [
@@ -153,7 +153,7 @@ def _domain_cell(r: DomainResult) -> str:
     if r.is_likely_defensive and r.redirects_to:
         parsed = parse_redirect(r.redirects_to)
         host = (parsed[0] if parsed else "") or r.redirects_to
-        parts.append(f'<span class="defensive"> ⚑ → {_h(host)}</span>')
+        parts.append(f'<span class="defensive"> {GLYPH_DEFENSIVE} {_h(host)}</span>')
     if r.page_title:
         parts.append(f'<br><span class="page-title">"{_h(r.page_title)}"</span>')
     if r.risk_reasons:
@@ -239,12 +239,12 @@ def to_html(report: ScanReport) -> str:
         f'<span class="critical">crit: {crit}</span>',
     ]
     if defensive:
-        footer_parts.append(f'<span class="warn">⚑ {defensive} defensive</span>')
+        footer_parts.append(f'<span class="warn">{GLYPH_DEFENSIVE} {defensive} defensive</span>')
 
     logo = (
-        " ⬢ ⬢ ⬢ ⬡ ⬡ ⬡\n"
+        f" {LOGO_DOTS_TOP}\n"
         '   <span class="brand">OTACON</span>\n'
-        ' ⬡ ⬡ ⬡ ⬢ ⬢ ⬢  <span class="muted">domain impersonation detector</span>'
+        f' {LOGO_DOTS_BOT}  <span class="muted">domain impersonation detector</span>'
     )
     meta_line = (
         f'<span class="field">Target:</span> <span class="value">{target}</span> &nbsp;'
@@ -253,7 +253,8 @@ def to_html(report: ScanReport) -> str:
         f' <span class="value">{report.total_permutations}</span>'
     )
     defensive_note = (
-        '&nbsp;&nbsp;<span class="warn">⚑ = likely defensive (redirects to original)</span>'
+        f'&nbsp;&nbsp;<span class="warn">{GLYPH_DEFENSIVE} = likely defensive'
+        " (redirects to original)</span>"
         if defensive
         else ""
     )
@@ -332,9 +333,9 @@ def aggregate_html(reports: dict[str, ScanReport]) -> str:
         )
 
     logo = (
-        " ⬢ ⬢ ⬢ ⬡ ⬡ ⬡\n"
+        f" {LOGO_DOTS_TOP}\n"
         '   <span class="brand">OTACON</span>\n'
-        " ⬡ ⬡ ⬡ ⬢ ⬢ ⬢"
+        f" {LOGO_DOTS_BOT}"
         '  <span class="muted">domain impersonation detector</span>'
     )
     meta_line = (

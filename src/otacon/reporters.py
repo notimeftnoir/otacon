@@ -22,7 +22,7 @@ from rich.text import Text
 
 from ._validate import parse_redirect
 from .models import DomainResult, ScanReport
-from .theme import RiskLevel
+from .theme import GLYPH_DEFENSIVE, RiskLevel
 from .whois import format_age
 
 _BAR_STYLE: dict[RiskLevel, str] = {
@@ -45,7 +45,7 @@ def _signals(result: DomainResult) -> str:
         signals.append("SSL")
     if result.http_status is not None:
         signals.append(f"HTTP {result.http_status}")
-    return ", ".join(signals) or "\u2014"
+    return ", ".join(signals) or "—"
 
 
 def _redirect_host(url: str) -> str:
@@ -104,14 +104,14 @@ _HIGH_RISK_LEVELS = {RiskLevel.HIGH, RiskLevel.CRITICAL}
 
 
 def _domain_cell(result: DomainResult) -> Text:
-    """Domain name + dim technique subtitle. ⚑ redirect host appended when defensive.
+    """Domain name + dim technique subtitle. Redirect host appended when defensive.
     Page title shown for high/critical rows."""
     t = Text()
     t.append(result.domain, style="value")
     t.append("\n")
     t.append(result.kind.value, style="muted")
     if result.is_likely_defensive and result.redirects_to:
-        t.append("  ⚑ → ", style="warn")
+        t.append(f"  {GLYPH_DEFENSIVE} ", style="warn")
         t.append(_redirect_host(result.redirects_to), style="warn")
     if result.page_title and result.risk_level in _HIGH_RISK_LEVELS:
         t.append("\n")
@@ -215,7 +215,7 @@ def render_table(report: ScanReport, console: Console, show_safe: bool = False) 
     """Renders results as a colored terminal table (Option B layout).
 
     Columns: Domain+technique | Risk bar | DNS | MX | SSL | HTTP
-    Defensive registrations (redirect \u2192 original) are flagged with \u2691.
+    Defensive registrations (redirect → original) are flagged with GLYPH_DEFENSIVE.
     """
     console.print()
     console.print(_verdict_banner(report))
@@ -237,17 +237,18 @@ def render_table(report: ScanReport, console: Console, show_safe: bool = False) 
 
     footer = Text()
     footer.append(
-        f"Permutations: {report.total_permutations} \u00b7 "
-        f"registered: {len(report.registered)} \u00b7 ",
+        f"Permutations: {report.total_permutations} · registered: {len(report.registered)} · ",
         style="value",
     )
     footer.append(f"med: {med}", style="warn")
-    footer.append(" \u00b7 ", style="muted")
+    footer.append(" · ", style="muted")
     footer.append(f"high: {high}", style="danger")
-    footer.append(" \u00b7 ", style="muted")
+    footer.append(" · ", style="muted")
     footer.append(f"crit: {crit}", style="critical")
     if defensive:
-        footer.append("    \u2691 = likely defensive (redirects to original)", style="warn")
+        footer.append(
+            f"    {GLYPH_DEFENSIVE} = likely defensive (redirects to original)", style="warn"
+        )
     console.print(footer)
     console.print()
 

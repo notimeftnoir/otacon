@@ -144,7 +144,7 @@ for why that matters when you read a report.
 | | **Otacon** | **dnstwist** |
 |---|---|---|
 | Risk **score** with explained signals | ✓ 0–100, every point sourced | ✗ raw signals only |
-| Defensive-registration flag | ✓ ⚑ on redirect-to-original | ✗ |
+| Defensive-registration flag | ✓ `»` on redirect-to-original | ✗ |
 | CI/CD exit code gating | ✓ `--fail-on` | ✗ |
 | Self-contained HTML report | ✓ dark theme, no JS | partial (`--format html`) |
 | Interactive post-scan triage | ✓ open/whois/rescan/allow | ✗ |

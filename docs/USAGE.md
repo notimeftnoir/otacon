@@ -57,7 +57,7 @@ otacon --version                              # print version and exit
 
 | Flag | Default | Description |
 |---|---|---|
-| `--no-http` | off | Skip HTTP & TLS probing. DNS+MX+WHOIS only. Disables the ⚑ defensive flag. |
+| `--no-http` | off | Skip HTTP & TLS probing. DNS+MX+WHOIS only. Disables the `»` defensive flag. |
 | `--all` | off | Show unregistered variants in the output. |
 | `-c`, `--concurrency` | `50` | Max concurrent DNS/HTTP checks. Raise carefully — your resolver may rate-limit. |
 | `-x`, `--exclude` | — | Comma-separated whitelist: `--exclude "alias.com,brand.io"` |
@@ -147,13 +147,13 @@ Designed for triaging a fresh scan without leaving the terminal: open the suspic
 
 ## Whitelist / defensive flag
 
-Brands often own their own lookalikes defensively (e.g., `google.com` owns `gooogle.com` and redirects it). Otacon flags these with ⚑ when the redirect points back to the original:
+Brands often own their own lookalikes defensively (e.g., `google.com` owns `gooogle.com` and redirects it). Otacon flags these with `»` when the redirect points back to the original:
 
 ```text
-microsft.com    ⚑ → microsoft.com    crit(85) — but defensive
+microsft.com    » microsoft.com    crit(85) — but defensive
 ```
 
-After the scan, Otacon offers to write all ⚑-flagged domains to `whitelist.txt`. Future runs in the same directory pick this file up automatically; you can also point at a custom file with `--exclude-file path/to/list.txt`.
+After the scan, Otacon offers to write all `»`-flagged domains to `whitelist.txt`. Future runs in the same directory pick this file up automatically; you can also point at a custom file with `--exclude-file path/to/list.txt`.
 
 Whitelist file format:
 
