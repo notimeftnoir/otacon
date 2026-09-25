@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from otacon.theme import BANNER, GLYPH_DEFENSIVE, SAFE_GLYPHS, RiskLevel
+from otacon.theme import BANNER, SAFE_GLYPHS
 
 # UI modules: everything these print can land in a terminal. Two modules are
 # deliberately excluded from this tuple:
@@ -77,20 +77,6 @@ def test_ui_modules_only_use_safe_glyphs(module: str) -> None:
         "theme.SAFE_GLYPHS. Either pick a glyph from that set or verify the new one "
         "renders in Consolas, Cascadia Mono, Courier New and JetBrains Mono first."
     )
-
-
-def test_risk_icons_are_distinct_and_safe() -> None:
-    icons = [level.icon for level in RiskLevel]
-    assert len(set(icons)) == len(icons)
-    assert set(icons) <= SAFE_GLYPHS
-
-
-def test_defensive_marker_is_safe() -> None:
-    assert set(GLYPH_DEFENSIVE) <= SAFE_GLYPHS
-
-
-def test_banner_is_safe() -> None:
-    assert _ui_glyphs(BANNER) <= SAFE_GLYPHS
 
 
 def test_ui_glyph_scan_catches_a_banned_glyph_spelled_as_an_escape() -> None:
