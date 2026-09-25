@@ -52,7 +52,12 @@ _UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
 # (U+200C/U+200D) and LRM/RLM (U+200E/U+200F), required for correctly shaping
 # Arabic/Persian/Indic-script text. Allowlisted rather than trying to
 # enumerate every unsafe Cf codepoint by name.
-_CF_ALLOWED = frozenset("‌‍‎‏")
+#
+# Written as \uXXXX escapes rather than raw literals: a source file
+# containing the literal characters (a bidi override among them) is itself
+# the Trojan Source pattern (CWE-838) that bandit's B613 check flags,
+# regardless of intent.
+_CF_ALLOWED = frozenset("\u200c\u200d\u200e\u200f")
 
 
 def _strip_unsafe_chars(text: str) -> str:
