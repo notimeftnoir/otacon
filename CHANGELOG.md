@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Replaced the UI glyphs that no common monospace font ships, and which therefore
+  rendered as `?` or tofu: the banner hexagons (U+2B21/U+2B22) are now dots, the
+  defensive-registration flag (U+2691) is now `»`, and the risk icons are a
+  `░▒▓█` density ramp instead of circles with partial or full fill
+  (U+25D0-U+25D5, plus U+25CF for critical). `theme.SAFE_GLYPHS`
+  records the vetted set and a test holds the UI modules to it.
 - `whitelist.txt` is now read back through the same parser that writes it, so an
   entry added by a previous interactive scan is recognised even when the file
   carries CRLF endings or hand-edited casing. Previously the defensive-registration

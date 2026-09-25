@@ -45,7 +45,7 @@ def _state(ctx: typer.Context) -> _CliState:
 
 
 def _ensure_unicode_output() -> None:
-    """Keeps the Unicode UI (⬢, █, ✓, →) from crashing non-UTF-8 consoles.
+    """Keeps the Unicode UI (●, █, ✓, →) from crashing non-UTF-8 consoles.
 
     Windows consoles often default to a legacy codepage (cp1250/cp852) whose
     charmap codec raises UnicodeEncodeError on the banner glyphs. Re-encode to
@@ -314,15 +314,15 @@ def scan(
 
     for d in domains:
         if not is_valid_domain(d):
-            console.print(f"[warn]\u26a0 Skipping invalid domain: {escape(d)}[/warn]")
+            console.print(f"[warn]⚠ Skipping invalid domain: {escape(d)}[/warn]")
             scan_errors.append(d)
             continue
 
         console.print(f"[field]Target:[/field] [value]{escape(d)}[/value]")
         console.print(
-            f"[muted]Mode: {'DNS only' if no_http else 'DNS + HTTP/SSL'} \u00b7 "
+            f"[muted]Mode: {'DNS only' if no_http else 'DNS + HTTP/SSL'} · "
             f"concurrency: {concurrency}"
-            + (f" \u00b7 whitelist: {len(exclusions)}" if exclusions else "")
+            + (f" · whitelist: {len(exclusions)}" if exclusions else "")
             + "[/muted]"
         )
 
@@ -365,7 +365,7 @@ def scan(
             return
         try:
             Path(safe_path).write_text(content, encoding="utf-8")
-            console.print(f"[ok]\u2192 {label} saved:[/ok] [url]{escape(safe_path)}[/url]")
+            console.print(f"[ok]→ {label} saved:[/ok] [url]{escape(safe_path)}[/url]")
         except OSError as exc:
             console.print(f"[danger]Error saving {label}: {escape(str(exc))}[/danger]")
 

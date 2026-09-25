@@ -55,13 +55,18 @@ class RiskLevel(str, Enum):
 
     @property
     def icon(self) -> str:
-        """Status icon — works even without colors (e.g. when piped to a file)."""
+        """Status icon — works even without colors (e.g. when piped to a file).
+
+        A density ramp, not circles with partial or full fill (U+25D0-U+25D5,
+        plus U+25CF for critical) that would read more naturally: those are
+        missing from the fonts people run a terminal in. See SAFE_GLYPHS.
+        """
         return {
-            RiskLevel.SAFE: "\u25cb",
-            RiskLevel.LOW: "\u25d4",
-            RiskLevel.MEDIUM: "\u25d1",
-            RiskLevel.HIGH: "\u25d5",
-            RiskLevel.CRITICAL: "\u25cf",
+            RiskLevel.SAFE: "○",
+            RiskLevel.LOW: "░",
+            RiskLevel.MEDIUM: "▒",
+            RiskLevel.HIGH: "▓",
+            RiskLevel.CRITICAL: "█",
         }[self]
 
     @property
@@ -83,10 +88,46 @@ class RiskLevel(str, Enum):
         return cls.SAFE
 
 
-# ASCII banner — Hexagon grid.
-_LOGO_TOP = " [brand]⬢ ⬢ ⬢ ⬡ ⬡ ⬡[/]"
+# Every glyph the UI prints has to live in this set.
+#
+# The limit is the terminal *font*, not the encoding: a codepoint the font has
+# no glyph for comes out as "?" or tofu however clean the UTF-8 is, and the
+# Segoe UI Symbol fallback that would cover it is a Windows Terminal feature
+# conhost does not have.
+#
+# So the bar is: present in the monospace fonts themselves. These are, across
+# Consolas, Cascadia Mono, Courier New, Lucida Console and JetBrains Mono —
+# except U+2713/U+2717/U+26A0, which only the modern two carry and which stay
+# because a check mark has no readable substitute. The tempting shapes that no
+# monospace font here ships, and are therefore banned: U+2B21/U+2B22
+# (hexagons), U+25D0-U+25D5 (partial circles), U+2691 (flag), U+25C6/U+25C7
+# (diamonds), U+21B3 (arrow hook), U+2605 (star). (U+25CF, a full circle, is
+# NOT banned — it stays as the banner's grid dot, see SAFE_GLYPHS below.)
+#
+# tests/test_theme.py enforces the set — extend it only with a glyph you have
+# checked against those fonts.
+SAFE_GLYPHS = frozenset(
+    "○●"  # ○ ● grid dots
+    "░▒▓█"  # ░ ▒ ▓ █ density ramp / risk bar
+    "»"  # » defensive redirect marker
+    "✓✗"  # ✓ ✗ check marks
+    "⚠"  # ⚠ warning
+    "→"  # → arrow
+    "·—…›─"  # noqa: RUF001 - punctuation and rules; the last two are U+203A, U+2500
+)
+
+# Marks a variant the brand registered defensively: variant » original.
+# Replaces the U+2691 flag, which no common terminal font ships.
+GLYPH_DEFENSIVE = "»"
+
+# Banner — dot grid. The two markup-free rows are exported so html_report.py's
+# (differently-styled, HTML rather than rich-markup) logo can build from the
+# same glyphs instead of hardcoding its own copy that could drift out of sync.
+LOGO_DOTS_TOP = "● ● ● ○ ○ ○"
+LOGO_DOTS_BOT = "○ ○ ○ ● ● ●"
+_LOGO_TOP = f" [brand]{LOGO_DOTS_TOP}[/]"
 _LOGO_MID = "   [brand]OTACON[/]"
-_LOGO_BOT = " [brand]⬡ ⬡ ⬡ ⬢ ⬢ ⬢[/]  [muted]domain impersonation detector[/]"
+_LOGO_BOT = f" [brand]{LOGO_DOTS_BOT}[/]  [muted]domain impersonation detector[/]"
 _BAR = "[ok]█[/][info]█[/][warn]█[/][danger]█[/][crit.bar]█[/]"
 _LEGEND = "[ok]safe[/] [info]low[/] [warn]med[/] [danger]high[/] [crit.bar]crit[/]"
 BANNER = f"\n{_LOGO_TOP}\n{_LOGO_MID}\n{_LOGO_BOT}\n          {_BAR} {_LEGEND}\n"
