@@ -386,9 +386,18 @@ class Resolver:
     async def _read_capped(resp: httpx.Response) -> str:
         """Reads at most ``_MAX_BODY_BYTES`` of the (decompressed) body.
 
-        Streaming + early break means we never materialise more than the cap in
-        memory, even when the server advertises gzip and unpacks to gigabytes —
-        httpx decompresses lazily as we iterate, so breaking stops the bomb.
+        Streaming + early break bounds what we *retain* to about the cap: the
+        loop stops the moment the accumulated total crosses it, so at most the cap
+        plus one trailing chunk is ever joined and kept. httpx decompresses lazily
+        as we iterate, one raw socket read at a time, so we can't be forced to walk
+        a whole multi-gigabyte gzip bomb.
+
+        The guard is on the accumulated size, not per chunk — so a pathological
+        compression ratio can make a single yielded chunk expand past the cap
+        transiently before the break fires. That momentary allocation is bounded
+        by one socket read's worth of compressed input (tens of KB → tens of MB
+        worst case), not by the bomb's full unpacked size, which is what keeps
+        this safe in practice.
         """
         chunks: list[bytes] = []
         total = 0
