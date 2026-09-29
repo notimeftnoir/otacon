@@ -49,7 +49,7 @@ repos:
         # and questionary resolve to Any and --strict reports subclassing and
         # decorator errors that CI — which installs the package — never sees.
         additional_dependencies:
-          - typer>=0.12.0
+          - typer>=0.27.2
           - rich>=15.0.0
           - httpx>=0.28.1
           - httpcore>=1.0.9
