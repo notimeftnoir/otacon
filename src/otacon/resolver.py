@@ -79,6 +79,27 @@ def _parse_title(body: str) -> str | None:
     return title[:_TITLE_MAX] if title else None
 
 
+def _san_covers_host(host: str, name: str) -> bool:
+    """True when a SAN DNSName *name* covers *host*, per RFC 6125 §6.4.3.
+
+    A wildcard is only ever the leftmost label and matches exactly ONE label:
+    ``*.example.com`` covers ``a.example.com`` but not ``a.b.example.com`` (too
+    many labels) nor the bare ``example.com`` (no label for the wildcard). The
+    previous ``host.endswith(name[1:])`` test matched all three, so a cert issued
+    for an unrelated deep subdomain could wrongly clear the SAN-mismatch signal.
+    Both arguments are already lowercased and root-dot-stripped by the caller.
+    """
+    if host == name:
+        return True
+    if not name.startswith("*."):
+        return False
+    suffix = name[1:]  # ".example.com" — the part after the wildcard label
+    if not host.endswith(suffix):
+        return False
+    label = host[: -len(suffix)]  # what "*" stands in for
+    return bool(label) and "." not in label
+
+
 # Concurrency limit — protects against DNS resolver rate-limiting and file
 # descriptor exhaustion.
 DEFAULT_CONCURRENCY = 50
@@ -357,10 +378,7 @@ class Resolver:
             san_names = []
         if san_names:
             host = domain.lower().rstrip(".")
-            san_matches = any(
-                host == name or (name.startswith("*.") and host.endswith(name[1:]))
-                for name in san_names
-            )
+            san_matches = any(_san_covers_host(host, name) for name in san_names)
 
         return issuer_cn, age_days, san_matches
 

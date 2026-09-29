@@ -12,7 +12,7 @@ import pytest
 import respx
 
 from otacon.models import Permutation, PermutationType
-from otacon.resolver import _MAX_BODY_BYTES, Resolver, _parse_title
+from otacon.resolver import _MAX_BODY_BYTES, Resolver, _parse_title, _san_covers_host
 
 
 def test_parse_title_basic():
@@ -438,6 +438,36 @@ def test_inspect_cert_san_wildcard_match():
     der = _make_der_cert(issuer_cn="DigiCert", san=("*.example.com",))
     _, _, san_match = Resolver._inspect_cert(_cert_none_ssl_obj(der), "sub.example.com")
     assert san_match is True
+
+
+def test_inspect_cert_san_wildcard_does_not_match_deep_subdomain():
+    """Regression: `*.example.com` must NOT cover `a.b.example.com`.
+
+    A wildcard matches exactly one label (RFC 6125). The old endswith() test
+    let a cert for a shallow wildcard wrongly clear the SAN-mismatch signal on
+    a deeper host.
+    """
+    der = _make_der_cert(issuer_cn="DigiCert", san=("*.example.com",))
+    _, _, san_match = Resolver._inspect_cert(_cert_none_ssl_obj(der), "a.b.example.com")
+    assert san_match is False
+
+
+@pytest.mark.parametrize(
+    ("host", "name", "expected"),
+    [
+        ("a.example.com", "a.example.com", True),  # exact
+        ("a.example.com", "*.example.com", True),  # one-label wildcard
+        ("a-b.example.com", "*.example.com", True),  # hyphenated single label
+        ("a.b.example.com", "*.example.com", False),  # too many labels
+        ("example.com", "*.example.com", False),  # no label for the wildcard
+        (".example.com", "*.example.com", False),  # empty wildcard label
+        ("evil.com", "*.example.com", False),  # different suffix
+        ("notexample.com", "*.example.com", False),  # suffix not on a label boundary
+        ("a.example.com", "*example.com", False),  # not a leftmost-label wildcard
+    ],
+)
+def test_san_covers_host(host, name, expected):
+    assert _san_covers_host(host, name) is expected
 
 
 def test_inspect_cert_no_san_extension():
