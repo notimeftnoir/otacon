@@ -105,6 +105,9 @@ def _san_covers_host(host: str, name: str) -> bool:
 DEFAULT_CONCURRENCY = 50
 _DNS_TIMEOUT = 3.0
 _HTTP_TIMEOUT = 4.0
+# Port probed for a served TLS certificate — a named constant alongside the
+# other network tunables rather than a literal buried in _check_ssl.
+_HTTPS_PORT = 443
 # Wall-clock ceiling for one HTTP probe. httpx timeouts apply per read, so a
 # hostile server trickling one byte per read could otherwise hold a concurrency
 # slot almost indefinitely (slow-loris against the scanner).
@@ -321,7 +324,7 @@ class Resolver:
                 ctx.verify_mode = ssl.CERT_NONE
                 # Connect to the vetted IP directly; server_hostname keeps SNI
                 # correct for virtual-hosted targets even though host is a literal.
-                fut = asyncio.open_connection(ip, 443, ssl=ctx, server_hostname=domain)
+                fut = asyncio.open_connection(ip, _HTTPS_PORT, ssl=ctx, server_hostname=domain)
                 _reader, writer = await asyncio.wait_for(fut, timeout=_HTTP_TIMEOUT)
                 try:
                     ssl_obj = writer.get_extra_info("ssl_object")

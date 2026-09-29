@@ -55,6 +55,34 @@ def test_score_full_infrastructure_is_high_risk() -> None:
     assert any("responds HTTP 200" in reason for reason in scored.risk_reasons)
 
 
+def test_score_tls_fresh_cert_and_san_mismatch_add_their_boosts() -> None:
+    """A fresh SSL cert whose SAN does not cover the probed host adds both the
+    fresh-cert boost and the SAN-mismatch penalty on top of the base SSL points.
+
+    Covers the two _tls_points branches (points_ssl_fresh, points_ssl_san_mismatch)
+    that the broader infrastructure test leaves unexercised — they are the exact
+    signals the RFC 6125 SAN fix feeds, so they get their own assertion.
+    """
+    result = DomainResult(
+        domain="paypal-secure.com",
+        kind=PermutationType.HOMOGLYPH,
+        resolves=True,
+        ip_addresses=["1.2.3.4"],
+        has_ssl=True,
+        ssl_issuer="Let's Encrypt",
+        ssl_cert_age_days=2,  # < AGE_FRESH_DAYS -> fresh-cert boost
+        ssl_san_matches=False,  # SAN does not cover the host -> mismatch penalty
+    )
+
+    scored = score(result)
+
+    # 25 (homoglyph) + 10 (resolves) + 15 (ssl) + 10 (fresh) + 5 (san mismatch) = 65
+    assert scored.risk_score == 65
+    assert scored.risk_level == RiskLevel.HIGH
+    assert any("fresh" in reason for reason in scored.risk_reasons)
+    assert any("SAN does not cover this host" in reason for reason in scored.risk_reasons)
+
+
 def test_domain_result_is_likely_defensive_defaults_to_false():
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
     assert r.is_likely_defensive is False
