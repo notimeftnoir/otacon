@@ -58,7 +58,7 @@ repos:
           - questionary>=2.1.1
           - prompt_toolkit>=3.0.53
           - asyncwhois>=1.1.14
-          - aiodns>=3.1.0
+          - aiodns>=4.0.4
           - types-setuptools
 
   - repo: https://github.com/PyCQA/bandit
