@@ -5,6 +5,19 @@ All notable changes to Otacon are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Wildcard SAN matching now follows RFC 6125 §6.4.3: a `*.example.com` cert
+  covers exactly one label (`a.example.com`) and no longer matches deeper hosts
+  like `a.b.example.com` or the bare parent. The previous `endswith` check let a
+  cert for an unrelated deep subdomain wrongly clear the SSL SAN-mismatch signal.
+- `--weights-file` overrides with an unknown key (a typo such as
+  `points_reslves`) or a private/dunder attribute name are now logged under
+  `--debug` and skipped, instead of being silently dropped — a broken weights
+  file no longer reads as if it had taken effect. Valid overrides in the same
+  file still apply.
+
 ## [1.0.1] — 2026-09-25
 
 ### Fixed

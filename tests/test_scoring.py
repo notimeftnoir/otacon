@@ -489,6 +489,37 @@ def test_scoring_weights_skips_bad_kind_base_entries_without_crashing() -> None:
     assert weights.kind_base[PermutationType.TYPO] == 18  # untouched default, entry was skipped
 
 
+def test_scoring_weights_unknown_key_is_ignored_and_logged(caplog) -> None:
+    """A typo'd weight key (e.g. 'points_reslves') must be dropped, not silently
+    swallowed — otherwise a broken --weights-file reads as if it took effect.
+    Valid siblings in the same dict still apply."""
+    import logging
+
+    from otacon.scoring import ScoringWeights
+
+    with caplog.at_level(logging.DEBUG, logger="otacon.scoring"):
+        weights = ScoringWeights({"points_reslves": 999, "points_mx": 40})
+
+    # Typo dropped: the real attribute keeps its default, no bogus one is created.
+    assert weights.points_resolves == 10
+    assert not hasattr(weights, "points_reslves")
+    # The valid sibling override still applied.
+    assert weights.points_mx == 40
+    # The drop is visible under --debug rather than silent.
+    assert any("points_reslves" in rec.message for rec in caplog.records)
+
+
+def test_scoring_weights_ignores_private_attr_override() -> None:
+    """An override must never reach a private attribute even though hasattr()
+    would find it — the leading-underscore guard routes it to the ignore branch
+    instead of clobbering the method with an int."""
+    from otacon.scoring import ScoringWeights
+
+    weights = ScoringWeights({"_apply_overrides": 1, "points_mx": 40})
+    assert callable(weights._apply_overrides)  # untouched, not overwritten with int 1
+    assert weights.points_mx == 40
+
+
 def test_scoring_weights_ignores_non_dict_kind_base() -> None:
     """A malformed 'kind_base' override must be dropped, not coerced to an int.
 

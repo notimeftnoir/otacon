@@ -88,6 +88,12 @@ class ScoringWeights:
                 continue
             elif hasattr(self, k) and not k.startswith("_"):
                 setattr(self, k, int(v))
+            else:
+                # Unknown key (a typo like "points_reslves") or an attempt to set
+                # a private/dunder attribute. Dropped rather than applied, but
+                # logged under --debug for the same reason kind_base does above: a
+                # silent drop reads as if the override took effect.
+                _log.debug("ignoring unknown scoring weight override %r=%r", k, v)
 
 
 # Heuristics for detecting parked domains / domains for sale.
