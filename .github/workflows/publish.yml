@@ -40,7 +40,9 @@ jobs:
         run: pytest
 
       - name: Build distribution
-        run: pip install build==1.6.1 && python -m build
+        # `build` is already present from the hash-pinned dev install above;
+        # re-installing it here would be an unpinned dependency.
+        run: python -m build
 
       - name: Sign distribution with Sigstore (keyless OIDC)
         # Pinned to a SHA so a malicious repoint can't substitute the action.
