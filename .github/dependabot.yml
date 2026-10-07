@@ -6,15 +6,23 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      python:
+        patterns: ["*"]
 
   # GitHub Actions — keeps pinned action SHAs current with their security fixes.
   # Limit raised from 5: every action here is SHA-pinned, so a backlog at the cap
   # silently holds back security bumps with no sign that anything is queued.
+  # Grouped: codeql-action init/analyze must share a version, so splitting them
+  # into separate PRs leaves each failing CI until the other lands.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    groups:
+      actions:
+        patterns: ["*"]
 
   # Hook versions in .pre-commit-config.yaml, which mirrors the CI lint gates —
   # left unattended they drift out of step with the versions CI installs.
@@ -23,3 +31,6 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      hooks:
+        patterns: ["*"]
