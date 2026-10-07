@@ -133,20 +133,17 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libc-ares-dev
 
-      - name: Install project + cyclonedx-bom
-        # Runtime deps + the SBOM tool are each hash-pinned. cyclonedx-bom has
-        # its own lean lock (requirements-sbom.txt) so the generated SBOM
-        # reflects the runtime environment, not the dev toolchain.
-        run: |
-          pip install --require-hashes -r requirements.txt
-          pip install -e . --no-deps
-          pip install --require-hashes -r requirements-sbom.txt
+      - name: Install cyclonedx-bom
+        # cyclonedx-bom ships in the hash-pinned dev lock. The SBOM is built
+        # from requirements.txt as a file (not the live environment), so no
+        # project/runtime install is needed here.
+        run: pip install --require-hashes -r requirements-dev.txt
 
       - name: Generate SBOM (JSON)
-        run: cyclonedx-py environment --output-format JSON --output-file otacon-sbom.cdx.json
+        run: cyclonedx-py requirements requirements.txt --output-format JSON --output-file otacon-sbom.cdx.json
 
       - name: Generate SBOM (XML)
-        run: cyclonedx-py environment --output-format XML --output-file otacon-sbom.cdx.xml
+        run: cyclonedx-py requirements requirements.txt --output-format XML --output-file otacon-sbom.cdx.xml
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
