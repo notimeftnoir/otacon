@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-10-07
+
 ### Fixed
 - Wildcard SAN matching now follows RFC 6125 §6.4.3: a `*.example.com` cert
   covers exactly one label (`a.example.com`) and no longer matches deeper hosts
