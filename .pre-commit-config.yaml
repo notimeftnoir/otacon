@@ -30,14 +30,14 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.9
+    rev: v0.16.10
     hooks:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.3.1
+    rev: v2.4.0
     hooks:
       - id: mypy
         # CI runs `mypy --strict src/otacon`; match it, including the third-party
@@ -57,7 +57,7 @@ repos:
           - pydantic>=2.13.5
           - questionary>=2.1.1
           - prompt_toolkit>=3.0.53
-          - asyncwhois>=1.1.14
+          - asyncwhois>=1.1.15
           - aiodns>=4.0.4
           - types-setuptools
 
