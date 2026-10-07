@@ -33,7 +33,7 @@ jobs:
 
       - name: Install dev extras (run tests before publish)
         run: |
-          pip install -r requirements-dev.txt
+          pip install --require-hashes -r requirements-dev.txt
           pip install -e . --no-deps
 
       - name: Run tests

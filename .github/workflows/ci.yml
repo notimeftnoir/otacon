@@ -39,10 +39,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libc-ares-dev
 
       - name: Install package + dev extras
-        # requirements-dev.txt is `==` pinned; the extras in pyproject are
-        # ranges, so installing through them makes the run non-reproducible.
+        # requirements-dev.txt is hash-pinned (uv pip compile --generate-hashes
+        # from requirements-dev.in); --require-hashes makes the install both
+        # reproducible and tamper-evident. The editable project install is a
+        # separate command because a local path cannot be hash-pinned.
         run: |
-          pip install -r requirements-dev.txt
+          pip install --require-hashes -r requirements-dev.txt
           pip install -e . --no-deps
 
       - name: Lint (ruff)
@@ -98,7 +100,9 @@ jobs:
           cache: pip
 
       - name: Install build
-        run: pip install build==1.6.1
+        # build lives in the hash-pinned dev lock; installing through it keeps
+        # this step tamper-evident without a separate single-tool lock file.
+        run: pip install --require-hashes -r requirements-dev.txt
 
       - name: Build wheel + sdist
         run: python -m build
@@ -127,10 +131,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libc-ares-dev
 
       - name: Install project + cyclonedx-bom
+        # Runtime deps + the SBOM tool are each hash-pinned. cyclonedx-bom has
+        # its own lean lock (requirements-sbom.txt) so the generated SBOM
+        # reflects the runtime environment, not the dev toolchain.
         run: |
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
           pip install -e . --no-deps
-          pip install cyclonedx-bom==7.4.0  # CLI flags change across majors
+          pip install --require-hashes -r requirements-sbom.txt
 
       - name: Generate SBOM (JSON)
         run: cyclonedx-py environment --output-format JSON --output-file otacon-sbom.cdx.json
