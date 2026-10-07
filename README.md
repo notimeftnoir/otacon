@@ -13,9 +13,6 @@
     alt="Supported Python versions"></a>
   <a href="LICENSE"><img
     src="https://img.shields.io/pypi/l/otacon?style=flat&color=blue" alt="MIT licence"></a>
-  <a href="https://github.com/notimeftnoir/otacon/actions/workflows/ci.yml"><img
-    src="https://img.shields.io/badge/coverage-%E2%89%A585%25-brightgreen?style=flat&logo=pytest&logoColor=white"
-    alt="Branch coverage enforced at 85%25 or higher in CI"></a>
 </p>
 
 <p align="center">
