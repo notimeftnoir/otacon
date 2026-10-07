@@ -81,7 +81,10 @@ jobs:
           cache: pip
 
       - name: Install pip-audit
-        run: pip install pip-audit==2.10.1
+        # pip-audit lives in the hash-pinned dev lock; installing through it
+        # keeps this step tamper-evident. It audits requirements.txt as a file,
+        # so the extra packages in the environment do not affect the result.
+        run: pip install --require-hashes -r requirements-dev.txt
 
       - name: Audit pinned dependencies
         run: pip-audit -r requirements.txt
