@@ -4,17 +4,18 @@
 
 <p align="center">
   <a href="https://github.com/notimeftnoir/otacon/actions/workflows/ci.yml"><img
-    src="https://img.shields.io/github/actions/workflow/status/notimeftnoir/otacon/ci.yml?branch=main&style=plastic&labelColor=0a0a0c&logoColor=white&logo=githubactions&label=CI"
-    alt="CI"></a>
+    src="https://img.shields.io/github/actions/workflow/status/notimeftnoir/otacon/ci.yml?branch=main&style=flat&logo=githubactions&logoColor=white&label=CI"
+    alt="CI status"></a>
   <a href="https://pypi.org/project/otacon/"><img
-    src="https://img.shields.io/pypi/v/otacon?style=plastic&labelColor=0a0a0c&logoColor=white&color=00d7af&logo=pypi" alt="PyPI version"></a>
+    src="https://img.shields.io/pypi/v/otacon?style=flat&logo=pypi&logoColor=white&label=PyPI" alt="PyPI version"></a>
   <a href="https://pypi.org/project/otacon/"><img
-    src="https://img.shields.io/badge/python-3.10%2B-3776AB?style=plastic&labelColor=0a0a0c&logoColor=white&logo=python"
-    alt="Python 3.10 and newer"></a>
+    src="https://img.shields.io/pypi/pyversions/otacon?style=flat&logo=python&logoColor=white"
+    alt="Supported Python versions"></a>
   <a href="LICENSE"><img
-    src="https://img.shields.io/pypi/l/otacon?style=plastic&labelColor=0a0a0c&logoColor=white&color=5fd700&logo=opensourceinitiative" alt="MIT licence"></a>
-  <a href="tests/"><img
-    src="https://img.shields.io/badge/coverage-97%25-5fafff?style=plastic&labelColor=0a0a0c&logoColor=white&logo=pytest" alt="Test coverage"></a>
+    src="https://img.shields.io/pypi/l/otacon?style=flat&color=blue" alt="MIT licence"></a>
+  <a href="https://github.com/notimeftnoir/otacon/actions/workflows/ci.yml"><img
+    src="https://img.shields.io/badge/coverage-%E2%89%A585%25-brightgreen?style=flat&logo=pytest&logoColor=white"
+    alt="Branch coverage enforced at 85%25 or higher in CI"></a>
 </p>
 
 <p align="center">
