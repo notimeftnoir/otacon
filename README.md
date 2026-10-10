@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/otacon-header-v2.svg" alt="Otacon — domain impersonation detection" width="760">
+  <img src="https://raw.githubusercontent.com/notimeftnoir/otacon/main/assets/brand/otacon-header-v2.svg" alt="Otacon — domain impersonation detection" width="760">
 </p>
 
 <p align="center">
@@ -11,7 +11,7 @@
   <a href="https://pypi.org/project/otacon/"><img
     src="https://img.shields.io/pypi/pyversions/otacon?style=flat&logo=python&logoColor=white"
     alt="Supported Python versions"></a>
-  <a href="LICENSE"><img
+  <a href="https://github.com/notimeftnoir/otacon/blob/main/LICENSE"><img
     src="https://img.shields.io/pypi/l/otacon?style=flat&color=blue" alt="MIT licence"></a>
 </p>
 
@@ -19,21 +19,21 @@
   <a href="#install"><b>Install</b></a> ·
   <a href="#quick-start"><b>Quick start</b></a> ·
   <a href="#detection-techniques"><b>Techniques</b></a> ·
-  <a href="docs/USAGE.md"><b>Usage</b></a> ·
-  <a href="docs/SCORING.md"><b>Scoring</b></a> ·
-  <a href="docs/CI.md"><b>CI/CD</b></a> ·
-  <a href="docs/FAQ.md"><b>FAQ</b></a>
+  <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md"><b>Usage</b></a> ·
+  <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md"><b>Scoring</b></a> ·
+  <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/CI.md"><b>CI/CD</b></a> ·
+  <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/FAQ.md"><b>FAQ</b></a>
 </p>
 
-> **Otacon** finds domains impersonating yours — **typosquats, homoglyph fakes, combosquats, IDN/punycode tricks** and more. It generates hundreds of variants, checks which are actually registered, and scores each by real-world phishing risk. One command, ~10 seconds, no paid APIs.
+> **Otacon** finds domains impersonating yours — **typosquats, homoglyph fakes, combosquats, IDN/punycode tricks** and more. It generates hundreds of variants, checks which are actually registered, and scores each by real-world phishing risk. One command, under a minute, no paid APIs.
 
 <p align="center">
-  <img src="assets/brand/demo-scan.svg"
-    alt="otacon scan example.com — 234 permutations checked, 13 registered, ranked by risk"
+  <img src="https://raw.githubusercontent.com/notimeftnoir/otacon/main/assets/brand/demo-scan.svg"
+    alt="otacon scan example.com — 234 permutations checked, registered lookalikes ranked by risk"
     width="860">
 </p>
 
-<sub><i>Real output: a full scan of <code>example.com</code> — 234 permutations, 13 registered lookalikes, ranked by risk. Regenerate with <code>python tools/render_demo_svg.py</code>.</i></sub>
+<sub><i>Real output: a full scan of <code>example.com</code> recorded on 2026-09-20 — 234 permutations, 13 registered lookalikes at the time, ranked by risk. Registrations change daily, so a scan today shows different domains. Regenerate with <code>python tools/render_demo_svg.py example.com assets/brand/demo-scan.svg</code>.</i></sub>
 
 ---
 
@@ -44,9 +44,8 @@ pipx install otacon      # isolated global install (recommended)
 pip install otacon       # or into an active virtualenv
 ```
 
-> **macOS / Debian / Kali:** the `aiodns` dependency needs the `c-ares` system library —
-> `brew install c-ares` or `sudo apt install libc-ares-dev`.
-> **Windows:** no extra steps, wheels are prebuilt.
+Python 3.10–3.13 on Linux, macOS or Windows. No system libraries are needed:
+the DNS engine (`pycares`) ships prebuilt wheels with `c-ares` built in.
 
 ## Quick start
 
@@ -119,7 +118,7 @@ unlabelled guess.
 
 Every example above is real output, not an illustration. Each variant is
 reported once, under the first technique that produced it, and the original
-domain is never included — see [`docs/USAGE.md`](docs/USAGE.md#reading-a-report)
+domain is never included — see [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md#reading-a-report)
 for why that matters when you read a report.
 
 ---
@@ -128,12 +127,12 @@ for why that matters when you read a report.
 
 | Document | What's in it |
 |---|---|
-| [`docs/USAGE.md`](docs/USAGE.md) | Every CLI flag, the three modes, interactive triage, whitelisting |
-| [`docs/SCORING.md`](docs/SCORING.md) | Every signal and its point value, risk-level thresholds |
-| [`docs/OUTPUT.md`](docs/OUTPUT.md) | The five output formats and the JSON schema |
-| [`docs/CI.md`](docs/CI.md) | Ready-to-paste GitHub Actions and GitLab CI pipelines |
-| [`docs/FAQ.md`](docs/FAQ.md) | Legality, speed, IDN handling, troubleshooting |
-| [`docs/DESIGN.md`](docs/DESIGN.md) | Architecture and design rationale |
+| [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md) | Every CLI flag, the three modes, interactive triage, whitelisting |
+| [`docs/SCORING.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md) | Every signal and its point value, risk-level thresholds |
+| [`docs/OUTPUT.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/OUTPUT.md) | The five output formats and the JSON schema |
+| [`docs/CI.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/CI.md) | Ready-to-paste GitHub Actions and GitLab CI pipelines |
+| [`docs/FAQ.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/FAQ.md) | Legality, speed, IDN handling, troubleshooting |
+| [`docs/DESIGN.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/DESIGN.md) | Architecture and design rationale |
 
 ---
 
@@ -160,8 +159,8 @@ for why that matters when you read a report.
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev setup and the lint gates,
-and [`SECURITY.md`](SECURITY.md) for the disclosure policy.
+See [`CONTRIBUTING.md`](https://github.com/notimeftnoir/otacon/blob/main/CONTRIBUTING.md) for the dev setup and the lint gates,
+and [`SECURITY.md`](https://github.com/notimeftnoir/otacon/blob/main/SECURITY.md) for the disclosure policy.
 
 ---
 

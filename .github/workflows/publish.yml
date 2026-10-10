@@ -28,8 +28,16 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install system deps (c-ares for aiodns)
-        run: sudo apt-get update && sudo apt-get install -y libc-ares-dev
+      - name: Check tag matches the package version
+        # A tag that disagrees with pyproject.toml would attach the previous
+        # version's files to this release and un-draft it, and only then fail
+        # at the PyPI upload (that version already exists). Stop before any of it.
+        run: |
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match pyproject.toml version $version"
+            exit 1
+          fi
 
       - name: Install dev extras (run tests before publish)
         run: |

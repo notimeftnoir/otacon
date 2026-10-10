@@ -53,6 +53,9 @@ otacon --version                              # print version and exit
 | `--quiet`, `-q` | off | Disable UI/banner/progress; print JSON to stdout. |
 | `-V`, `--version` | — | Print version and exit. |
 
+The two combine: `otacon -q -v scan example.com > report.json 2> debug.log` keeps
+the JSON on stdout clean and puts every degradation event in `debug.log`.
+
 **`scan` options** (after `otacon scan`):
 
 | Flag | Default | Description |

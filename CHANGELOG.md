@@ -7,11 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-10-10
+
+### Fixed
+- `--debug` / `-v` now logs to **stderr**, as `--help` and the docs always
+  said. It used to write to stdout, mixing hundreds of log lines into the
+  results table, and under `--quiet` the log was silenced completely. Now
+  `otacon -q -v scan … > report.json 2> debug.log` gives clean JSON plus a
+  separate diagnostic log.
+- A lookalike serving a certificate with a non-positive serial number no
+  longer prints a `CryptographyDeprecationWarning` into the middle of the
+  scan output. The certificate signals are still read from it.
+
+### Security
+- Every `pip install` in CI and in the publish workflow now installs from a
+  hash-pinned lock file with `--require-hashes`, so a tampered or substituted
+  package fails the install instead of running (OpenSSF Scorecard
+  Pinned-Dependencies). The publish job no longer installs `build` unpinned.
+- The publish workflow refuses to run when the pushed tag does not match the
+  version in `pyproject.toml`. Before, a mismatched tag could attach the
+  previous version's files to the new GitHub release before failing.
+- `SECURITY.md` rewritten: reports go through GitHub Private Vulnerability
+  Reporting, with a support table, response timeline, 90-day coordinated
+  disclosure and a safe-harbor clause.
+
 ### Changed
+- Dependencies: `cryptography` 50.0.2, `asyncwhois` 1.1.15 (which brings
+  `whodap` 0.2.1 on the `httpx2` HTTP stack). WHOIS lookups were checked live
+  against the new stack.
+- No system `c-ares` library is needed any more. `pycares` wheels bundle it
+  for CPython 3.10–3.14 on Linux, macOS and Windows, so the install note and
+  the CI `apt-get` steps are gone.
 - The CycloneDX SBOM built in CI lists Otacon itself as the root component
-  again (via `cyclonedx-py --pyproject`). Since the SBOM moved to being
-  generated from `requirements.txt`, it had listed only third-party
-  dependencies. The unused `libc-ares-dev` install was dropped from the SBOM job.
+  again (`cyclonedx-py --pyproject`), not just its dependencies.
+- The project page on PyPI shows the logo and the demo scan, and its links to
+  the docs work: the README now uses absolute URLs, since PyPI does not
+  resolve repository-relative paths.
+- Docs: measured scan timings replace the old "~10 seconds" claim, the README
+  demo is labelled as a dated snapshot, the CI examples use current action
+  versions and GitLab `rules:`, and CONTRIBUTING covers the hash-locked dev
+  install and how to regenerate the lock files.
 
 ## [1.0.2] — 2026-10-07
 

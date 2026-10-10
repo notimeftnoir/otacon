@@ -15,5 +15,5 @@
 - [ ] `pytest` passes locally
 - [ ] `ruff check .` passes
 - [ ] New tests added (or existing tests updated) for the change
-- [ ] `CHANGELOG.md` updated under `[Unreleased]`
+- [ ] `CHANGELOG.md` updated under `[Unreleased]` (maintainers only — contributors can leave this)
 - [ ] Scoring changes reflected in `README.md` signal table (if applicable)

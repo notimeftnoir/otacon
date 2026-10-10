@@ -23,12 +23,12 @@ Because pentesters and SOC analysts need to *defend* their findings. "Our model 
 <details>
 <summary><b>How fast is it?</b></summary>
 
-A full scan with HTTP probing on a 150-permutation domain typically completes in **8–15 seconds** on a residential connection. DNS-only mode (`--no-http`) is roughly **3× faster**.
+A full scan of a typical domain (~230 permutations) with HTTP probing takes **30–60 seconds** on a residential connection; the more variants are registered, the longer the TLS/HTTP/WHOIS phase. DNS-only mode (`--no-http`) is roughly **3× faster** — about 12 seconds for `example.com`.
 
 Bottlenecks are usually:
 1. WHOIS query rate-limiting (we cap at 4 concurrent)
 2. DNS resolver latency (default `--concurrency 50` is conservative; raise it on a server with a fast resolver)
-3. The `c-ares` library — make sure it's installed natively, not falling back to Python's stdlib resolver
+3. TLS + HTTP probing of every live variant — `--no-http` skips it when you only need DNS/MX/WHOIS
 
 </details>
 
@@ -84,11 +84,10 @@ We use [`asyncwhois`](https://pypi.org/project/asyncwhois/), which talks directl
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `ModuleNotFoundError: aiodns` on install | `c-ares` system library missing | `apt install libc-ares-dev` / `brew install c-ares`, then reinstall |
+| `pip` tries to compile `pycares` and fails | No prebuilt wheel for your Python/platform (wheels cover CPython 3.10–3.14 on Linux, macOS and Windows; PyPy or an unusual CPU architecture may lack one) | Use CPython 3.10–3.13, or install the `c-ares` headers (`apt install libc-ares-dev` / `brew install c-ares`) so it can build |
 | Scan hangs at "Checking variants" | DNS resolver unreachable or rate-limiting | Lower `--concurrency`, switch resolver (`1.1.1.1`, `8.8.8.8`) |
 | WHOIS always `—` for `.ai` / `.io` / `.pl` | Registry WHOIS rate-limit | Re-run later; this is normal |
 | Windows: `ConnectionResetError [WinError 10054]` | Should be auto-fixed in 1.0+ | Ensure you're on the latest version; this used the Proactor loop, we've switched to Selector on Windows |
-| `Unverified HTTPS request` warnings | Suppressed intentionally — we probe bad certs on purpose | n/a, hidden by default |
 
 If something still doesn't work, please [open an issue](https://github.com/notimeftnoir/otacon/issues) with:
 

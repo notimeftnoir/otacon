@@ -11,6 +11,21 @@ source .venv/bin/activate        # Linux / macOS
 pip install -e ".[dev]"
 ```
 
+To get the exact, hash-verified versions CI runs against instead:
+
+```bash
+pip install --require-hashes -r requirements-dev.txt
+pip install -e . --no-deps
+```
+
+## Dependencies
+
+Runtime dependencies are declared in `pyproject.toml` and pinned with hashes in
+`requirements.txt`; the dev toolchain is pinned in `requirements-dev.txt`. After
+changing `requirements.in` or `requirements-dev.in`, regenerate **both** lock
+files so the two stay in step — the exact `uv pip compile` command is in each
+file's header.
+
 ## Running tests
 
 ```bash

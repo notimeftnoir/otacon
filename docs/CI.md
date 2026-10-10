@@ -15,18 +15,20 @@ on:
     - cron: "0 6 * * *"   # daily at 06:00 UTC
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: sudo apt-get install -y libc-ares-dev
       - run: pip install otacon
       - run: otacon scan example.com --json report.json --fail-on critical
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: otacon-report
           path: report.json
@@ -38,14 +40,14 @@ jobs:
 brand-protection:
   image: python:3.12
   before_script:
-    - apt-get update && apt-get install -y libc-ares-dev
     - pip install otacon
   script:
     - otacon scan $CI_PROJECT_NAME.com --html report.html --fail-on high
   artifacts:
     when: always
     paths: [report.html]
-  only: { refs: [schedules] }
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
 ```
 
 ---
