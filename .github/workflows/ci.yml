@@ -34,10 +34,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install system deps (c-ares for aiodns)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libc-ares-dev
-
       - name: Install package + dev extras
         # requirements-dev.txt is hash-pinned (uv pip compile --generate-hashes
         # from requirements-dev.in); --require-hashes makes the install both
