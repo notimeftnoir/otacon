@@ -379,6 +379,32 @@ def test_configure_logging_debug_attaches_rich_handler() -> None:
         cli._configure_logging(False)  # restore quiet state for other tests
 
 
+def test_debug_log_goes_to_stderr_not_stdout(capsys: pytest.CaptureFixture[str]) -> None:
+    # --help promises stderr; on stdout the log lines interleave with the
+    # results table and can't be split off with `2> debug.log`.
+    cli._configure_logging(True)
+    try:
+        logging.getLogger("otacon.whois").debug("whois miss for probe.example")
+        captured = capsys.readouterr()
+        assert "whois miss for probe.example" in captured.err
+        assert "whois miss for probe.example" not in captured.out
+    finally:
+        cli._configure_logging(False)
+
+
+def test_debug_log_survives_quiet_mode(capsys: pytest.CaptureFixture[str]) -> None:
+    # `-q -v` is the CI combination: clean JSON on stdout, diagnostics on
+    # stderr. Silencing the UI console must not silence the debug log too.
+    cli.console.quiet = True
+    cli._configure_logging(True)
+    try:
+        logging.getLogger("otacon.resolver").debug("dns miss for probe.example")
+        assert "dns miss for probe.example" in capsys.readouterr().err
+    finally:
+        cli.console.quiet = False
+        cli._configure_logging(False)
+
+
 # ---------------------------------------------------------------------------
 # _load_exclusions — unreadable (not merely missing) file
 # ---------------------------------------------------------------------------

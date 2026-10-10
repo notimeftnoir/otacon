@@ -121,7 +121,11 @@ def _configure_logging(debug: bool) -> None:
     if not debug:
         logger.addHandler(logging.NullHandler())
         return
-    handler = RichHandler(console=console, show_path=False, rich_tracebacks=True)
+    # A dedicated stderr console: the UI `console` writes to stdout and is
+    # silenced by --quiet, which would mix the log into the results table or,
+    # under `-q -v`, drop it entirely.
+    err_console = Console(stderr=True, theme=OTACON_THEME)
+    handler = RichHandler(console=err_console, show_path=False, rich_tracebacks=True)
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG)
 
