@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The CycloneDX SBOM built in CI lists Otacon itself as the root component
+  again (via `cyclonedx-py --pyproject`). Since the SBOM moved to being
+  generated from `requirements.txt`, it had listed only third-party
+  dependencies. The unused `libc-ares-dev` install was dropped from the SBOM job.
+
 ## [1.0.2] — 2026-10-07
 
 ### Fixed
