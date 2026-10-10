@@ -18,6 +18,9 @@ repos:
       - id: trailing-whitespace
         # Markdown uses two trailing spaces as a hard line break.
         args: [--markdown-linebreak-ext=md]
+        # Rich-exported terminal SVGs (tools/render_demo_svg.py) are generated;
+        # their padded text rows are output, not stray whitespace.
+        exclude: ^assets/brand/demo-scan\.svg$
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-toml
