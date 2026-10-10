@@ -21,6 +21,7 @@ import re
 import secrets
 import ssl
 import unicodedata
+import warnings
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -28,6 +29,7 @@ import aiodns
 import httpcore
 import httpx
 from cryptography import x509
+from cryptography.utils import CryptographyDeprecationWarning
 from cryptography.x509.oid import NameOID
 
 from . import __version__
@@ -360,7 +362,12 @@ class Resolver:
         if not der:
             return None, None, None
         try:
-            cert = x509.load_der_x509_certificate(der)
+            # Lookalike sites often serve sloppy self-signed certs; a non-positive
+            # serial makes cryptography warn straight onto the scan's terminal.
+            # A future release raises ValueError instead, handled below.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", CryptographyDeprecationWarning)
+                cert = x509.load_der_x509_certificate(der)
         except ValueError:
             return None, None, None
 

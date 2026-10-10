@@ -400,6 +400,32 @@ def test_inspect_cert_malformed_der():
     assert Resolver._inspect_cert(obj, "example.com") == (None, None, None)
 
 
+def _with_negative_serial(der: bytes) -> bytes:
+    """Flips the certificate's serial number negative, keeping the DER length.
+
+    CertificateBuilder refuses non-positive serials, but they turn up in the
+    wild (sloppy or hostile self-signed certs) and cryptography parses them
+    with a CryptographyDeprecationWarning.
+    """
+    head = b"\xa0\x03\x02\x01\x02\x02"  # [0] version v3, then INTEGER tag
+    i = der.index(head) + len(head) + 1  # skip the serial's length byte
+    first = 0xFF if der[i] == 0x00 else der[i] | 0x80
+    return der[:i] + bytes([first]) + der[i + 1 :]
+
+
+def test_inspect_cert_negative_serial_does_not_warn():
+    """A non-positive serial must not leak a CryptographyDeprecationWarning onto
+    the user's terminal mid-scan; the cert signals are still extracted."""
+    import warnings
+
+    obj = _cert_none_ssl_obj(_with_negative_serial(_make_der_cert()))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        issuer, _, san_match = Resolver._inspect_cert(obj, "lookalike.example.com")
+    assert issuer == "Test CA"
+    assert san_match is True
+
+
 def test_inspect_cert_reads_der_under_cert_none():
     """THE regression test for the cert-signal bug: under CERT_NONE the dict form
     is empty, so the signals silently blanked in production while dict-mocking
