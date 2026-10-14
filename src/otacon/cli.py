@@ -21,7 +21,7 @@ from ._validate import (
     is_valid_domain,
     normalize_domain,
     parse_domain_list,
-    safe_relative_path,
+    safe_cli_path,
 )
 from .models import ScanReport
 from .theme import BANNER, OTACON_THEME, RiskLevel
@@ -361,15 +361,17 @@ def scan(
     multi = len(all_reports) > 1
 
     def _safe_write(path: Path, content: str, label: str) -> None:
-        safe_path = safe_relative_path(str(path))
-        if not safe_path:
+        target_path = safe_cli_path(str(path))
+        if not target_path:
             console.print(
                 f"[danger]Error: refusing to write to unsafe path: {escape(str(path))}[/danger]"
             )
             return
         try:
-            Path(safe_path).write_text(content, encoding="utf-8")
-            console.print(f"[ok]→ {label} saved:[/ok] [url]{escape(safe_path)}[/url]")
+            dest = Path(target_path)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(content, encoding="utf-8")
+            console.print(f"[ok]→ {label} saved:[/ok] [url]{escape(target_path)}[/url]")
         except OSError as exc:
             console.print(f"[danger]Error saving {label}: {escape(str(exc))}[/danger]")
 
@@ -476,15 +478,17 @@ def generate(
         console.print(f"\n[muted]... and {len(perms) - limit} more (use --limit 0)[/muted]")
 
     if output:
-        safe_path = safe_relative_path(str(output))
-        if not safe_path:
+        target_path = safe_cli_path(str(output))
+        if not target_path:
             console.print(f"[danger]Error: unsafe path: {escape(str(output))}[/danger]")
         else:
             try:
-                Path(safe_path).write_text(
+                dest = Path(target_path)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_text(
                     "\n".join(p.domain for p in perms) + "\n", encoding="utf-8"
                 )
-                console.print(f"[ok]→ Wordlist saved:[/ok] [url]{escape(safe_path)}[/url]")
+                console.print(f"[ok]→ Wordlist saved:[/ok] [url]{escape(target_path)}[/url]")
             except OSError as exc:
                 console.print(f"[danger]Error saving wordlist: {escape(str(exc))}[/danger]")
 

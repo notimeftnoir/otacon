@@ -126,10 +126,30 @@ def test_to_html_registered_domain_in_table():
     assert "fakeexample.com" in out
 
 
-def test_to_html_domain_is_hyperlinked():
+def test_to_html_domain_is_defanged_and_links_to_sandbox():
+    """Lookalike domain must be defanged (fakeexample[.]com) and never linked directly."""
     r = _result(domain="fakeexample.com")
     out = to_html(_report(r))
-    assert 'href="https://fakeexample.com"' in out
+    assert "fakeexample[.]com" in out
+    assert 'href="https://fakeexample.com"' not in out
+    assert "urlscan.io/search/#fakeexample.com" in out
+
+
+def test_to_html_renders_inline_risk_chart():
+    r1 = _result(score=90, level=RiskLevel.CRITICAL)
+    r2 = _result(score=30, level=RiskLevel.LOW)
+    out = to_html(_report(r1, r2))
+    assert "risk-chart" in out
+    assert "<svg" in out
+    assert "chart-legend" in out
+
+
+def test_to_html_renders_css_filters():
+    r1 = _result(score=90, level=RiskLevel.CRITICAL)
+    out = to_html(_report(r1))
+    assert "filter-bar" in out
+    assert 'id="f-crit"' in out
+    assert "filter-crit" in out
 
 
 def test_to_html_page_title_shown():

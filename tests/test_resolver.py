@@ -552,6 +552,24 @@ async def test_probe_http_returns_first_successful_scheme():
 
 
 @pytest.mark.asyncio
+async def test_probe_http_cancels_http_when_https_succeeds_fast():
+    """When HTTPS returns quickly, HTTP is cancelled immediately without blocking."""
+    async with Resolver() as r:
+        async def slow_http(request):
+            await asyncio.sleep(5.0)
+            return httpx.Response(200)
+
+        with respx.mock(assert_all_called=False) as mock_router:
+            mock_router.get("https://x.example.com/").mock(
+                return_value=httpx.Response(200, content=b"<title>Fast HTTPS</title>")
+            )
+            mock_router.get("http://x.example.com/").mock(side_effect=slow_http)
+            status, _server, _redirect, title = await r._probe_http("x.example.com")
+    assert status == 200
+    assert title == "Fast HTTPS"
+
+
+@pytest.mark.asyncio
 async def test_probe_http_both_fail_returns_none_tuple():
     async with Resolver() as r:
         with respx.mock(assert_all_called=False) as mock_router:

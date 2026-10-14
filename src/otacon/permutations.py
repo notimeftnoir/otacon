@@ -155,6 +155,37 @@ _COMBO_KEYWORDS: tuple[str, ...] = (
     "portal",
 )
 
+# Regional bait words tailored to specific ccTLDs where local-language phishing dominates.
+_REGIONAL_COMBO_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "pl": (
+        "faktura",
+        "platnosc",
+        "bramka",
+        "paczka",
+        "dostawa",
+        "pomoc",
+        "panel",
+        "zamowienie",
+        "klient",
+        "logowanie",
+    ),
+    "de": (
+        "rechnung",
+        "zahlung",
+        "kunde",
+        "hilfe",
+        "service",
+        "konto",
+    ),
+    "fr": (
+        "facture",
+        "paiement",
+        "client",
+        "livraison",
+        "espace",
+    ),
+}
+
 # Alternative TLDs — where attackers most often register fakes. Includes the
 # TLDs most frequently flagged for abuse in Interisle/Spamhaus reporting
 # (cheap or historically low-friction registration: top, cyou, icu, cc, pw,
@@ -315,10 +346,14 @@ def _homoglyphs(label: str) -> set[str]:
     return out
 
 
-def _combos(label: str) -> set[str]:
+def _combos(label: str, tld: str = "") -> set[str]:
     """Combosquatting: original + bait word, with and without a hyphen."""
     out: set[str] = set()
-    for kw in _COMBO_KEYWORDS:
+    keywords = list(_COMBO_KEYWORDS)
+    tld_key = tld.split(".")[-1].lower() if tld else ""
+    if tld_key in _REGIONAL_COMBO_KEYWORDS:
+        keywords.extend(_REGIONAL_COMBO_KEYWORDS[tld_key])
+    for kw in keywords:
         out.add(f"{label}-{kw}")
         out.add(f"{label}{kw}")
         out.add(f"{kw}-{label}")
@@ -508,7 +543,7 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
         (PermutationType.SOUNDSQUAT, _soundsquats(label), "phonetic substitution"),
         (PermutationType.VOWEL_SWAP, _vowel_swaps(label), "vowel substitution"),
         (PermutationType.PLURAL, _plurals(label), "plural/singular variation"),
-        (PermutationType.COMBO, _combos(label), "appended bait word"),
+        (PermutationType.COMBO, _combos(label, tld), "appended bait word"),
         (PermutationType.WWW_MERGE, _www_merge(label), "'www' merged into domain (dot omission)"),
     ]
 

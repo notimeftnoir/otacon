@@ -112,7 +112,8 @@ SAFE_GLYPHS = frozenset(
     "»"  # » defensive redirect marker
     "✓✗"  # ✓ ✗ check marks
     "⚠"  # ⚠ warning
-    "→"  # → arrow
+    "→←"  # → ← arrows
+    "О"  # noqa: RUF001 — Cyrillic capital O (U+041E) homoglyph target in banner
     "·—…›─"  # noqa: RUF001 - punctuation and rules; the last two are U+203A, U+2500
 )
 
@@ -126,6 +127,6 @@ GLYPH_DEFENSIVE = "»"
 LOGO_DOTS_TOP = "● ● ● ○ ○ ○"
 LOGO_DOTS_BOT = "○ ○ ○ ● ● ●"
 _LOGO_TOP = f" [brand]{LOGO_DOTS_TOP}[/]"
-_LOGO_MID = "   [brand]OTACON[/]"
+_LOGO_MID = "   OTAC[brand]О[/brand]N   [muted]← [0x041E] homoglyph target[/muted]"  # noqa: RUF001
 _LOGO_BOT = f" [brand]{LOGO_DOTS_BOT}[/]  [muted]domain impersonation detector[/]"
 BANNER = f"\n{_LOGO_TOP}\n{_LOGO_MID}\n{_LOGO_BOT}\n"

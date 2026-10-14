@@ -164,3 +164,23 @@ def safe_relative_path(filename: str, base: str | None = None) -> str | None:
     except ValueError:
         return None
     return str(resolved)
+
+
+def safe_cli_path(filename: str) -> str | None:
+    """Returns a resolved path string for a path explicitly provided on the CLI.
+
+    Allows both absolute and relative paths, but refuses NUL bytes, empty strings,
+    and Windows reserved device names (CON, NUL, AUX, etc.).
+    """
+    from pathlib import Path
+
+    if not filename or "\x00" in filename:
+        return None
+    candidate = Path(filename)
+    stem = candidate.name.split(".")[0].upper()
+    if stem in _WIN_RESERVED:
+        return None
+    try:
+        return str(candidate.resolve())
+    except Exception:
+        return None

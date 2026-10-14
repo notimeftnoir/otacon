@@ -57,6 +57,15 @@ def test_combo_keywords():
     assert "bank-secure.com" in domains
 
 
+def test_combo_regional_keywords_for_pl_tld():
+    """Polish ccTLD .pl adds regional bait words (faktura, platnosc, etc.)."""
+    perms = permutations.generate("mojafirma.pl")
+    domains = {p.domain for p in perms}
+    assert "mojafirma-faktura.pl" in domains
+    assert "mojafirma-platnosc.pl" in domains
+    assert "mojafirma-paczka.pl" in domains
+
+
 def test_tld_swap_changes_tld():
     """TLD swap changes the suffix while keeping the name."""
     perms = permutations.generate("example.com")

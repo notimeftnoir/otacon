@@ -471,6 +471,27 @@ def test_action_loop_export_calls_export_result():
     assert mock_export.called
 
 
+def test_action_loop_takedown_generates_report(tmp_path, monkeypatch):
+    """Takedown action formats an abuse report and can save it to disk."""
+    monkeypatch.chdir(tmp_path)
+    r = _registered()
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    with patch("otacon.interactive.questionary") as mock_q:
+        # 1. select domain `r`
+        # 2. select action `takedown`
+        # 3. select takedown option `save`
+        # 4. filename text prompt
+        # 5. next action loop: `quit`
+        mock_q.select.return_value.ask.side_effect = [r, "takedown", "save", "quit"]
+        mock_q.text.return_value.ask.return_value = "takedown.txt"
+        _action_loop(report, "example.com", MagicMock(), check_http=True)
+    out_file = tmp_path / "takedown.txt"
+    assert out_file.exists()
+    content = out_file.read_text(encoding="utf-8")
+    assert "PHISHING TAKEDOWN NOTICE" in content.upper()
+    assert "googel[.]com" in content
+
+
 def test_action_loop_allow_removes_domain_from_next_iteration():
     """Allow adds domain to session whitelist → domain absent from next outer loop."""
     r = _registered()

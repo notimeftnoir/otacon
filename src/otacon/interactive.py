@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import webbrowser
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 import questionary
 from prompt_toolkit.document import Document
@@ -15,6 +17,7 @@ from prompt_toolkit.shortcuts import prompt as _pt_prompt
 from prompt_toolkit.validation import ValidationError, Validator
 from rich.console import Console
 from rich.markup import escape
+from rich.panel import Panel
 
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
@@ -382,12 +385,17 @@ class _ActionContext:
 
 
 def _handle_open(ctx: _ActionContext) -> str:
-    """Opens the selected domain in the user's default browser after a confirmation."""
+    """Safely handles opening or inspecting the lookalike domain."""
     url = f"https://{ctx.selected.domain}"
+    defanged = ctx.selected.domain.replace(".", "[.]")
     ctx.console.print(
-        f"[warn]⚠  Warning: {escape(ctx.selected.domain)} is a suspicious domain "
+        f"[warn]⚠  OPSEC Warning: {escape(ctx.selected.domain)} is a suspicious domain "
         f"(risk: {ctx.selected.risk_level.value}). Opening in your browser may expose "
-        f"you to fingerprinting or malicious content.[/warn]"
+        f"you to fingerprinting, tracking, or malicious content.[/warn]"
+    )
+    ctx.console.print(f"[muted]Safe defanged IOC:[/muted] [value]hxxps://{defanged}[/value]")
+    ctx.console.print(
+        f"[muted]Sandbox lookup:[/muted] [url]https://urlscan.io/search/#{quote(ctx.selected.domain)}[/url]"
     )
     if _confirm("Open anyway?") is not True:
         return _ActionResult.CONTINUE
@@ -432,6 +440,80 @@ def _handle_rescan(ctx: _ActionContext) -> str:
     return _ActionResult.NEXT_DOMAIN if not updated.is_registered else _ActionResult.CONTINUE
 
 
+def _handle_takedown(ctx: _ActionContext) -> str:
+    """Generates an abuse takedown notice template with all collected evidence."""
+    r = ctx.selected
+    defanged = r.domain.replace(".", "[.]")
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    ips_str = ", ".join(r.ip_addresses) if r.ip_addresses else "N/A"
+    mx_str = ", ".join(r.mx_records) if r.has_mx else "None detected"
+    ssl_str = (
+        f"Active (Issuer: {r.ssl_issuer or 'Unknown'}, Cert Age: {r.ssl_cert_age_days}d)"
+        if r.has_ssl
+        else "No active certificate"
+    )
+    http_str = (
+        f"HTTP {r.http_status} (Title: \"{r.page_title or 'N/A'}\")"
+        if r.http_status is not None
+        else "No HTTP response"
+    )
+    reasons_bullets = (
+        "\n".join(f"  - {reason}" for reason in r.risk_reasons)
+        if r.risk_reasons
+        else "  - Suspicious domain impersonation"
+    )
+
+    report_text = f"""SUBJECT: Urgent Abuse / Phishing Takedown Notice: {defanged}
+TARGET BRAND: {ctx.target}
+
+DATE: {now_str}
+MALICIOUS DOMAIN: {defanged} (raw: {r.domain})
+IMPERSONATION TECHNIQUE: {r.kind.value}
+RISK EVALUATION: {r.risk_score}/100 [{r.risk_level.value.upper()}]
+
+INCIDENT EVIDENCE:
+- Domain: {r.domain}
+- IP Address(es): {ips_str}
+- Mail Server(s) (MX): {mx_str}
+- SSL/TLS Certificate: {ssl_str}
+- Web Service: {http_str}
+- Detected Risk Factors:
+{reasons_bullets}
+
+REQUESTED ACTION:
+We request immediate suspension, de-registration, or null-routing of domain '{r.domain}'
+to prevent unauthorized brand impersonation, fraudulent communications, and credential theft
+targeting {ctx.target} users and customers.
+"""
+    ctx.console.print(
+        Panel(report_text, title="[brand]Abuse Takedown Notice[/brand]", border_style="brand")
+    )
+
+    action = questionary.select(
+        "Takedown report options:",
+        choices=[
+            questionary.Choice("Save to takedown file", value="save"),
+            questionary.Choice("Return to action menu", value="back"),
+        ],
+    ).ask()
+    if action == "save":
+        default_name = f"takedown-{r.domain.replace('.', '_')}.txt"
+        fname = questionary.text("Filename:", default=default_name).ask()
+        if fname:
+            safe_path = safe_relative_path(fname)
+            if safe_path:
+                try:
+                    Path(safe_path).write_text(report_text, encoding="utf-8")
+                    ctx.console.print(f"[ok]✓ Saved takedown request to {safe_path}[/ok]")
+                except OSError as exc:
+                    ctx.console.print(f"[danger]Error saving file: {exc}[/danger]")
+            else:
+                ctx.console.print("[danger]Error: unsafe filename[/danger]")
+
+    return _ActionResult.CONTINUE
+
+
 # Dispatch table for the post-scan action menu. Each handler returns one of the
 # _ActionResult tokens; "back" and "quit" are control-only and stay inline.
 _ACTION_HANDLERS = {
@@ -440,16 +522,18 @@ _ACTION_HANDLERS = {
     "export": _handle_export,
     "allow": _handle_allow,
     "rescan": _handle_rescan,
+    "takedown": _handle_takedown,
 }
 
 _ACTION_CHOICES = [
-    questionary.Choice("[o]pen   — open in browser", value="open"),
-    questionary.Choice("[w]hois  — show registration info", value="whois"),
-    questionary.Choice("[e]xport — save result as JSON", value="export"),
-    questionary.Choice("[a]llow  — skip in this session", value="allow"),
-    questionary.Choice("[r]escan — re-check this domain now", value="rescan"),
-    questionary.Choice("[b]ack   — pick a different domain", value="back"),
-    questionary.Choice("[q]uit   — exit actions", value="quit"),
+    questionary.Choice("[o]pen     — open in browser", value="open"),
+    questionary.Choice("[w]hois    — show registration info", value="whois"),
+    questionary.Choice("[t]akedown — generate abuse/takedown report", value="takedown"),
+    questionary.Choice("[e]xport   — save result as JSON", value="export"),
+    questionary.Choice("[a]llow    — skip in this session", value="allow"),
+    questionary.Choice("[r]escan   — re-check this domain now", value="rescan"),
+    questionary.Choice("[b]ack     — pick a different domain", value="back"),
+    questionary.Choice("[q]uit     — exit actions", value="quit"),
 ]
 
 

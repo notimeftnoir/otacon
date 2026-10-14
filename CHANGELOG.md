@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-10-14
+
+### Added
+- Pure-CSS filtering in HTML reports: 100% CSP compliant (`default-src 'none'`) zero-JS
+  table filtering (`All`, `Threats`, `Critical`, `High`, `MX`) using CSS radio selectors.
+- Inline SVG risk distribution chart with color-coded legend embedded directly in HTML reports.
+- Abuse / Phishing takedown notice generator in interactive TUI (`[t]akedown`), producing
+  structured reports containing all technical incident evidence (IPs, MX, SSL, HTTP title, defanged IOC).
+- RDAP over HTTPS protocol support with graceful fallback to TCP port 43 WHOIS.
+- Regional combosquatting dictionaries with targeted keyword sets for `.pl`, `.de`, and `.fr`.
+- Cyrillic homoglyph `О` (U+041E) wordmark branding in console banners and HTML reports.
+
+### Fixed
+- Fixed critical relative redirect scoring bypass where relative `Location: /path` headers
+  caused malicious lookalikes to be falsely flagged as defensive redirects.
+- Fixed CLI output path validation (`safe_cli_path`) allowing operators to write reports to
+  explicit absolute paths while maintaining strict protection against NUL-bytes and traversal.
+- Concurrency race optimization in resolver: canceled slow HTTP probes immediately upon fast
+  HTTPS completion, reducing scan latency.
+
+### Security
+- OPSEC hardening when inspecting lookalike domains from interactive mode: warning prompt,
+  defanged IOC display (`hxxps://...`), and direct sandbox links (urlscan.io).
+- Domain names in HTML reports are defanged (`[.]`) and use `rel="noopener noreferrer"`.
+- Supply chain vulnerability resolution: upgraded `urllib3` (>=2.8.0) and `pyjwt` (>=2.15.0).
+
 ## [1.0.3] — 2026-10-10
 
 ### Fixed

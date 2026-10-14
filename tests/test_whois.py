@@ -7,8 +7,17 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import respx
 
-from otacon.whois import fetch_domain_age, format_age
+from otacon.whois import _fetch_rdap, fetch_domain_age, format_age
+
+
+@pytest.fixture(autouse=True)
+def _disable_live_rdap():
+    """Ensures unit tests don't make unexpected live RDAP queries to the internet."""
+    with patch("otacon.whois._fetch_rdap", return_value=None):
+        yield
+
 
 # ---------------------------------------------------------------------------
 # format_age — pure formatter, no I/O
@@ -184,3 +193,50 @@ async def test_fetch_domain_age_handles_empty_list():
 
     assert created is None
     assert age is None
+
+
+# ---------------------------------------------------------------------------
+# RDAP lookup (RFC 7480-7484)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fetch_rdap_parses_registration_event():
+    with respx.mock(assert_all_called=False) as mock_router:
+        mock_router.get("https://rdap.org/domain/example.com").mock(
+            return_value=respx.MockResponse(
+                200,
+                json={
+                    "events": [
+                        {"eventAction": "last update", "eventDate": "2024-05-01T00:00:00Z"},
+                        {"eventAction": "registration", "eventDate": "2023-01-15T10:30:00Z"},
+                    ]
+                },
+            )
+        )
+        created = await _fetch_rdap("example.com")
+
+    assert created == datetime(2023, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_fetch_domain_age_uses_rdap_first_without_whois():
+    fake_created = datetime.now(timezone.utc) - timedelta(days=25)
+    with patch("otacon.whois._fetch_rdap", return_value=fake_created):
+        with patch("otacon.whois.asyncwhois.aio_whois", new_callable=AsyncMock) as mock_whois:
+            created, age = await fetch_domain_age("example.com")
+
+    assert created == fake_created
+    assert age == 25
+    mock_whois.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_rdap_returns_none_on_http_error():
+    with respx.mock(assert_all_called=False) as mock_router:
+        mock_router.get("https://rdap.org/domain/not-found.com").mock(
+            return_value=respx.MockResponse(404)
+        )
+        created = await _fetch_rdap("not-found.com")
+
+    assert created is None

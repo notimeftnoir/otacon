@@ -153,18 +153,11 @@ def _detect_defensive(result: DomainResult, target: str) -> None:
         # Unparseable Location from a hostile host — never treat that as proof
         # of a defensive registration, which would zero the risk score.
         return
-    host, scheme = parsed
+    host, _scheme = parsed
     canonical = target.lower().rstrip(".")
     if host and (host == canonical or host.endswith("." + canonical)):
         result.is_likely_defensive = True
         return
-    if (
-        not host
-        and not scheme
-        and (result.http_status is not None and 300 <= result.http_status < 400)
-    ):
-        # Relative-path Location header (e.g. "/") from a 3xx is same-origin.
-        result.is_likely_defensive = True
 
 
 def _title_similarity(t1: str, t2: str) -> float:

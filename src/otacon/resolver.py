@@ -440,22 +440,57 @@ class Resolver:
                     title = _parse_title(await self._read_capped(resp))
                 return resp.status_code, server, location, title
 
-        # Check both schemes in parallel; each gets a hard wall-clock deadline
-        # (httpx timeouts are per read — see _HTTP_DEADLINE). HTTPS wins ties.
-        outcomes = await asyncio.gather(
-            asyncio.wait_for(_get("https"), _HTTP_DEADLINE),
-            asyncio.wait_for(_get("http"), _HTTP_DEADLINE),
-            return_exceptions=True,
-        )
-        for outcome in outcomes:
-            if not isinstance(outcome, BaseException):
-                return outcome
-            if not isinstance(
-                outcome, (httpx.HTTPError, UnicodeError, OSError, asyncio.TimeoutError)
-            ):
-                raise outcome  # unexpected bug — surface it to check_one's logger
+        # Check both schemes in parallel; each gets a hard wall-clock deadline.
+        # When HTTPS succeeds, HTTP is cancelled immediately to avoid stalling
+        # on firewalled port 80. HTTPS wins ties.
+        https_task = asyncio.create_task(asyncio.wait_for(_get("https"), _HTTP_DEADLINE))
+        http_task = asyncio.create_task(asyncio.wait_for(_get("http"), _HTTP_DEADLINE))
 
-        return None, None, None, None
+        done, pending = await asyncio.wait(
+            [https_task, http_task], return_when=asyncio.FIRST_COMPLETED
+        )
+        if https_task in done:
+            https_exc = https_task.exception()
+            if https_exc is None:
+                http_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await http_task
+                return https_task.result()
+            if not isinstance(
+                https_exc, (httpx.HTTPError, UnicodeError, OSError, asyncio.TimeoutError)
+            ):
+                http_task.cancel()
+                raise https_exc
+            if http_task in pending:
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await http_task
+            http_exc = http_task.exception()
+            if http_exc is None:
+                return http_task.result()
+            if not isinstance(
+                http_exc, (httpx.HTTPError, UnicodeError, OSError, asyncio.TimeoutError)
+            ):
+                raise http_exc
+            return None, None, None, None
+        else:
+            http_exc = http_task.exception()
+            if http_exc is not None and not isinstance(
+                http_exc, (httpx.HTTPError, UnicodeError, OSError, asyncio.TimeoutError)
+            ):
+                https_task.cancel()
+                raise http_exc
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await https_task
+            https_exc = https_task.exception()
+            if https_exc is None:
+                return https_task.result()
+            if not isinstance(
+                https_exc, (httpx.HTTPError, UnicodeError, OSError, asyncio.TimeoutError)
+            ):
+                raise https_exc
+            if http_exc is None:
+                return http_task.result()
+            return None, None, None, None
 
     async def _probe(
         self, domain: str, ips: list[str]

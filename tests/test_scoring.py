@@ -217,19 +217,21 @@ def test_score_defensive_detection_ignores_trailing_dot_in_target():
     assert result.is_likely_defensive is True
 
 
-def test_score_relative_redirect_3xx_sets_defensive():
-    """A relative-path Location header (e.g. '/') on a 3xx is same-origin — defensive."""
+def test_score_relative_redirect_3xx_does_not_set_defensive():
+    """A relative-path Location header (e.g. '/') on a 3xx is same-origin to the
+    lookalike domain, NOT the target — must not be treated as a defensive registration.
+    """
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
         resolves=True,
         http_status=301,
-        redirects_to="/",  # relative path — no hostname
+        redirects_to="/",  # relative path — same-origin to googel.com, not google.com
     )
     result = score(r, target="google.com")
-    assert result.is_likely_defensive is True
-    assert result.risk_score == 0
-    assert result.risk_level == RiskLevel.SAFE
+    assert result.is_likely_defensive is False
+    assert result.risk_score > 0
+    assert result.risk_level != RiskLevel.SAFE
 
 
 def test_score_relative_redirect_2xx_does_not_set_defensive():

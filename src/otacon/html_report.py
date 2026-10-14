@@ -59,6 +59,63 @@ details summary{cursor:pointer;color:var(--muted);font-size:.8em;margin-top:.3em
 details ul{margin:.3em 0 0 1em;padding:0;font-size:.8em;color:var(--muted)}
 footer{margin-top:2em;border-top:1px solid var(--border);
        padding-top:1em;color:var(--muted);font-size:.85em}
+.filter-radio{display:none}
+.filter-bar{margin:1em 0 .8em;display:flex;gap:.5em;align-items:center;flex-wrap:wrap}
+.filter-title{color:var(--field);font-size:.85em;font-weight:bold;margin-right:.4em}
+.filter-bar label{
+    padding:.25em .65em;
+    border:1px solid var(--border);
+    border-radius:3px;
+    background:var(--surface);
+    color:var(--field);
+    cursor:pointer;
+    font-size:.82em;
+    user-select:none;
+}
+.filter-all:checked ~ .filter-bar .lbl-all,
+.filter-threats:checked ~ .filter-bar .lbl-threats,
+.filter-crit:checked ~ .filter-bar .lbl-crit,
+.filter-high:checked ~ .filter-bar .lbl-high,
+.filter-mx:checked ~ .filter-bar .lbl-mx{
+    background:var(--brand);
+    color:#000;
+    font-weight:bold;
+    border-color:var(--brand);
+}
+.filter-threats:checked ~ .table-wrap table tbody tr.row-safe{display:none}
+.filter-crit:checked ~ .table-wrap table tbody tr:not(.row-critical){display:none}
+.filter-high:checked ~ .table-wrap table tbody tr:not(.row-high){display:none}
+.filter-mx:checked ~ .table-wrap table tbody tr:not(.has-mx){display:none}
+.sandbox-tag{
+    font-size:.75em;
+    color:var(--info);
+    text-decoration:none;
+    padding:.1em .4em;
+    border:1px solid #2a4365;
+    border-radius:2px;
+    margin-left:.5em;
+    vertical-align:middle;
+}
+.sandbox-tag:hover{background:#1a365d;color:#fff}
+.defanged-domain{font-family:'Courier New',monospace;color:var(--value)}
+.risk-chart {
+    width: 100%;
+    height: 20px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--surface2);
+    margin: .6em 0 .3em;
+}
+.chart-legend {
+    display: flex;
+    gap: 1.2em;
+    font-size: .8em;
+    color: var(--muted);
+    margin-bottom: .8em;
+    flex-wrap: wrap;
+}
+.legend-item{display:inline-flex;align-items:center;gap:.4em}
+.legend-swatch{width:10px;height:10px;border-radius:2px;display:inline-block}
 """
 
 # Lock the report down: no scripts, fetches, frames, plugins, or form posts.
@@ -141,12 +198,19 @@ def _risk_cell(score: int, level: RiskLevel) -> str:
 
 
 def _domain_cell(r: DomainResult) -> str:
-    """Domain name + technique, with optional defensive marker, page title and reason list."""
+    """Domain name + technique, with defanged representation, safe sandbox link, and details."""
     dom = _h(r.domain)
+    defanged = _h(r.domain.replace(".", "[.]"))
     href = quote(r.domain, safe=".-")
+    sandbox_url = f"https://urlscan.io/search/#{href}"
+    sandbox_link = (
+        f'<a href="{sandbox_url}" target="_blank" rel="noopener noreferrer" '
+        f'class="sandbox-tag" title="Inspect safely on urlscan.io">sandbox ↗</a>'
+    )
     parts: list[str] = [
-        f'<span class="domain-name">'
-        f'<a href="https://{href}" target="_blank" rel="noopener noreferrer">{dom}</a>'
+        f'<span class="domain-name" title="{dom}">'
+        f'<code class="defanged-domain">{defanged}</code>'
+        f" {sandbox_link}"
         f"</span>",
         f'<br><span class="technique">{_h(r.kind.value)}</span>',
     ]
@@ -160,6 +224,47 @@ def _domain_cell(r: DomainResult) -> str:
         items = "".join(f"<li>{_h(reason)}</li>" for reason in r.risk_reasons)
         parts.append(f"<details><summary>why?</summary><ul>{items}</ul></details>")
     return "".join(parts)
+
+
+def _chart_svg(rows: list[DomainResult]) -> str:
+    """Renders a compact, inline SVG stacked bar chart showing the risk level distribution."""
+    if not rows:
+        return ""
+    counts = {
+        RiskLevel.CRITICAL: sum(1 for r in rows if r.risk_level == RiskLevel.CRITICAL),
+        RiskLevel.HIGH: sum(1 for r in rows if r.risk_level == RiskLevel.HIGH),
+        RiskLevel.MEDIUM: sum(1 for r in rows if r.risk_level == RiskLevel.MEDIUM),
+        RiskLevel.LOW: sum(1 for r in rows if r.risk_level == RiskLevel.LOW),
+        RiskLevel.SAFE: sum(1 for r in rows if r.risk_level == RiskLevel.SAFE),
+    }
+    total = len(rows)
+    svg_parts = [
+        '<svg viewBox="0 0 600 20" class="risk-chart" role="img" '
+        'aria-label="Risk Distribution">'
+    ]
+    x = 0.0
+    for level, color in _LEVEL_COLOR.items():
+        cnt = counts[level]
+        if cnt > 0:
+            width = (cnt / total) * 600.0
+            svg_parts.append(
+                f'<rect x="{x:.1f}" y="2" width="{width:.1f}" height="16" fill="{color}">'
+                f'<title>{level.value}: {cnt} ({cnt * 100 / total:.1f}%)</title></rect>'
+            )
+            x += width
+    svg_parts.append("</svg>")
+
+    legend_items = []
+    for level, color in _LEVEL_COLOR.items():
+        cnt = counts[level]
+        if cnt > 0:
+            legend_items.append(
+                f'<span class="legend-item">'
+                f'<span class="legend-swatch" style="background:{color}"></span> '
+                f'{level.value}: {cnt}</span>'
+            )
+    legend_html = f'<div class="chart-legend">{" ".join(legend_items)}</div>'
+    return f'<div class="chart-container">{"".join(svg_parts)}{legend_html}</div>'
 
 
 def _verdict_html(report: ScanReport) -> str:
@@ -192,12 +297,20 @@ def _verdict_html(report: ScanReport) -> str:
     )
 
 
-def _table_html(rows: list[DomainResult]) -> str:
-    """Main results table — one row per registered variant."""
+def _table_html(rows: list[DomainResult], prefix: str = "f") -> str:
+    """Main results table with inline chart and pure-CSS filtering."""
     if not rows:
         return '<p class="muted">No registered variants detected.</p>'
+
+    crit_count = sum(1 for r in rows if r.risk_level == RiskLevel.CRITICAL)
+    high_count = sum(1 for r in rows if r.risk_level == RiskLevel.HIGH)
+    threats_count = sum(1 for r in rows if r.risk_level != RiskLevel.SAFE)
+    mx_count = sum(1 for r in rows if r.has_mx)
+
+    chart = _chart_svg(rows)
+
     row_html = "\n".join(
-        f"<tr>"
+        f"<tr class='row-item row-{r.risk_level.value} {'has-mx' if r.has_mx else ''}'>"
         f"<td>{_domain_cell(r)}</td>"
         f"<td>{_risk_cell(r.risk_score, r.risk_level)}</td>"
         f"<td>{_age_cell(r.age_days)}</td>"
@@ -208,12 +321,41 @@ def _table_html(rows: list[DomainResult]) -> str:
         f"</tr>"
         for r in rows
     )
+
+    filter_radios = (
+        f'<input type="radio" name="{prefix}-filter" id="{prefix}-all" '
+        'class="filter-radio filter-all" checked>'
+        f'<input type="radio" name="{prefix}-filter" id="{prefix}-threats" '
+        'class="filter-radio filter-threats">'
+        f'<input type="radio" name="{prefix}-filter" id="{prefix}-crit" '
+        'class="filter-radio filter-crit">'
+        f'<input type="radio" name="{prefix}-filter" id="{prefix}-high" '
+        'class="filter-radio filter-high">'
+        f'<input type="radio" name="{prefix}-filter" id="{prefix}-mx" '
+        'class="filter-radio filter-mx">'
+    )
+
+    filter_bar = (
+        '<div class="filter-bar">'
+        '<span class="filter-title">Filter:</span>'
+        f'<label for="{prefix}-all" class="lbl-all">All ({len(rows)})</label>'
+        f'<label for="{prefix}-threats" class="lbl-threats">Threats ({threats_count})</label>'
+        f'<label for="{prefix}-crit" class="lbl-crit">Critical ({crit_count})</label>'
+        f'<label for="{prefix}-high" class="lbl-high">High ({high_count})</label>'
+        f'<label for="{prefix}-mx" class="lbl-mx">MX ({mx_count})</label>'
+        '</div>'
+    )
+
     return (
-        "<table>"
-        "<thead><tr>"
-        "<th>Domain</th><th>Risk</th><th>Age</th>"
-        "<th>DNS</th><th>MX</th><th>SSL</th><th>HTTP</th>"
-        f"</tr></thead><tbody>{row_html}</tbody></table>"
+        f'<div class="report-section">'
+        f'{chart}'
+        f'{filter_radios}'
+        f'{filter_bar}'
+        f'<div class="table-wrap"><table>'
+        f'<thead><tr>'
+        f'<th>Domain</th><th>Risk</th><th>Age</th>'
+        f'<th>DNS</th><th>MX</th><th>SSL</th><th>HTTP</th>'
+        f'</tr></thead><tbody>{row_html}</tbody></table></div></div>'
     )
 
 
@@ -243,7 +385,8 @@ def to_html(report: ScanReport) -> str:
 
     logo = (
         f" {LOGO_DOTS_TOP}\n"
-        '   <span class="brand">OTACON</span>\n'
+        '   OTAC<span class="brand">\u041e</span>N'
+        '  <span class="muted">[0x041E] homoglyph target</span>\n'
         f' {LOGO_DOTS_BOT}  <span class="muted">domain impersonation detector</span>'
     )
     meta_line = (
@@ -326,15 +469,17 @@ def aggregate_html(reports: dict[str, ScanReport]) -> str:
     domain_sections = ""
     for domain, report in reports.items():
         rows = sorted(report.registered, key=lambda r: r.risk_score, reverse=True)
+        safe_dom = _h(domain).replace(".", "-")
         domain_sections += (
             f'<h2 id="{_h(domain)}">{_h(domain)}</h2>'
             f'<div class="verdict">{_verdict_html(report)}</div>'
-            f"{_table_html(rows)}"
+            f"{_table_html(rows, prefix=f'f-{safe_dom}')}"
         )
 
     logo = (
         f" {LOGO_DOTS_TOP}\n"
-        '   <span class="brand">OTACON</span>\n'
+        '   OTAC<span class="brand">\u041e</span>N'
+        '  <span class="muted">[0x041E] homoglyph target</span>\n'
         f" {LOGO_DOTS_BOT}"
         '  <span class="muted">domain impersonation detector</span>'
     )

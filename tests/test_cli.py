@@ -217,10 +217,18 @@ def test_generate_command_writes_wordlist(tmp_path: Path, monkeypatch) -> None:
 
 def test_generate_command_refuses_unsafe_output_path(tmp_path: Path) -> None:
     runner = CliRunner()
-    result = runner.invoke(app, ["generate", "example.com", "-o", "/etc/evil.txt"])
+    result = runner.invoke(app, ["generate", "example.com", "-o", "nul.txt"])
     # Should still exit 0 (warn + skip write), not crash
     assert result.exit_code == 0
     assert "unsafe path" in result.output
+
+
+def test_generate_command_accepts_absolute_output_path(tmp_path: Path) -> None:
+    abs_out = tmp_path / "wordlist.txt"
+    runner = CliRunner()
+    result = runner.invoke(app, ["generate", "example.com", "-o", str(abs_out)])
+    assert result.exit_code == 0
+    assert abs_out.exists()
 
 
 def test_generate_command_rejects_invalid_domain() -> None:
@@ -285,9 +293,24 @@ def test_scan_refuses_unsafe_output_path(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["scan", "example.com", "--json", "/etc/evil.json"])
+    result = runner.invoke(app, ["scan", "example.com", "--json", "CON.json"])
     assert result.exit_code == 0
     assert "unsafe path" in result.output
+
+
+def test_scan_accepts_absolute_output_path(tmp_path, monkeypatch) -> None:
+    from otacon.models import ScanReport
+
+    async def fake_run_scan(domain, concurrency, check_http, exclude=None, quiet=False, **kwargs):
+        return ScanReport(target=domain, total_permutations=0)
+
+    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+
+    abs_out = tmp_path / "custom_dir" / "report.json"
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "example.com", "--json", str(abs_out)])
+    assert result.exit_code == 0
+    assert abs_out.exists()
 
 
 def test_scan_rejects_invalid_domain() -> None:
