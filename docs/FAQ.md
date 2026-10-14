@@ -59,9 +59,9 @@ Most likely causes, in order:
 </details>
 
 <details>
-<summary><b>Where is the WHOIS data coming from?</b></summary>
+<summary><b>Where is the WHOIS / registration data coming from?</b></summary>
 
-We use [`asyncwhois`](https://pypi.org/project/asyncwhois/), which talks directly to TLD WHOIS servers (no third-party API, no quota). Some TLDs (e.g., `.ai`, `.io`) sometimes return rate-limited or stripped responses — in that case `age_days` will be `null` and the age-based scoring contribution is just skipped (graceful degradation).
+Otacon first queries modern **RDAP (Registration Data Access Protocol)** over HTTPS via `rdap.org` using `httpx`. RDAP avoids corporate firewall blocks on TCP port 43. If an RDAP endpoint is unavailable or returns an error, Otacon gracefully falls back to traditional port 43 WHOIS via [`asyncwhois`](https://pypi.org/project/asyncwhois/). If both fail or rate-limit, `age_days` degrades gracefully to `null` without crashing the scan.
 
 </details>
 

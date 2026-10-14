@@ -66,18 +66,18 @@ Every stage exchanges Pydantic models — `Permutation`, then `DomainResult`, fi
 |---|---|---|---|
 | `models.py` | Pydantic data models flowing through the pipeline | no | ~110 |
 | `theme.py` | Single source of truth for colors, risk levels, banner | no | ~95 |
-| `permutations.py` | 12 permutation algorithms; pure functions | no | ~400 |
-| `resolver.py` | Async DNS / TLS / HTTP / WHOIS orchestration | **yes** | ~480 |
-| `whois.py` | Domain age fetching with graceful degradation | yes | ~60 |
+| `permutations.py` | 12 permutation algorithms (incl. regional combosquatting); pure functions | no | ~440 |
+| `resolver.py` | Async DNS / TLS / HTTP / WHOIS orchestration (with HTTP race cancellation) | **yes** | ~590 |
+| `whois.py` | Domain age fetching via RDAP over HTTPS with TCP WHOIS fallback | yes | ~120 |
 | `scoring.py` | Rule-based 0–100 risk score, transparent reasons | no | ~270 |
 | `reporters.py` | Terminal table, JSON, Markdown rendering | output | ~480 |
-| `html_report.py` | Self-contained HTML report (Jinja-free) | output | ~370 |
+| `html_report.py` | Self-contained HTML report (pure CSS filters, inline SVG chart, zero-JS) | output | ~515 |
 | `cli.py` | Typer subcommands (`scan`, `generate`) | orchestration | ~520 |
-| `interactive.py` | Guided prompts, post-scan action loop | terminal | ~540 |
+| `interactive.py` | Guided prompts, post-scan action loop & takedown notice generator | terminal | ~630 |
 | `_asyncutils.py` | Cross-platform event loop wrapper (Windows fix) | no | ~40 |
 | `_validate.py` | Shared input validators — domain syntax, SSRF-safe IP filtering, path traversal guards | no | ~110 |
 
-Total: ~3,450 lines, ~380 tests.
+Total: ~3,900 lines, 492 tests.
 
 
 ---
@@ -130,7 +130,7 @@ The `check_one()` method has a broad `except Exception` at the outermost level. 
 Brand owners often register their own lookalikes and 301 them back. We detect this in `scoring.py` by parsing the `Location` header from a 3xx response and matching the hostname against the target (exact or subdomain). Flagged with `»` in the output and **does not** lower the score — it's informational; the user decides.
 
 ### Self-contained HTML report
-`html_report.py` produces a single `.html` file with inlined CSS, no JavaScript, no external assets. Hand it to legal, attach it to a ticket, upload it to S3 — it just works. No Jinja2 dependency; we use pure f-strings and `html.escape()`.
+`html_report.py` produces a single `.html` file with inlined CSS, no JavaScript (100% CSP-compliant `default-src 'none'`), pure-CSS table filtering (`All`, `Threats`, `Critical`, `High`, `MX`), and inline SVG risk distribution charts. Domain names are automatically defanged (`[.]`) and link to safe inspection sandboxes (urlscan.io). Hand it to legal, attach it to a ticket, upload it to S3 — it just works. No Jinja2 dependency; we use pure f-strings and `html.escape()`.
 
 ### Cross-platform event loop handling
 Windows' `ProactorEventLoop` raises `ConnectionResetError` on normal HTTP teardowns. `_asyncutils.py` switches to `SelectorEventLoop` on Windows:
@@ -157,17 +157,17 @@ Windows' `ProactorEventLoop` raises `ConnectionResetError` on normal HTTP teardo
    ▼        ▼         ▼          ▼        ▼         ▼          ▼        ▼         ▼
   DNS-A   DNS-MX    [SSL          (limited by Semaphore(50))
          (gather)    HTTP]
-                    in parallel
+                    race: fast HTTPS cancels slow HTTP
                                                                   │
                                                                   ▼
-                                                            WHOIS (Semaphore(4))
+                                                            WHOIS / RDAP (Semaphore(4))
                                                             cached per-domain
 ```
 
 Within a single `check_one()`:
 1. **A and MX in series** — both DNS, cheap, no benefit from parallelism
-2. **SSL and HTTP in `gather()`** — both network-bound, independent, parallel
-3. **WHOIS last** — only if registered; bounded by separate semaphore
+2. **SSL and HTTP race** — started concurrently via `asyncio.wait(FIRST_COMPLETED)`. When HTTPS completes first, the slow HTTP task is cancelled immediately, avoiding redundant network waits.
+3. **RDAP / WHOIS last** — only if registered; bounded by separate semaphore
 
 Across `check_one()` calls: bounded by `_sem` (default 50). The user sees registered hits stream into the live table as they arrive (via `asyncio.as_completed`), not after the whole batch finishes.
 

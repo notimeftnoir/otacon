@@ -145,12 +145,13 @@ for why that matters when you read a report.
 | Risk **score** with explained signals | ✓ 0–100, every point sourced | ✗ raw signals only |
 | Defensive-registration flag | ✓ `»` on redirect-to-original | ✗ |
 | CI/CD exit code gating | ✓ `--fail-on` | ✗ |
-| Self-contained HTML report | ✓ dark theme, no JS | partial (`--format html`) |
-| Interactive post-scan triage | ✓ open/whois/rescan/allow | ✗ |
-| Permutation techniques | 12 | 13+ |
+| Self-contained HTML report | ✓ dark theme, zero JS, pure-CSS filters, SVG charts, defanged IOCs | partial (`--format html`) |
+| Interactive post-scan triage | ✓ open (OPSEC safe) / whois / takedown / rescan / allow | ✗ |
+| Automated abuse takedown notice | ✓ formatted draft with technical evidence | ✗ |
+| Permutation techniques | 12 (with regional combosquatting for `.pl`, `.de`, `.fr`) | 13+ |
 | Visual screenshots of pages | ✗ | ✓ |
 | Fuzzy/phonetic dictionary attacks | ✓ soundsquat | ✓ |
-| GeoIP / Whois enrichment | WHOIS only | both |
+| Registration data enrichment | RDAP over HTTPS + WHOIS fallback | WHOIS + GeoIP |
 
 **Use dnstwist if** you want screenshots, fuzzy hashing, deeper enrichment.
 **Use Otacon if** you want an opinionated risk score, defensive-flag detection, and a CI-friendly exit code.

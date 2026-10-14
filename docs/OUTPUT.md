@@ -11,7 +11,7 @@ One scan, five ways to consume it. Pick the one that fits your workflow:
 | **Rich terminal table** | *(default)* | Interactive triage — colors, risk bars, live streaming as hits arrive |
 | **JSON** | `--json r.json` | Pipelines, SIEM ingestion, custom analytics. Includes `risk_reasons` for every variant. |
 | **Markdown** | `--md r.md` | Paste straight into Jira / GitHub issues / Slack |
-| **HTML** | `--html r.html` | Hand to legal / compliance / management. Self-contained dark-theme file, no external dependencies. |
+| **HTML** | `--html r.html` | Hand to legal / compliance / management. Self-contained dark-theme file, zero JS (100% CSP-compliant pure-CSS filters, inline SVG risk distribution charts, defanged domain indicators, and urlscan sandbox links). |
 | **CSV** | `--csv r.csv` | Spreadsheets — registered domains only, formula-injection-safe cells |
 
 You can pass all export flags at once — every format is rendered from the same in-memory report, so they always agree.

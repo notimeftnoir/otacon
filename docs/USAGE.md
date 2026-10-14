@@ -133,16 +133,17 @@ Run `otacon` with no subcommand for a guided experience. After the scan, you can
 
 ```text
 Action for githubupdate.com:
-  [*] [o]pen   — open in browser
-      [w]hois  — show registration info
-      [e]xport — save result as JSON
-      [a]llow  — skip in this session
-      [r]escan — re-check this domain now
-      [b]ack   — pick a different domain
-      [q]uit   — exit actions
+  [*] [o]pen      — preview URL & sandbox link, prompt before opening
+      [w]hois     — show registration info (via RDAP / WHOIS)
+      [t]akedown  — generate abuse / phishing takedown notice
+      [e]xport    — save result as JSON
+      [a]llow     — skip in this session
+      [r]escan    — re-check this domain now
+      [b]ack      — pick a different domain
+      [q]uit      — exit actions
 ```
 
-Designed for triaging a fresh scan without leaving the terminal: open the suspicious site, check WHOIS, decide to allow-list or escalate.
+Designed for triaging a fresh scan without leaving the terminal: safely inspect lookalike sites via urlscan sandbox links, retrieve RDAP/WHOIS details, draft abuse takedown notices with embedded technical evidence, or allow-list defensive domains.
 
 ---
 
