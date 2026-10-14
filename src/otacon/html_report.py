@@ -239,8 +239,7 @@ def _chart_svg(rows: list[DomainResult]) -> str:
     }
     total = len(rows)
     svg_parts = [
-        '<svg viewBox="0 0 600 20" class="risk-chart" role="img" '
-        'aria-label="Risk Distribution">'
+        '<svg viewBox="0 0 600 20" class="risk-chart" role="img" aria-label="Risk Distribution">'
     ]
     x = 0.0
     for level, color in _LEVEL_COLOR.items():
@@ -249,7 +248,7 @@ def _chart_svg(rows: list[DomainResult]) -> str:
             width = (cnt / total) * 600.0
             svg_parts.append(
                 f'<rect x="{x:.1f}" y="2" width="{width:.1f}" height="16" fill="{color}">'
-                f'<title>{level.value}: {cnt} ({cnt * 100 / total:.1f}%)</title></rect>'
+                f"<title>{level.value}: {cnt} ({cnt * 100 / total:.1f}%)</title></rect>"
             )
             x += width
     svg_parts.append("</svg>")
@@ -261,7 +260,7 @@ def _chart_svg(rows: list[DomainResult]) -> str:
             legend_items.append(
                 f'<span class="legend-item">'
                 f'<span class="legend-swatch" style="background:{color}"></span> '
-                f'{level.value}: {cnt}</span>'
+                f"{level.value}: {cnt}</span>"
             )
     legend_html = f'<div class="chart-legend">{" ".join(legend_items)}</div>'
     return f'<div class="chart-container">{"".join(svg_parts)}{legend_html}</div>'
@@ -343,19 +342,19 @@ def _table_html(rows: list[DomainResult], prefix: str = "f") -> str:
         f'<label for="{prefix}-crit" class="lbl-crit">Critical ({crit_count})</label>'
         f'<label for="{prefix}-high" class="lbl-high">High ({high_count})</label>'
         f'<label for="{prefix}-mx" class="lbl-mx">MX ({mx_count})</label>'
-        '</div>'
+        "</div>"
     )
 
     return (
         f'<div class="report-section">'
-        f'{chart}'
-        f'{filter_radios}'
-        f'{filter_bar}'
+        f"{chart}"
+        f"{filter_radios}"
+        f"{filter_bar}"
         f'<div class="table-wrap"><table>'
-        f'<thead><tr>'
-        f'<th>Domain</th><th>Risk</th><th>Age</th>'
-        f'<th>DNS</th><th>MX</th><th>SSL</th><th>HTTP</th>'
-        f'</tr></thead><tbody>{row_html}</tbody></table></div></div>'
+        f"<thead><tr>"
+        f"<th>Domain</th><th>Risk</th><th>Age</th>"
+        f"<th>DNS</th><th>MX</th><th>SSL</th><th>HTTP</th>"
+        f"</tr></thead><tbody>{row_html}</tbody></table></div></div>"
     )
 
 

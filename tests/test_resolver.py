@@ -555,6 +555,7 @@ async def test_probe_http_returns_first_successful_scheme():
 async def test_probe_http_cancels_http_when_https_succeeds_fast():
     """When HTTPS returns quickly, HTTP is cancelled immediately without blocking."""
     async with Resolver() as r:
+
         async def slow_http(request):
             await asyncio.sleep(5.0)
             return httpx.Response(200)

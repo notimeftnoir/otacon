@@ -485,9 +485,7 @@ def generate(
             try:
                 dest = Path(target_path)
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                dest.write_text(
-                    "\n".join(p.domain for p in perms) + "\n", encoding="utf-8"
-                )
+                dest.write_text("\n".join(p.domain for p in perms) + "\n", encoding="utf-8")
                 console.print(f"[ok]→ Wordlist saved:[/ok] [url]{escape(target_path)}[/url]")
             except OSError as exc:
                 console.print(f"[danger]Error saving wordlist: {escape(str(exc))}[/danger]")

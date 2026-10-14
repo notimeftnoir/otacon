@@ -74,9 +74,7 @@ async def fetch_domain_age(
 
     if created is None:
         try:
-            _, parsed = await asyncio.wait_for(
-                asyncwhois.aio_whois(domain), timeout=_WHOIS_TIMEOUT
-            )
+            _, parsed = await asyncio.wait_for(asyncwhois.aio_whois(domain), timeout=_WHOIS_TIMEOUT)
             raw_created = parsed.get("created")
             # asyncwhois returns a list for some TLDs (e.g. .info, .io, .pl) when the
             # WHOIS response contains multiple date fields — take the earliest entry.

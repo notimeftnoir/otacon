@@ -454,7 +454,7 @@ def _handle_takedown(ctx: _ActionContext) -> str:
         else "No active certificate"
     )
     http_str = (
-        f"HTTP {r.http_status} (Title: \"{r.page_title or 'N/A'}\")"
+        f'HTTP {r.http_status} (Title: "{r.page_title or "N/A"}")'
         if r.http_status is not None
         else "No HTTP response"
     )
