@@ -255,7 +255,8 @@ async def run_scan(
     if progress is not None:
         console.print(
             f"[ok]✓[/ok] [value]{len(perms)}[/value] checked in "
-            f"[value]{time.monotonic() - started:.1f}s[/value]  [muted]·[/muted] {_tally(hits)}"
+            f"[value]{time.monotonic() - started:.1f}s[/value]  [muted]·[/muted] "
+            f"{_tally(report.registered)}"
         )
     if report.dns_hijack_detected:
         console.print(_HIJACK_WARNING)
