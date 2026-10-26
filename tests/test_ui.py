@@ -152,3 +152,22 @@ def test_next_steps_skip_what_the_user_already_did(monkeypatch) -> None:
     out = buf.getvalue()
     assert "--html" not in out
     assert "guided mode" in out and "--fail-on high" in out
+
+
+def test_dossier_shows_intel_hosting_spf_and_favicon_pivot() -> None:
+    r = _hit(
+        95,
+        RiskLevel.CRITICAL,
+        intel_sources=["OpenPhish"],
+        asn=13335,
+        as_name="CLOUDFLARENET",
+        ip_country="US",
+        has_spf=True,
+        favicon_hash=-123,
+        ip_addresses=["203.0.113.9"],
+    )
+    console, buf = _console()
+    console.print(_dossier(r))
+    out = buf.getvalue()
+    for fact in ("OpenPhish", "AS13335 CLOUDFLARENET (US)", "SPF", "http.favicon.hash:-123"):
+        assert fact in out

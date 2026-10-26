@@ -604,12 +604,25 @@ _ACTION_CHOICES = [
 def _evidence(r: DomainResult) -> list[tuple[str, str, str]]:
     """(label, fact, what it means) rows for the dossier, plain words first."""
     rows: list[tuple[str, str, str]] = []
+    if r.intel_sources:
+        rows.append(
+            ("Reported", ", ".join(r.intel_sources), "already listed as phishing by others")
+        )
     if r.resolves:
         rows.append(("Online", ", ".join(r.ip_addresses[:3]), "points to a live server"))
+    elif r.rdap_registered:
+        rows.append(("Registered", "confirmed by the registry", "DNS is down, the name is taken"))
+    if r.asn is not None:
+        where = f"AS{r.asn} {r.as_name or ''}".strip() + (
+            f" ({r.ip_country})" if r.ip_country else ""
+        )
+        rows.append(("Hosting", where, "the network a takedown can also go to"))
     if r.has_mx:
         rows.append(
             ("Mail", ", ".join(r.mx_records[:2]), "can send email that looks like it is from you")
         )
+    if r.has_spf:
+        rows.append(("SPF", "published", "set up to send email that passes basic checks"))
     if r.redirects_to:
         meaning = (
             "sends visitors to your own site, likely yours"
@@ -630,8 +643,17 @@ def _evidence(r: DomainResult) -> list[tuple[str, str, str]]:
         )
     if r.age_days is not None:
         rows.append(("Registered", format_age(r.age_days) + " ago", "domain age from WHOIS/RDAP"))
+    if r.favicon_hash is not None:
+        rows.append(
+            (
+                "Favicon",
+                f"http.favicon.hash:{r.favicon_hash}",
+                "search Shodan with this to find the same kit elsewhere",
+            )
+        )
     if r.is_parked:
-        rows.append(("Parked", "placeholder page", "not in use yet, keep an eye on it"))
+        via = f" ({r.ns_records[0]})" if r.ns_records else ""
+        rows.append(("Parked", f"placeholder page{via}", "not in use yet, keep an eye on it"))
     return rows
 
 
