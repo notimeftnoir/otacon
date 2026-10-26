@@ -33,7 +33,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.10
+    rev: v0.17.2
     hooks:
       - id: ruff-check
         args: [--fix]
@@ -57,7 +57,7 @@ repos:
           - httpx>=0.28.1
           - httpcore>=1.0.9
           - cryptography>=50.0.2
-          - pydantic>=2.13.5
+          - pydantic>=2.14.1
           - questionary>=2.1.1
           - prompt_toolkit>=3.0.53
           - asyncwhois>=1.1.15
