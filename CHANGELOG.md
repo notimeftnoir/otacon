@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mail posture: SPF on a registered lookalike scores +10 (set up to send mail), and the scan
   warns when your own domain has no DMARC policy or only `p=none`, i.e. anyone can send email
   as it. New `has_spf`, `target_spf` and `target_dmarc` fields.
+- Favicon fingerprint: live lookalikes get a Shodan-compatible `favicon_hash`
+  (`http.favicon.hash:<n>` finds other servers running the same kit); serving the target's exact
+  favicon scores +20 as a clone. Pure-stdlib MurmurHash3, verified against `mmh3`.
 - `dns_inconclusive` per result and a warning when DNS never answered a variant: its status is
   unknown, which is no longer reported as "not registered".
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).

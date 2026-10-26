@@ -307,13 +307,13 @@ def _rescan_result(
     perm = Permutation(domain=result.domain, kind=result.kind, note=result.note)
     console.print(f"[muted]Rescanning {escape(result.domain)}…[/muted]")
 
-    async def _run() -> tuple[DomainResult, str | None]:
+    async def _run() -> tuple[DomainResult, str | None, int | None]:
         async with Resolver(check_http=check_http, target=target) as resolver:
             res = await resolver.check_one(perm)
-            return res, resolver.target_title
+            return res, resolver.target_title, resolver.target_favicon
 
-    raw, target_title = run_async(_run())
-    return scoring.score(raw, target, target_title=target_title)
+    raw, target_title, target_favicon = run_async(_run())
+    return scoring.score(raw, target, target_title=target_title, target_favicon=target_favicon)
 
 
 def _suggest_defensive_whitelist(report: ScanReport, console: Console) -> None:

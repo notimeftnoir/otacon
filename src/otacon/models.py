@@ -80,6 +80,8 @@ class DomainResult(BaseModel):
     # Page title — parsed from HTML body on 2xx responses; None when absent/failed.
     page_title: str | None = None
     title_similarity: float | None = None
+    # Shodan-compatible hash of /favicon.ico (see favicon.py); None = no icon.
+    favicon_hash: int | None = None
 
     # WHOIS — filled for registered domains only; None when lookup fails.
     created_at: datetime | None = None

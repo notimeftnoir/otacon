@@ -592,6 +592,7 @@ class _FakeResolver:
 
     def __init__(self, concurrency, check_http, target, check_whois=True, nameservers=None) -> None:
         self.target_title = None
+        self.target_favicon = None
 
     async def __aenter__(self) -> _FakeResolver:
         return self
@@ -832,7 +833,10 @@ def test_rescan_result_returns_scored_domain_result():
 
     assert result.domain == "googel.com"
     mock_scoring.score.assert_called_once_with(
-        fresh, "example.com", target_title=mock_instance.target_title
+        fresh,
+        "example.com",
+        target_title=mock_instance.target_title,
+        target_favicon=mock_instance.target_favicon,
     )
 
 

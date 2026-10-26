@@ -33,7 +33,7 @@ from cryptography import x509
 from cryptography.utils import CryptographyDeprecationWarning
 from cryptography.x509.oid import NameOID
 
-from . import __version__
+from . import __version__, favicon
 from ._validate import first_safe_ip
 from .models import DomainResult, Permutation
 from .whois import fetch_domain_age
@@ -229,6 +229,7 @@ class Resolver:
         self._check_whois = check_whois
         self.target = target
         self._target_title: str | None = None
+        self._target_favicon: int | None = None
         # One HTTP client reused for all requests (connection pooling).
         self._http: httpx.AsyncClient | None = None
         # Per-run WHOIS cache — keyed by domain; stores an asyncio.Task so
@@ -277,6 +278,9 @@ class Resolver:
         )
         if self._check_http and self.target:
             self._target_title = await self._fetch_target_title()
+            # The title fetch pinned the target's IP, which _favicon relies on.
+            if self.target in self._ip_pins:
+                self._target_favicon = await self._favicon(self.target)
         return self
 
     async def __aexit__(self, *exc: object) -> None:
@@ -344,6 +348,11 @@ class Resolver:
         if self._wildcard_task is None:
             self._wildcard_task = asyncio.create_task(self._probe_wildcard())
         return await self._wildcard_task
+
+    @property
+    def target_favicon(self) -> int | None:
+        """Favicon hash of the target, fetched once on entry; None when unavailable."""
+        return self._target_favicon
 
     @property
     def target_title(self) -> str | None:
@@ -494,6 +503,11 @@ class Resolver:
         worst case), not by the bomb's full unpacked size, which is what keeps
         this safe in practice.
         """
+        return (await Resolver._read_capped_bytes(resp)).decode("utf-8", "replace")
+
+    @staticmethod
+    async def _read_capped_bytes(resp: httpx.Response) -> bytes:
+        """The raw-bytes half of _read_capped, for binary bodies (favicons)."""
         chunks: list[bytes] = []
         total = 0
         async for chunk in resp.aiter_bytes():
@@ -501,7 +515,30 @@ class Resolver:
             total += len(chunk)
             if total >= _MAX_BODY_BYTES:
                 break
-        return b"".join(chunks)[:_MAX_BODY_BYTES].decode("utf-8", "replace")
+        return b"".join(chunks)[:_MAX_BODY_BYTES]
+
+    async def _favicon(self, domain: str) -> int | None:
+        """Shodan-style hash of *domain*'s /favicon.ico, or None when there is none.
+
+        Must run after _probe() pinned *domain* to a vetted IP: the request goes
+        through the same SSRF-safe transport. Only /favicon.ico is tried, not
+        <link rel=icon> targets.
+        ponytail: add the <link rel=icon> lookup if kits move their icon off the root.
+        """
+        if self._http is None:
+            return None
+        for scheme in ("https", "http"):
+            try:
+                async with asyncio.timeout(_HTTP_DEADLINE):
+                    async with self._http.stream("GET", f"{scheme}://{domain}/favicon.ico") as resp:
+                        if resp.status_code != 200:
+                            continue
+                        data = await self._read_capped_bytes(resp)
+            except (httpx.HTTPError, OSError, TimeoutError) as exc:
+                _log.debug("favicon %s://%s failed: %r", scheme, domain, exc)
+                continue
+            return favicon.shodan_hash(data) if favicon.looks_like_icon(data) else None
+        return None
 
     async def _probe_http(
         self, domain: str
@@ -665,6 +702,8 @@ class Resolver:
                     result.server_header = server
                     result.redirects_to = redirect
                     result.page_title = title
+                    if status is not None and 200 <= status < 300:
+                        result.favicon_hash = await self._favicon(perm.domain)
 
                 if result.is_registered:
                     ns, (result.has_spf, _) = await asyncio.gather(

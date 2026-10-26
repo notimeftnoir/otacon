@@ -51,6 +51,8 @@ class ScoringWeights:
         self.points_age_new = 12
         self.points_age_recent = 5
         self.points_cloned_title = 25
+        # Byte-identical favicon: kits copy it from the real site.
+        self.points_favicon = 20
         # Someone already reported it as phishing: the strongest single signal.
         self.points_intel = 40
 
@@ -329,6 +331,7 @@ def score(
     target: str = "",
     weights: ScoringWeights | None = None,
     target_title: str | None = None,
+    target_favicon: int | None = None,
 ) -> DomainResult:
     """Computes risk_score, risk_level, reasons, and is_likely_defensive. Mutates and returns."""
     if not result.is_registered:
@@ -356,6 +359,9 @@ def score(
     points += _redirect_points(result, reasons, weights)
     points += _age_points(result, reasons, weights)
     points += _title_points(result, reasons, weights, target_title)
+    if result.favicon_hash is not None and result.favicon_hash == target_favicon:
+        points += weights.points_favicon
+        reasons.append(f"serves your site's exact favicon (+{weights.points_favicon})")
     if result.intel_sources:
         points += weights.points_intel
         reasons.append(

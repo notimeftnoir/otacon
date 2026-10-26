@@ -506,6 +506,7 @@ class _FakeResolver:
 
     def __init__(self, concurrency, check_http, target, check_whois=True, nameservers=None) -> None:
         self.target_title = None
+        self.target_favicon = None
 
     async def __aenter__(self) -> _FakeResolver:
         return self

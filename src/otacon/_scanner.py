@@ -171,7 +171,9 @@ async def run_scan(
                 and await intel.urlhaus_listed(intel_client, result.domain, urlhaus_key)
             ):
                 result.intel_sources = [*result.intel_sources, "URLhaus"]
-            scored = scoring.score(result, target, weights, resolver.target_title)
+            scored = scoring.score(
+                result, target, weights, resolver.target_title, resolver.target_favicon
+            )
             report.results.append(scored)
             if scored.is_registered:
                 hits.append(scored)
