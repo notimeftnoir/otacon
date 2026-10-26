@@ -132,6 +132,12 @@ module = [
     "test_theme",
     "test_validate",
     "test_whois",
+    "test_detection",
+    "test_intel",
+    "test_mail",
+    "test_favicon",
+    "test_ct",
+    "conftest",
 ]
 ignore_errors = true
 
