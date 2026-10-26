@@ -40,8 +40,8 @@ jobs:
         # reproducible and tamper-evident. The editable project install is a
         # separate command because a local path cannot be hash-pinned.
         run: |
-          pip install --require-hashes -r requirements-dev.txt
-          pip install -e . --no-deps
+          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip install -e . --no-deps
 
       - name: Lint (ruff)
         run: ruff check .
@@ -80,7 +80,7 @@ jobs:
         # pip-audit lives in the hash-pinned dev lock; installing through it
         # keeps this step tamper-evident. It audits requirements.txt as a file,
         # so the extra packages in the environment do not affect the result.
-        run: pip install --require-hashes -r requirements-dev.txt
+        run: python -m pip install --require-hashes -r requirements-dev.txt
 
       - name: Audit pinned dependencies
         run: pip-audit -r requirements.txt
@@ -101,7 +101,7 @@ jobs:
       - name: Install build
         # build lives in the hash-pinned dev lock; installing through it keeps
         # this step tamper-evident without a separate single-tool lock file.
-        run: pip install --require-hashes -r requirements-dev.txt
+        run: python -m pip install --require-hashes -r requirements-dev.txt
 
       - name: Build wheel + sdist
         run: python -m build
@@ -130,7 +130,7 @@ jobs:
         # from requirements.txt as a file (not the live environment), so no
         # project/runtime install is needed here; --pyproject adds otacon
         # itself as the SBOM's root component.
-        run: pip install --require-hashes -r requirements-dev.txt
+        run: python -m pip install --require-hashes -r requirements-dev.txt
 
       - name: Generate SBOM (JSON)
         run: cyclonedx-py requirements requirements.txt --pyproject pyproject.toml --output-format JSON --output-file otacon-sbom.cdx.json
