@@ -66,7 +66,7 @@ def _strip_unsafe_chars(text: str) -> str:
     """Strips control/format/line-separator characters a hostile HTTP response
     could use to inject terminal escape sequences or spoof/hide displayed text —
     applied to any attacker-controlled string printed verbatim (page title,
-    redirect Location header)."""
+    Location and Server headers, certificate issuer CN, MX hosts)."""
     return "".join(
         ch for ch in text if ch in _CF_ALLOWED or unicodedata.category(ch) not in _UNSAFE_CATEGORIES
     )
@@ -301,7 +301,8 @@ class Resolver:
         """Returns MX records. Presence = the domain can send/receive mail."""
         try:
             records = await self._dns.query(domain, "MX")
-            return [r.host for r in records]
+            # A hostile zone controls these labels; they are printed verbatim.
+            return [_strip_unsafe_chars(r.host) for r in records]
         except Exception as exc:
             _log.debug("MX lookup failed for %s: %r", domain, exc)
             return []
@@ -375,7 +376,9 @@ class Resolver:
         cn_attrs = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
         if cn_attrs:
             raw = cn_attrs[0].value
-            issuer_cn = raw if isinstance(raw, str) else raw.decode("utf-8", "replace")
+            issuer_cn = _strip_unsafe_chars(
+                raw if isinstance(raw, str) else raw.decode("utf-8", "replace")
+            )
 
         age_days: int | None = (datetime.now(UTC) - cert.not_valid_before_utc).days
 
@@ -435,6 +438,8 @@ class Resolver:
                 if location is not None:
                     location = _strip_unsafe_chars(location)[:_REDIRECT_MAX]
                 server = resp.headers.get("server")
+                if server is not None:
+                    server = _strip_unsafe_chars(server)
                 title: str | None = None
                 if 200 <= resp.status_code < 300:
                     title = _parse_title(await self._read_capped(resp))

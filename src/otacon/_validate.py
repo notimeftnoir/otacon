@@ -107,7 +107,10 @@ def first_safe_ip(ips: list[str]) -> str | None:
         except ValueError:
             continue
         if (
-            ip.is_private
+            # is_global also rejects 100.64.0.0/10 (CGNAT, Tailscale tailnets)
+            # and other non-routable ranges that is_private alone lets through.
+            not ip.is_global
+            or ip.is_private
             or ip.is_loopback
             or ip.is_link_local
             or ip.is_multicast

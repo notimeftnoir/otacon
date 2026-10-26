@@ -242,3 +242,10 @@ def test_parse_redirect_normalises_host_and_reports_scheme() -> None:
     assert parse_redirect("https://EXAMPLE.com./path") == ("example.com", "https")
     # A relative Location has neither host nor scheme — how same-origin is spotted.
     assert parse_redirect("/login") == ("", "")
+
+
+def test_first_safe_ip_rejects_cgnat_shared_space() -> None:
+    """100.64.0.0/10 is neither is_private nor public — Tailscale and carrier
+    NAT live there, so a hostile DNS answer must not route a probe into it."""
+    assert first_safe_ip(["100.64.0.1"]) is None
+    assert first_safe_ip(["100.100.100.100"]) is None

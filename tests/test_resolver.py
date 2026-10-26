@@ -502,6 +502,13 @@ def test_inspect_cert_no_san_extension():
     assert san_match is None
 
 
+def test_inspect_cert_strips_escape_sequences_from_issuer():
+    """The issuer CN of a self-signed lookalike cert is attacker-controlled."""
+    der = _make_der_cert(issuer_cn="Evil[2J CA")
+    issuer, _, _ = Resolver._inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
+    assert issuer == "Evil[2J CA"
+
+
 def test_inspect_cert_issuer_without_cn():
     der = _make_der_cert(issuer_cn=None)
     issuer, age, _ = Resolver._inspect_cert(_cert_none_ssl_obj(der), "x.example.com")
