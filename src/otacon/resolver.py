@@ -28,6 +28,7 @@ from typing import Any, Literal
 import aiodns
 import httpcore
 import httpx
+import pycares
 from cryptography import x509
 from cryptography.utils import CryptographyDeprecationWarning
 from cryptography.x509.oid import NameOID
@@ -106,6 +107,32 @@ def _san_covers_host(host: str, name: str) -> bool:
 # descriptor exhaustion.
 DEFAULT_CONCURRENCY = 50
 _DNS_TIMEOUT = 3.0
+# DNS queries in flight at once, across all variants. Each variant fires A,
+# AAAA and MX together, so 50 concurrent variants burst ~150 queries; measured
+# on example.com's 717 queries through a home router, an unbounded burst lost
+# 590 of them to timeouts and 32 in flight lost 8.
+_DNS_INFLIGHT = 32
+# Retries for a query the server never answered. Answers that say "no" are
+# final and never retried (see _DNS_TRANSIENT).
+_DNS_RETRIES = 2
+_DNS_BACKOFF = 0.25
+# c-ares codes meaning "no usable answer arrived", as opposed to ENOTFOUND
+# (NXDOMAIN) and ENODATA (name exists, no such record), which are answers.
+_DNS_TRANSIENT = frozenset(
+    {
+        pycares.errno.ARES_ETIMEOUT,
+        pycares.errno.ARES_ESERVFAIL,
+        pycares.errno.ARES_EREFUSED,
+        pycares.errno.ARES_ECONNREFUSED,
+        pycares.errno.ARES_EOF,
+    }
+)
+_QTYPE = {
+    "A": pycares.QUERY_TYPE_A,
+    "AAAA": pycares.QUERY_TYPE_AAAA,
+    "MX": pycares.QUERY_TYPE_MX,
+    "TXT": pycares.QUERY_TYPE_TXT,
+}
 _HTTP_TIMEOUT = 4.0
 # Port probed for a served TLS certificate — a named constant alongside the
 # other network tunables rather than a literal buried in _check_ssl.
@@ -178,6 +205,7 @@ class Resolver:
         check_http: bool = True,
         target: str = "",
         check_whois: bool = True,
+        nameservers: list[str] | None = None,
     ) -> None:
         self._concurrency = concurrency
         self._sem = asyncio.Semaphore(concurrency)
@@ -186,7 +214,13 @@ class Resolver:
         # so a pool of live hostile lookalikes can't blow past the OS fd cap.
         self._tls_sem = asyncio.Semaphore(concurrency)
         self._whois_sem = asyncio.Semaphore(4)
-        self._dns = aiodns.DNSResolver(timeout=_DNS_TIMEOUT, tries=1)
+        # None = the system resolver, which honours corporate / split-horizon
+        # DNS. Home-router DNS proxies drop bursts, hence --resolver.
+        self._dns = aiodns.DNSResolver(nameservers=nameservers, timeout=_DNS_TIMEOUT, tries=1)
+        self._dns_sem = asyncio.Semaphore(_DNS_INFLIGHT)
+        # Names whose lookups still failed transiently after all retries:
+        # "unknown", which must not be reported as "not registered".
+        self._dns_inconclusive: set[str] = set()
         self._check_http = check_http
         self._check_whois = check_whois
         self.target = target
@@ -245,16 +279,35 @@ class Resolver:
         if self._http is not None:
             await self._http.aclose()
 
+    async def _lookup(self, domain: str, rtype: Literal["A", "AAAA", "MX", "TXT"]) -> list[Any]:
+        """Record data of type *rtype* for *domain*; [] when there is none.
+
+        Bounded by _DNS_INFLIGHT. A query the server never answered is retried
+        with backoff; if it still fails, *domain* is noted as inconclusive so
+        the report can say "unknown" instead of "not registered".
+        """
+        for attempt in range(_DNS_RETRIES + 1):
+            try:
+                async with self._dns_sem:
+                    result = await self._dns.query_dns(domain, rtype)
+            except Exception as exc:
+                code = exc.args[0] if exc.args and isinstance(exc.args[0], int) else None
+                if code not in _DNS_TRANSIENT:
+                    _log.debug("%s lookup for %s: %r", rtype, domain, exc)
+                    return []
+                if attempt == _DNS_RETRIES:
+                    _log.debug("%s lookup for %s gave up: %r", rtype, domain, exc)
+                    self._dns_inconclusive.add(domain)
+                    return []
+                await asyncio.sleep(_DNS_BACKOFF * 2**attempt)
+            else:
+                # The answer section also carries the CNAME chain; keep rtype only.
+                return [rec.data for rec in result.answer if rec.type == _QTYPE[rtype]]
+        return []  # unreachable: the loop always returns
+
     async def _query_ips(self, domain: str, rtype: Literal["A", "AAAA"]) -> list[str]:
-        """Runs a single A or AAAA query; returns IPs or [] on any DNS error."""
-        try:
-            records = await self._dns.query(domain, rtype)
-            return [r.host for r in records]
-        except Exception as exc:
-            # pycares.AresError is not a subclass of aiodns.error.DNSError in all
-            # versions, so we catch broadly — DNS queries are fire-and-forget.
-            _log.debug("%s lookup failed for %s: %r", rtype, domain, exc)
-            return []
+        """Runs a single A or AAAA query; returns IPs or [] when there are none."""
+        return [rec.addr for rec in await self._lookup(domain, rtype)]
 
     async def _resolve_a(self, domain: str) -> list[str]:
         """Returns IPv4 + IPv6 addresses (A and AAAA). Empty = does not resolve.
@@ -304,13 +357,8 @@ class Resolver:
 
     async def _resolve_mx(self, domain: str) -> list[str]:
         """Returns MX records. Presence = the domain can send/receive mail."""
-        try:
-            records = await self._dns.query(domain, "MX")
-            # A hostile zone controls these labels; they are printed verbatim.
-            return [_strip_unsafe_chars(r.host) for r in records]
-        except Exception as exc:
-            _log.debug("MX lookup failed for %s: %r", domain, exc)
-            return []
+        # A hostile zone controls these labels; they are printed verbatim.
+        return [_strip_unsafe_chars(rec.exchange) for rec in await self._lookup(domain, "MX")]
 
     async def _check_ssl(
         self, domain: str, ip: str
@@ -572,6 +620,8 @@ class Resolver:
                 result.resolves = bool(ips)
                 result.mx_records = mx
                 result.has_mx = bool(mx)
+                # Any answer settles registration; only total silence is unknown.
+                result.dns_inconclusive = not (ips or mx) and perm.domain in self._dns_inconclusive
 
                 # SSL and HTTP only make sense when there's an IP to connect to.
                 if result.resolves and self._check_http:

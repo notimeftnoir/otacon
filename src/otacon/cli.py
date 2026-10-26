@@ -244,6 +244,18 @@ def _load_domains(raw: list[str], file: Path | None) -> list[str]:
     return result
 
 
+def _validate_resolvers(values: list[str] | None) -> list[str]:
+    """Typer callback: every --resolver must be a literal IPv4/IPv6 address."""
+    import ipaddress
+
+    for v in values or []:
+        try:
+            ipaddress.ip_address(v)
+        except ValueError as exc:
+            raise typer.BadParameter(f"not an IP address: {v}") from exc
+    return values or []
+
+
 def _load_weights(file: Path | None) -> scoring.ScoringWeights:
     """Loads custom scoring weights from a JSON file if provided."""
     if not file:
@@ -268,6 +280,7 @@ async def _run_scan(
     quiet: bool = False,
     weights: scoring.ScoringWeights | None = None,
     check_whois: bool = True,
+    nameservers: list[str] | None = None,
 ) -> ScanReport:
     """Runs a full scan; streams registered hits into a live table as they arrive."""
     return await run_scan(
@@ -279,6 +292,7 @@ async def _run_scan(
         weights=weights,
         show_progress=not quiet,
         check_whois=check_whois,
+        nameservers=nameservers,
     )
 
 
@@ -356,6 +370,14 @@ def scan(
         "--no-whois",
         help="Skip WHOIS / domain-age lookups (faster, avoids registry rate-limits).",
         rich_help_panel=_NET,
+    ),
+    resolvers: list[str] = typer.Option(
+        None,
+        "--resolver",
+        "-r",
+        help="DNS server IP to use instead of the system one; repeatable."
+        " Try 1.1.1.1 if your router drops queries.",
+        callback=_validate_resolvers,
     ),
     concurrency: int = typer.Option(
         50,
@@ -436,6 +458,7 @@ def scan(
                     quiet=quiet,
                     weights=weights,
                     check_whois=not no_whois,
+                    nameservers=resolvers or None,
                 )
             )
         except KeyboardInterrupt:

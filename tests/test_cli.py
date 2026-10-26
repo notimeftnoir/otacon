@@ -504,7 +504,7 @@ class _FakeResolver:
 
     dns_hijack_detected = False
 
-    def __init__(self, concurrency, check_http, target, check_whois=True) -> None:
+    def __init__(self, concurrency, check_http, target, check_whois=True, nameservers=None) -> None:
         self.target_title = None
 
     async def __aenter__(self) -> _FakeResolver:
@@ -607,6 +607,7 @@ def test_scan_no_whois_flag_passed_to_scan(monkeypatch) -> None:
         quiet=False,
         weights=None,
         check_whois=True,
+        nameservers=None,
     ):
         called_kwargs["check_whois"] = check_whois
         return ScanReport(target=domain, total_permutations=0)
@@ -937,3 +938,26 @@ def test_help_option_names_survive_forced_colour(monkeypatch) -> None:
 
     assert "--fail-on" in plain(result.output)
     assert "--domains-file" in plain(result.output)
+
+
+def test_scan_resolver_flag_reaches_the_scan(monkeypatch) -> None:
+    from otacon.models import ScanReport
+
+    seen: dict[str, object] = {}
+
+    async def fake_run_scan(target, concurrency, check_http, **kw):
+        seen.update(kw)
+        return ScanReport(target=target, total_permutations=0)
+
+    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    result = CliRunner().invoke(
+        app, ["scan", "google.com", "--resolver", "1.1.1.1", "-r", "2606:4700:4700::1111"]
+    )
+    assert result.exit_code == 0
+    assert seen["nameservers"] == ["1.1.1.1", "2606:4700:4700::1111"]
+
+
+def test_scan_resolver_flag_rejects_a_hostname() -> None:
+    result = CliRunner().invoke(app, ["scan", "google.com", "--resolver", "dns.google"])
+    assert result.exit_code == 2
+    assert "not an IP address" in result.output

@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `--no-whois` CLI flag to bypass WHOIS / RDAP lookups, preventing registry rate-limits and IP blocking during high-volume scans.
 - European ccTLDs (`.pl`, `.de`, `.uk`, `.eu`, `.fr`) to `_ALT_TLDS` mutation table.
+- `--resolver` / `-r` to query specific DNS servers instead of the system resolver.
+- `dns_inconclusive` per result and a warning when DNS never answered a variant: its status is
+  unknown, which is no longer reported as "not registered".
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).
 - Verdict card at the end of every scan: plain-language headline, risk distribution bar
   and counts. Each table row now lists the domain's two strongest reasons.
@@ -31,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a transitive dependency via `tldextract`) requires Python 3.11+.
 
 ### Fixed
+- DNS false negatives: every query that timed out counted as "not registered". Queries are now
+  capped at 32 in flight and retried on timeout/SERVFAIL/REFUSED (NXDOMAIN is final). On
+  `example.com` through 1.1.1.1 this finds 84-85 registered variants on every run instead of 73-78.
 - Fixed critical defensive detection bypass where domains redirecting to target were cleared to 0 risk despite having active MX mail servers.
 - Fixed asymmetric timeout in `Resolver._probe_http`: when HTTP answers first, HTTPS now gets a 2 s grace window instead of the full 15 s deadline, so a firewalled port 443 no longer stalls the scan while a fast `301 → https` still yields the HTTPS page title.
 - Enforced deterministic result sorting in scan reports (`-risk_score`, `domain`) for clean CI artifact diffing.

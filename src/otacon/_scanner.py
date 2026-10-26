@@ -83,6 +83,7 @@ async def run_scan(
     weights: scoring.ScoringWeights | None = None,
     show_progress: bool = True,
     check_whois: bool = True,
+    nameservers: list[str] | None = None,
 ) -> ScanReport:
     """Scans every permutation of *target* and returns the scored report.
 
@@ -117,6 +118,7 @@ async def run_scan(
                 check_http=check_http,
                 target=target,
                 check_whois=check_whois,
+                nameservers=nameservers,
             )
         )
 
@@ -146,4 +148,10 @@ async def run_scan(
         )
     if report.dns_hijack_detected:
         console.print(_HIJACK_WARNING)
+    if report.inconclusive:
+        console.print(
+            f"[warn]⚠  {len(report.inconclusive)} variant(s) got no DNS answer even after"
+            " retries, so whether they are registered is unknown. Your DNS server is"
+            " likely dropping queries: re-run with --resolver 1.1.1.1.[/warn]"
+        )
     return report

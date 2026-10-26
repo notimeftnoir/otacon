@@ -7,7 +7,9 @@ import ssl
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiodns
 import httpx
+import pycares
 import pytest
 import respx
 
@@ -970,44 +972,93 @@ def test_pinned_http_transport_wires_backend_into_pool():
 
 
 # ---------------------------------------------------------------------------
-# _query_ips / _resolve_mx — the raw aiodns.query() wrappers behind
-# _resolve_a / _resolve_mx. Every other test mocks these away entirely; these
-# exercise the actual success and exception-swallowing branches.
+# _lookup and its wrappers (_query_ips / _resolve_mx) over aiodns.query_dns().
+# Every other test mocks these away entirely; these exercise the real parsing,
+# retry and inconclusive-marking branches.
 # ---------------------------------------------------------------------------
+
+_NXDOMAIN = aiodns.error.DNSError(pycares.errno.ARES_ENOTFOUND, "Domain name not found")
+_TIMEOUT = aiodns.error.DNSError(pycares.errno.ARES_ETIMEOUT, "Timeout while contacting DNS")
+
+
+def _answer(*records: tuple[int, object]) -> MagicMock:
+    """A query_dns() result whose answer section holds (type, data) records."""
+    return MagicMock(answer=[MagicMock(type=t, data=d) for t, d in records])
+
+
+@pytest.fixture
+def no_backoff(monkeypatch):
+    monkeypatch.setattr("otacon.resolver._DNS_BACKOFF", 0)
 
 
 @pytest.mark.asyncio
-async def test_query_ips_returns_hosts_from_records():
+async def test_query_ips_returns_addresses_and_drops_the_cname_chain():
     r = Resolver()
-    records = [MagicMock(host="1.2.3.4"), MagicMock(host="1.2.3.5")]
-    with patch.object(r._dns, "query", new_callable=AsyncMock, return_value=records):
+    reply = _answer(
+        (pycares.QUERY_TYPE_CNAME, MagicMock(cname="edge.example.net")),
+        (pycares.QUERY_TYPE_A, MagicMock(addr="1.2.3.4")),
+        (pycares.QUERY_TYPE_A, MagicMock(addr="1.2.3.5")),
+    )
+    with patch.object(r._dns, "query_dns", new_callable=AsyncMock, return_value=reply):
         ips = await r._query_ips("example.com", "A")
     assert ips == ["1.2.3.4", "1.2.3.5"]
 
 
 @pytest.mark.asyncio
-async def test_query_ips_swallows_any_exception():
+async def test_resolve_mx_returns_exchange_hosts():
     r = Resolver()
-    with patch.object(r._dns, "query", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
-        ips = await r._query_ips("example.com", "AAAA")
-    assert ips == []
-
-
-@pytest.mark.asyncio
-async def test_resolve_mx_returns_hosts_from_records():
-    r = Resolver()
-    records = [MagicMock(host="mail.example.com")]
-    with patch.object(r._dns, "query", new_callable=AsyncMock, return_value=records):
+    reply = _answer((pycares.QUERY_TYPE_MX, MagicMock(exchange="mail.example.com")))
+    with patch.object(r._dns, "query_dns", new_callable=AsyncMock, return_value=reply):
         mx = await r._resolve_mx("example.com")
     assert mx == ["mail.example.com"]
 
 
 @pytest.mark.asyncio
-async def test_resolve_mx_swallows_any_exception():
+async def test_lookup_nxdomain_is_an_answer_not_retried(no_backoff):
     r = Resolver()
-    with patch.object(r._dns, "query", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
-        mx = await r._resolve_mx("example.com")
-    assert mx == []
+    mock = AsyncMock(side_effect=_NXDOMAIN)
+    with patch.object(r._dns, "query_dns", mock):
+        assert await r._lookup("nope.example", "A") == []
+    assert mock.await_count == 1
+    assert "nope.example" not in r._dns_inconclusive
+
+
+@pytest.mark.asyncio
+async def test_lookup_retries_a_timeout_until_it_answers(no_backoff):
+    r = Resolver()
+    reply = _answer((pycares.QUERY_TYPE_A, MagicMock(addr="1.2.3.4")))
+    mock = AsyncMock(side_effect=[_TIMEOUT, _TIMEOUT, reply])
+    with patch.object(r._dns, "query_dns", mock):
+        assert await r._query_ips("slow.example", "A") == ["1.2.3.4"]
+    assert mock.await_count == 3
+    assert "slow.example" not in r._dns_inconclusive
+
+
+@pytest.mark.asyncio
+async def test_lookup_marks_inconclusive_when_retries_run_out(no_backoff):
+    r = Resolver()
+    with patch.object(r._dns, "query_dns", AsyncMock(side_effect=_TIMEOUT)):
+        assert await r._lookup("dead.example", "MX") == []
+    assert "dead.example" in r._dns_inconclusive
+
+
+@pytest.mark.asyncio
+async def test_lookup_swallows_unexpected_errors_without_retrying(no_backoff):
+    r = Resolver()
+    mock = AsyncMock(side_effect=RuntimeError("boom"))
+    with patch.object(r._dns, "query_dns", mock):
+        assert await r._lookup("x.example", "AAAA") == []
+    assert mock.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_check_one_reports_silence_as_inconclusive_not_unregistered(no_backoff):
+    perm = Permutation(domain="silent.example", kind=PermutationType.TYPO)
+    async with Resolver(check_http=False, check_whois=False) as r:
+        with patch.object(r._dns, "query_dns", AsyncMock(side_effect=_TIMEOUT)):
+            result = await r.check_one(perm)
+    assert result.is_registered is False
+    assert result.dns_inconclusive is True
 
 
 # ---------------------------------------------------------------------------

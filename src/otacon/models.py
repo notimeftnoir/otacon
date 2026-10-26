@@ -66,6 +66,9 @@ class DomainResult(BaseModel):
     http_status: int | None = None  # HTTP(S) response
     server_header: str | None = None
     redirects_to: str | None = None
+    # No DNS answer at all, even after retries: registration is unknown, which
+    # is not the same as "not registered".
+    dns_inconclusive: bool = False
 
     # Page title — parsed from HTML body on 2xx responses; None when absent/failed.
     page_title: str | None = None
@@ -103,6 +106,11 @@ class ScanReport(BaseModel):
     def registered(self) -> list[DomainResult]:
         """Only variants that actually exist (worth attention)."""
         return [r for r in self.results if r.is_registered]
+
+    @property
+    def inconclusive(self) -> list[DomainResult]:
+        """Variants whose DNS never answered — possibly registered, unverified."""
+        return [r for r in self.results if r.dns_inconclusive]
 
     @property
     def threats(self) -> list[DomainResult]:

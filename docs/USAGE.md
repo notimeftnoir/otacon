@@ -10,6 +10,7 @@ otacon scan example.com                       # one-shot scan, all signals
 otacon scan example.com --no-http             # DNS only — faster, fewer signals
 otacon scan example.com --all                 # include unregistered variants
 otacon scan example.com --concurrency 100     # crank concurrency (default 50)
+otacon scan example.com --resolver 1.1.1.1    # bypass a router DNS that drops queries
 otacon scan example.com --exclude "alias.com,brand.io"
 otacon scan example.com --exclude-file allowed.txt
 otacon scan example.com --json r.json --html r.html --markdown r.md --csv r.csv
@@ -63,6 +64,7 @@ the JSON on stdout clean and puts every degradation event in `debug.log`.
 | `--no-http` | off | Skip HTTP & TLS probing. DNS+MX+WHOIS only. Disables the `»` defensive flag. |
 | `--all` | off | Show unregistered variants in the output. |
 | `-c`, `--concurrency` | `50` | Max concurrent DNS/HTTP checks. Raise carefully — your resolver may rate-limit. |
+| `-r`, `--resolver` | system | DNS server IP to query instead of the system resolver; repeatable. Home-router DNS proxies often drop bursts of queries, which shows up as *inconclusive* variants; `--resolver 1.1.1.1` fixes that. |
 | `-x`, `--exclude` | — | Comma-separated whitelist: `--exclude "alias.com,brand.io"` |
 | `--exclude-file` | — | Path to a file with one domain per line. `#` starts a comment. |
 | `--domains-file`, `-D` | — | File with one domain per line (`#` = comment) — scan many targets in one run. |
