@@ -44,7 +44,7 @@ pipx install otacon      # isolated global install (recommended)
 pip install otacon       # or into an active virtualenv
 ```
 
-Python 3.10–3.13 on Linux, macOS or Windows. No system libraries are needed:
+Python 3.11–3.13 on Linux, macOS or Windows. No system libraries are needed:
 the DNS engine (`pycares`) ships prebuilt wheels with `c-ares` built in.
 
 ## Quick start

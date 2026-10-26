@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -664,12 +665,12 @@ def test_action_loop_called_after_render_in_interactive_scan():
 
 def test_show_whois_uses_cached_data_without_fetch():
     """_show_whois shows cached created_at from the result — no WHOIS lookup."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
-        created_at=datetime(2024, 3, 1, tzinfo=timezone.utc),
+        created_at=datetime(2024, 3, 1, tzinfo=UTC),
         age_days=90,
     )
     with patch("otacon.interactive.fetch_domain_age") as mock_fetch:
@@ -681,12 +682,12 @@ def test_show_whois_uses_cached_data_without_fetch():
 
 def test_show_whois_fetches_when_no_cache():
     """_show_whois fetches WHOIS when created_at is None."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
 
     async def _fake_fetch(domain):
-        return (datetime(2024, 1, 1, tzinfo=timezone.utc), 150)
+        return (datetime(2024, 1, 1, tzinfo=UTC), 150)
 
     with patch("otacon.interactive.fetch_domain_age", _fake_fetch):
         console = MagicMock()
@@ -710,12 +711,12 @@ def test_show_whois_shows_unavailable_on_failed_lookup():
 
 def test_show_whois_prints_ips_and_mx_records():
     """IPs and MX records are printed (capped at 3) when present on the result."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
-        created_at=datetime(2024, 3, 1, tzinfo=timezone.utc),
+        created_at=datetime(2024, 3, 1, tzinfo=UTC),
         age_days=90,
         ip_addresses=["1.2.3.4", "1.2.3.5"],
         mx_records=["mail.googel.com"],

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import webbrowser
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -444,7 +444,7 @@ def _handle_takedown(ctx: _ActionContext) -> str:
     """Generates an abuse takedown notice template with all collected evidence."""
     r = ctx.selected
     defanged = r.domain.replace(".", "[.]")
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     ips_str = ", ".join(r.ip_addresses) if r.ip_addresses else "N/A"
     mx_str = ", ".join(r.mx_records) if r.has_mx else "None detected"

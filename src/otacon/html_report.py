@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import html
-from datetime import timezone
+from datetime import UTC
 from urllib.parse import quote
 
 from ._validate import parse_redirect
@@ -361,7 +361,7 @@ def _table_html(rows: list[DomainResult], prefix: str = "f") -> str:
 def to_html(report: ScanReport) -> str:
     """Returns a complete self-contained HTML document for the scan report."""
     target = _h(report.target)
-    started = report.started_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    started = report.started_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     rows = sorted(report.registered, key=lambda r: r.risk_score, reverse=True)
     threats = report.threats
@@ -431,9 +431,9 @@ def to_html(report: ScanReport) -> str:
 
 def aggregate_html(reports: dict[str, ScanReport]) -> str:
     """Returns a self-contained HTML document aggregating results for all scanned domains."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    started = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    started = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     total_registered = sum(len(r.registered) for r in reports.values())
 
     summary_rows = ""

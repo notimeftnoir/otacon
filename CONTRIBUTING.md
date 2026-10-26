@@ -55,7 +55,7 @@ bandit -r src/otacon -ll -ii   # security lint
 interrogate -c pyproject.toml src/otacon   # docstring coverage
 ```
 
-All checks must pass before a PR is merged, on Python 3.10–3.13 and on Linux,
+All checks must pass before a PR is merged, on Python 3.11–3.13 and on Linux,
 macOS and Windows.
 
 ## Pull requests
@@ -67,7 +67,7 @@ macOS and Windows.
 
 ## Code style
 
-- Python 3.10+, type-annotated throughout
+- Python 3.11+, type-annotated throughout
 - `ruff` enforces style (line length 100; rule sets E, W, F, I, UP, B, N, S, SIM and RUF —
   see `[tool.ruff.lint]` in `pyproject.toml` for the exact selection and the documented ignores)
 - No unnecessary comments — code should be self-explanatory; add a comment only when the *why* is non-obvious

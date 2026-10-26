@@ -15,6 +15,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+from datetime import UTC
 
 from rich.console import Console
 from rich.table import Table
@@ -265,10 +266,10 @@ def aggregate_json(reports: dict[str, ScanReport]) -> str:
     total_permutations, results, dns_hijack_detected) — not a bare list of DomainResult dicts.
     """
     import json
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     payload = {
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": datetime.now(UTC).isoformat(),
         "domains": {
             domain: json.loads(report.model_dump_json()) for domain, report in reports.items()
         },

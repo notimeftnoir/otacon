@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import StringIO
 
 from otacon.models import DomainResult, PermutationType, ScanReport
@@ -264,7 +264,7 @@ def test_render_table_age_none_does_not_crash():
 
 
 def test_json_export_includes_created_at():
-    created = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    created = datetime(2024, 1, 15, tzinfo=UTC)
     report = ScanReport(target="example.com", total_permutations=5)
     r = DomainResult(
         domain="exmaple.com",

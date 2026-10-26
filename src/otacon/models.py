@@ -9,7 +9,7 @@ serialization (report export with no extra code).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -92,7 +92,7 @@ class ScanReport(BaseModel):
     """Complete scan report — root of the JSON export object."""
 
     target: str
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     total_permutations: int = 0
     results: list[DomainResult] = Field(default_factory=list)
     # True when the local resolver answered a random nonexistent domain —

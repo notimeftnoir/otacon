@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -71,7 +70,7 @@ def test_format_age_zero():
 
 @pytest.mark.asyncio
 async def test_fetch_domain_age_returns_creation_date_and_age():
-    creation = datetime.now(timezone.utc) - timedelta(days=10)
+    creation = datetime.now(UTC) - timedelta(days=10)
     # aio_whois returns (query_output, parsed_dict)
     with patch("otacon.whois.asyncwhois.aio_whois", new_callable=AsyncMock) as mock_lookup:
         mock_lookup.return_value = ("raw whois text", {"created": creation})
@@ -84,7 +83,7 @@ async def test_fetch_domain_age_returns_creation_date_and_age():
 @pytest.mark.asyncio
 async def test_fetch_domain_age_returns_none_on_timeout():
     with patch("otacon.whois.asyncwhois.aio_whois", new_callable=AsyncMock) as mock_lookup:
-        mock_lookup.side_effect = asyncio.TimeoutError()
+        mock_lookup.side_effect = TimeoutError()
         created, age = await fetch_domain_age("example.com")
 
     assert created is None
@@ -134,7 +133,7 @@ async def test_fetch_domain_age_reports_future_date_as_unknown_age():
     nothing and renders "—", while the raw date is kept so the operator can see
     the WHOIS data itself was wrong.
     """
-    future_creation = datetime.now(timezone.utc) + timedelta(days=5)
+    future_creation = datetime.now(UTC) + timedelta(days=5)
     with patch("otacon.whois.asyncwhois.aio_whois", new_callable=AsyncMock) as mock_lookup:
         mock_lookup.return_value = ("raw whois text", {"created": future_creation})
         created, age = await fetch_domain_age("example.com")
@@ -149,7 +148,7 @@ async def test_future_creation_date_scores_no_age_points():
     from otacon.models import DomainResult, PermutationType
     from otacon.scoring import ScoringWeights, _age_points
 
-    future_creation = datetime.now(timezone.utc) + timedelta(days=5)
+    future_creation = datetime.now(UTC) + timedelta(days=5)
     with patch("otacon.whois.asyncwhois.aio_whois", new_callable=AsyncMock) as mock_lookup:
         mock_lookup.return_value = ("raw whois text", {"created": future_creation})
         _created, age = await fetch_domain_age("example.com")
@@ -163,8 +162,8 @@ async def test_future_creation_date_scores_no_age_points():
 @pytest.mark.asyncio
 async def test_fetch_domain_age_handles_list_of_datetimes():
     """asyncwhois returns a list for some TLDs — earliest date should be used."""
-    d1 = datetime(2021, 6, 1, tzinfo=timezone.utc)
-    d2 = datetime(2019, 3, 15, tzinfo=timezone.utc)  # earlier — should be picked
+    d1 = datetime(2021, 6, 1, tzinfo=UTC)
+    d2 = datetime(2019, 3, 15, tzinfo=UTC)  # earlier — should be picked
     with patch("otacon.whois.asyncwhois.aio_whois", new_callable=AsyncMock) as mock_lookup:
         mock_lookup.return_value = ("raw", {"created": [d1, d2]})
         created, age = await fetch_domain_age("example.info")
@@ -176,7 +175,7 @@ async def test_fetch_domain_age_handles_list_of_datetimes():
 @pytest.mark.asyncio
 async def test_fetch_domain_age_handles_list_with_non_datetime_entries():
     """List may contain non-datetime entries that should be filtered out."""
-    d = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    d = datetime(2020, 1, 1, tzinfo=UTC)
     with patch("otacon.whois.asyncwhois.aio_whois", new_callable=AsyncMock) as mock_lookup:
         mock_lookup.return_value = ("raw", {"created": ["not-a-date", None, d]})
         created, _age = await fetch_domain_age("example.info")
@@ -216,12 +215,12 @@ async def test_fetch_rdap_parses_registration_event():
         )
         created = await _fetch_rdap("example.com")
 
-    assert created == datetime(2023, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    assert created == datetime(2023, 1, 15, 10, 30, 0, tzinfo=UTC)
 
 
 @pytest.mark.asyncio
 async def test_fetch_domain_age_uses_rdap_first_without_whois():
-    fake_created = datetime.now(timezone.utc) - timedelta(days=25)
+    fake_created = datetime.now(UTC) - timedelta(days=25)
     with patch("otacon.whois._fetch_rdap", return_value=fake_created):
         with patch("otacon.whois.asyncwhois.aio_whois", new_callable=AsyncMock) as mock_whois:
             created, age = await fetch_domain_age("example.com")
