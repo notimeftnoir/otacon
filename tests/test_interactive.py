@@ -493,6 +493,24 @@ def test_action_loop_takedown_generates_report(tmp_path, monkeypatch):
     assert "googel[.]com" in content
 
 
+def test_action_loop_takedown_treats_page_title_as_literal_text():
+    """A hostile <title> such as ``[/]`` must not crash the notice or turn
+    into Rich markup (e.g. a clickable ``[link=…]``) in the user's terminal."""
+    from rich.console import Console
+
+    from otacon.theme import OTACON_THEME
+
+    r = _registered()
+    r.http_status = 200
+    r.page_title = "[/][link=https://evil.example]Login[/link]"
+    report = ScanReport(target="example.com", total_permutations=5, results=[r])
+    console = Console(record=True, width=200, theme=OTACON_THEME)
+    with patch("otacon.interactive.questionary") as mock_q:
+        mock_q.select.return_value.ask.side_effect = [r, "takedown", "back", "quit"]
+        _action_loop(report, "example.com", console, check_http=True)
+    assert "[/][link=https://evil.example]Login[/link]" in console.export_text()
+
+
 def test_action_loop_allow_removes_domain_from_next_iteration():
     """Allow adds domain to session whitelist → domain absent from next outer loop."""
     r = _registered()

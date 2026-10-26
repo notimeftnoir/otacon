@@ -18,6 +18,7 @@ from prompt_toolkit.validation import ValidationError, Validator
 from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
+from rich.text import Text
 
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
@@ -487,7 +488,9 @@ to prevent unauthorized brand impersonation, fraudulent communications, and cred
 targeting {ctx.target} users and customers.
 """
     ctx.console.print(
-        Panel(report_text, title="[brand]Abuse Takedown Notice[/brand]", border_style="brand")
+        # Text, not str: the notice embeds attacker-controlled strings (page
+        # title, cert issuer, MX hosts) that Rich would otherwise parse as markup.
+        Panel(Text(report_text), title="[brand]Abuse Takedown Notice[/brand]", border_style="brand")
     )
 
     action = questionary.select(
@@ -507,7 +510,7 @@ targeting {ctx.target} users and customers.
                     Path(safe_path).write_text(report_text, encoding="utf-8")
                     ctx.console.print(f"[ok]✓ Saved takedown request to {safe_path}[/ok]")
                 except OSError as exc:
-                    ctx.console.print(f"[danger]Error saving file: {exc}[/danger]")
+                    ctx.console.print(f"[danger]Error saving file: {escape(str(exc))}[/danger]")
             else:
                 ctx.console.print("[danger]Error: unsafe filename[/danger]")
 

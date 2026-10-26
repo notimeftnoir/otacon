@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - `certifi` 2026.10.23 (PYSEC-2026-4320) and `filelock` 4.2.4
   (CVE-2026-112907, CVE-2026-112913, CVE-2026-112940).
+- Takedown notice rendered attacker-controlled fields (page title, certificate issuer,
+  MX hosts) as Rich markup: a `<title>[/]</title>` crashed interactive mode and
+  `[link=…]` planted a clickable link in the terminal. Now printed as literal text.
+- HTTP/TLS probes no longer connect to non-global addresses that `is_private` misses,
+  notably `100.64.0.0/10` (carrier-grade NAT, Tailscale tailnets).
+- Terminal escape sequences are stripped from the certificate issuer CN, the `Server`
+  header and MX hostnames, as they already were from page titles and `Location`.
 
 ## [1.1.0] — 2026-10-14
 
