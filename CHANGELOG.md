@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--no-whois` CLI flag to bypass WHOIS / RDAP lookups, preventing registry rate-limits and IP blocking during high-volume scans.
+- European ccTLDs (`.pl`, `.de`, `.uk`, `.eu`, `.fr`) to `_ALT_TLDS` mutation table.
+- Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).
+
 ### Removed
 - **BREAKING:** dropped Python 3.10 support (EOL October 2026). Patched `filelock`
   (a transitive dependency via `tldextract`) requires Python 3.11+.
+
+### Fixed
+- Fixed critical defensive detection bypass where domains redirecting to target were cleared to 0 risk despite having active MX mail servers.
+- Fixed asymmetric timeout in `Resolver._probe_http`: when HTTP answers first, HTTPS now gets a 2 s grace window instead of the full 15 s deadline, so a firewalled port 443 no longer stalls the scan while a fast `301 → https` still yields the HTTPS page title.
+- Enforced deterministic result sorting in scan reports (`-risk_score`, `domain`) for clean CI artifact diffing.
+- Guarded against negative SSL certificate age scoring from future `notBefore` timestamps or clock skew.
 
 ### Security
 - `certifi` 2026.10.23 (PYSEC-2026-4320) and `filelock` 4.2.4

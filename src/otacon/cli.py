@@ -242,6 +242,7 @@ async def _run_scan(
     exclude: set[str] | None = None,
     quiet: bool = False,
     weights: scoring.ScoringWeights | None = None,
+    check_whois: bool = True,
 ) -> ScanReport:
     """Runs a full scan; streams registered hits into a live table as they arrive."""
     return await run_scan(
@@ -252,6 +253,7 @@ async def _run_scan(
         exclude=exclude,
         weights=weights,
         show_progress=not quiet,
+        check_whois=check_whois,
     )
 
 
@@ -278,6 +280,11 @@ def scan(
     csv_out: Path = typer.Option(None, "--csv", help="Write a CSV report to a file."),
     no_http: bool = typer.Option(
         False, "--no-http", help="Skip HTTP/SSL probing (faster, fewer signals)."
+    ),
+    no_whois: bool = typer.Option(
+        False,
+        "--no-whois",
+        help="Skip WHOIS / domain-age lookups (faster, avoids registry rate-limits).",
     ),
     concurrency: int = typer.Option(
         50, "--concurrency", "-c", help="Number of concurrent checks.", min=1, max=500
@@ -324,8 +331,9 @@ def scan(
 
         console.print(f"[field]Target:[/field] [value]{escape(d)}[/value]")
         console.print(
-            f"[muted]Mode: {'DNS only' if no_http else 'DNS + HTTP/SSL'} · "
-            f"concurrency: {concurrency}"
+            f"[muted]Mode: {'DNS only' if no_http else 'DNS + HTTP/SSL'}"
+            + (" · WHOIS off" if no_whois else "")
+            + f" · concurrency: {concurrency}"
             + (f" · whitelist: {len(exclusions)}" if exclusions else "")
             + "[/muted]"
         )
@@ -339,6 +347,7 @@ def scan(
                     exclude=exclusions,
                     quiet=quiet,
                     weights=weights,
+                    check_whois=not no_whois,
                 )
             )
         except KeyboardInterrupt:

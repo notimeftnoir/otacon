@@ -217,12 +217,20 @@ _ALT_TLDS: tuple[str, ...] = (
     "cyou",
     "icu",
     "buzz",
+    # European ccTLDs heavily targeted in impersonation campaigns
+    "pl",
+    "de",
+    "uk",
+    "eu",
+    "fr",
 )
 
 
 _COMMON_MULTI_TLDS: set[str] = {
     "co.uk",
     "org.uk",
+    "ac.uk",
+    "gov.uk",
     "me.uk",
     "ltd.uk",
     "plc.uk",
@@ -233,6 +241,7 @@ _COMMON_MULTI_TLDS: set[str] = {
     "edu.pl",
     "gov.pl",
     "info.pl",
+    "waw.pl",
     "com.br",
     "org.br",
     "net.br",
@@ -253,6 +262,8 @@ _COMMON_MULTI_TLDS: set[str] = {
     "com.au",
     "net.au",
     "org.au",
+    "edu.au",
+    "gov.au",
     "co.nz",
     "net.nz",
     "org.nz",
