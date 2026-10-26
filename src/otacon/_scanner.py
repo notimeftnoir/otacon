@@ -54,6 +54,7 @@ async def run_scan(
     exclude: set[str] | None = None,
     weights: scoring.ScoringWeights | None = None,
     show_progress: bool = True,
+    check_whois: bool = True,
 ) -> ScanReport:
     """Scans every permutation of *target* and returns the scored report.
 
@@ -80,7 +81,12 @@ async def run_scan(
         # Entered after Live so the spinner already covers the resolver's own
         # start-up work (it fetches the target's page title on entry).
         resolver = await stack.enter_async_context(
-            Resolver(concurrency=concurrency, check_http=check_http, target=target)
+            Resolver(
+                concurrency=concurrency,
+                check_http=check_http,
+                target=target,
+                check_whois=check_whois,
+            )
         )
 
         for coro in asyncio.as_completed([resolver.check_one(p) for p in perms]):
@@ -95,6 +101,10 @@ async def run_scan(
                     live.update(Group(progress, reporters.build_live_table(hits, target)))
 
         report.dns_hijack_detected = resolver.dns_hijack_detected
+
+    # Sort results deterministically: registered threats first (descending by score),
+    # then alphabetically by domain. Ensures reproducible JSON reports and CI diffs.
+    report.results.sort(key=lambda r: (-r.risk_score, r.domain))
 
     if report.dns_hijack_detected:
         console.print(_HIJACK_WARNING)

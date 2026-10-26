@@ -242,6 +242,18 @@ def test_split_domain_multi_part_tld():
     assert label == "example"
     assert tld == "com.pl"
 
+    label, tld = _split_domain("oxford.ac.uk")
+    assert label == "oxford"
+    assert tld == "ac.uk"
+
+    label, tld = _split_domain("service.gov.uk")
+    assert label == "service"
+    assert tld == "gov.uk"
+
+    label, tld = _split_domain("portal.waw.pl")
+    assert label == "portal"
+    assert tld == "waw.pl"
+
 
 def test_split_domain_strips_trailing_root_dot():
     """A trailing root dot ('example.com.') is a legal FQDN that is_valid_domain
@@ -310,6 +322,14 @@ def test_tld_swap_includes_abused_tlds():
     tld_swaps = {p.domain for p in perms if p.kind == PermutationType.TLD_SWAP}
     for abused in ("example.top", "example.icu", "example.cyou", "example.cc"):
         assert abused in tld_swaps
+
+
+def test_tld_swap_includes_european_cctlds():
+    """TLD swap must include common European ccTLDs heavily targeted in impersonation campaigns."""
+    perms = permutations.generate("example.com")
+    tld_swaps = {p.domain for p in perms if p.kind == PermutationType.TLD_SWAP}
+    for cctld in ("example.pl", "example.de", "example.uk", "example.eu", "example.fr"):
+        assert cctld in tld_swaps
 
 
 # --- keyboard layouts (QWERTZ/AZERTY) + distinct insertion technique ---

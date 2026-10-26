@@ -516,6 +516,17 @@ def test_inspect_cert_issuer_without_cn():
     assert age is not None  # the other signals still come through
 
 
+def test_inspect_cert_future_not_before_yields_zero_age():
+    """A certificate with notBefore in the future (skew) must not yield negative age."""
+    from datetime import datetime, timedelta
+
+    der = _make_der_cert(
+        not_before=datetime.now(UTC) + timedelta(days=2),
+    )
+    _, age, _ = Resolver._inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
+    assert age == 0
+
+
 # ---------------------------------------------------------------------------
 # _read_capped — the bomb defense
 # ---------------------------------------------------------------------------
@@ -674,6 +685,40 @@ async def test_probe_http_propagates_unexpected_exception():
                 await r._probe_http("x.example.com")
 
 
+@pytest.mark.asyncio
+async def test_probe_http_cancels_hanging_https_on_early_http_success():
+    """When HTTP succeeds, HTTPS task must be cancelled promptly without stalling."""
+    async with Resolver() as r:
+        with respx.mock(assert_all_called=False) as mock_router:
+            mock_router.get("http://fast.example.com/").respond(200, text="OK")
+
+            async def _hanging_https(request):
+                await asyncio.sleep(10)
+                return httpx.Response(200, text="HTTPS")
+
+            mock_router.get("https://fast.example.com/").mock(side_effect=_hanging_https)
+            status, _, _, _ = await asyncio.wait_for(r._probe_http("fast.example.com"), timeout=3.0)
+            assert status == 200
+
+
+@pytest.mark.asyncio
+async def test_probe_http_prefers_https_that_answers_within_grace():
+    """A fast HTTP 301 must not hide the HTTPS page (title, real status)."""
+    async with Resolver() as r:
+        with respx.mock(assert_all_called=False) as mock_router:
+            mock_router.get("http://slow-tls.example.com/").respond(
+                301, headers={"location": "https://slow-tls.example.com/"}
+            )
+
+            async def _slower_https(request):
+                await asyncio.sleep(0.2)
+                return httpx.Response(200, html="<title>Bank Login</title>")
+
+            mock_router.get("https://slow-tls.example.com/").mock(side_effect=_slower_https)
+            status, _, location, title = await r._probe_http("slow-tls.example.com")
+    assert (status, location, title) == (200, None, "Bank Login")
+
+
 # ---------------------------------------------------------------------------
 # check_one — the unregistered-domain fast path (no IP, no MX): probing and
 # WHOIS must both be skipped entirely.
@@ -696,6 +741,24 @@ async def test_check_one_unregistered_domain_skips_probe_and_whois():
     assert result.is_registered is False
     mock_probe.assert_not_awaited()
     mock_whois.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_check_one_skips_whois_when_check_whois_is_false():
+    """When check_whois=False, even registered domains skip WHOIS lookup."""
+    perm = Permutation(domain="registered-lookalike.com", kind=PermutationType.TYPO)
+    async with Resolver(check_whois=False) as r:
+        with (
+            _patch_network(r, resolve_ips=["203.0.113.9"]),
+            patch.object(r, "_probe_wildcard", new_callable=AsyncMock, return_value=frozenset()),
+            patch("otacon.resolver.fetch_domain_age", new_callable=AsyncMock) as mock_whois,
+        ):
+            result = await r.check_one(perm)
+    assert result.resolves is True
+    assert result.is_registered is True
+    mock_whois.assert_not_awaited()
+    assert result.created_at is None
+    assert result.age_days is None
 
 
 @pytest.mark.asyncio
