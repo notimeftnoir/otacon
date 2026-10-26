@@ -29,7 +29,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from . import __version__, ct, intel, permutations, reporters, scoring
+from . import __version__, ct, enrich, intel, permutations, reporters, scoring
 from .models import Discovery, DomainResult, Permutation, ScanReport
 from .resolver import Resolver
 
@@ -80,6 +80,9 @@ def _variant_summary(perms: list[Permutation]) -> str:
 
 # Longest the scan waits for crt.sh after its own work is done.
 _CT_WAIT = 90.0
+# RDAP lookups to settle DNS-silent variants; rdap.org rate-limits bursts.
+_RDAP_SETTLE_MAX = 25
+_RDAP_PARALLEL = 3
 
 
 def _is_allowed(host: str, allowed: set[str]) -> bool:
@@ -205,6 +208,26 @@ async def run_scan(
                 progress.update(task_id, advance=1, tally=_tally(hits))
 
         report.dns_hijack_detected = resolver.dns_hijack_detected
+
+        # A variant DNS never answered may still be registered (dead
+        # nameservers); the registry knows. Rides on the WHOIS switch, which
+        # already sends names to RDAP.
+        silent = report.inconclusive[:_RDAP_SETTLE_MAX]
+        if check_whois and silent:
+            client = await stack.enter_async_context(httpx.AsyncClient())
+            gate = asyncio.Semaphore(_RDAP_PARALLEL)
+
+            async def _ask(domain: str) -> bool | None:
+                async with gate:
+                    return await enrich.is_registered(client, domain)
+
+            verdicts = await asyncio.gather(*(_ask(r.domain) for r in silent))
+            for r, registered in zip(silent, verdicts, strict=True):
+                if registered is None:
+                    continue
+                r.dns_inconclusive = False
+                r.rdap_registered = registered
+                scoring.score(r, target, weights, resolver.target_title, resolver.target_favicon)
 
         if ct_task is not None:
             try:

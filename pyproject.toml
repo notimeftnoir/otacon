@@ -137,6 +137,7 @@ module = [
     "test_mail",
     "test_favicon",
     "test_ct",
+    "test_enrich",
     "conftest",
 ]
 ignore_errors = true

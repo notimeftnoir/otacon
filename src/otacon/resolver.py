@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import html as _html
+import ipaddress
 import logging
 import re
 import secrets
@@ -200,6 +201,11 @@ class _PinnedHTTPTransport(httpx.AsyncHTTPTransport):
         self._pool._network_backend = _PinnedNetworkBackend(pins)
 
 
+async def _none() -> None:
+    """Awaitable placeholder for an optional branch of asyncio.gather."""
+    return None
+
+
 class Resolver:
     """Concurrent domain checker. Holds shared resources (DNS, HTTP)."""
 
@@ -225,6 +231,7 @@ class Resolver:
         # Names whose lookups still failed transiently after all retries:
         # "unknown", which must not be reported as "not registered".
         self._dns_inconclusive: set[str] = set()
+        self._as_names: dict[int, str | None] = {}
         self._check_http = check_http
         self._check_whois = check_whois
         self.target = target
@@ -376,6 +383,34 @@ class Resolver:
             rec.data.decode("utf-8", "replace") if isinstance(rec.data, bytes) else str(rec.data)
             for rec in await self._lookup(name, "TXT")
         ]
+
+    async def asn_info(self, ip: str) -> tuple[int, str | None, str | None] | None:
+        """(ASN, AS name, country) for *ip* from Team Cymru's DNS service, or None.
+
+        One TXT lookup through the same bounded, retrying resolver as every
+        other query; AS names are cached per scan because lookalikes cluster
+        on a handful of hosters.
+        """
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return None
+        if addr.version == 4:
+            name = ".".join(reversed(ip.split("."))) + ".origin.asn.cymru.com"
+        else:
+            name = ".".join(reversed(addr.exploded.replace(":", ""))) + ".origin6.asn.cymru.com"
+        txt = await self._txt(name)
+        # "13335 | 1.1.1.0/24 | AU | apnic | 2011-08-11"; first ASN when several.
+        fields = [f.strip() for f in txt[0].split("|")] if txt else []
+        if len(fields) < 3 or not fields[0].split()[0].isdigit():
+            return None
+        asn = int(fields[0].split()[0])
+        if asn not in self._as_names:
+            names = await self._txt(f"AS{asn}.asn.cymru.com")
+            # "13335 | US | arin | 2010-07-14 | CLOUDFLARENET - Cloudflare, Inc., US"
+            parts = names[0].split("|") if names else []
+            self._as_names[asn] = _strip_unsafe_chars(parts[4].strip()) if len(parts) > 4 else None
+        return asn, self._as_names[asn], _strip_unsafe_chars(fields[2]) or None
 
     async def mail_posture(self, domain: str) -> tuple[bool, str | None]:
         """(publishes SPF, DMARC policy) for *domain*; policy is None without DMARC.
@@ -706,10 +741,14 @@ class Resolver:
                         result.favicon_hash = await self._favicon(perm.domain)
 
                 if result.is_registered:
-                    ns, (result.has_spf, _) = await asyncio.gather(
-                        self._lookup(perm.domain, "NS"), self.mail_posture(perm.domain)
+                    ns, (result.has_spf, _), network = await asyncio.gather(
+                        self._lookup(perm.domain, "NS"),
+                        self.mail_posture(perm.domain),
+                        self.asn_info(ips[0]) if ips else _none(),
                     )
                     result.ns_records = [_strip_unsafe_chars(rec.nsdname).lower() for rec in ns]
+                    if network is not None:
+                        result.asn, result.as_name, result.ip_country = network
 
                 # WHOIS only for registered domains — unregistered aren't worth the quota.
                 if result.is_registered and self._check_whois:

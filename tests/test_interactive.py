@@ -491,6 +491,12 @@ def test_action_loop_takedown_generates_report(tmp_path, monkeypatch):
     content = out_file.read_text(encoding="utf-8")
     assert "PHISHING TAKEDOWN NOTICE" in content.upper()
     assert "googel[.]com" in content
+    import hashlib
+    import json
+
+    evidence = json.loads((tmp_path / "takedown.evidence.json").read_text(encoding="utf-8"))
+    assert evidence["result"]["domain"] == "googel.com"
+    assert evidence["notice_sha256"] == hashlib.sha256(out_file.read_bytes()).hexdigest()
 
 
 def test_action_loop_takedown_treats_page_title_as_literal_text():

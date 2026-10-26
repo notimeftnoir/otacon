@@ -19,6 +19,8 @@ def _no_feed_downloads(monkeypatch, request):
         return
     monkeypatch.setattr("otacon.intel.load_feeds", AsyncMock(return_value={}))
     monkeypatch.setattr("otacon.ct.recent_certificates", AsyncMock(return_value={}))
+    monkeypatch.setattr("otacon.enrich.takedown_contacts", AsyncMock(return_value={}))
+    monkeypatch.setattr("otacon.enrich.is_registered", AsyncMock(return_value=None))
     monkeypatch.delenv("ABUSECH_AUTH_KEY", raising=False)
 
 

@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   carrying the brand join `discovered` (with `first_seen`). Runs alongside the scan with
   retries, a 6 h cache and a stale fallback; `ct_available: false` and a notice when crt.sh is
   unreachable. The whitelist now also hides discovered hosts under your own domains.
+- Hosting network per registered variant (`asn`, `as_name`, `ip_country`) via Team Cymru's DNS
+  service: one TXT query, no key.
+- Takedown notices are addressed: RDAP supplies the registrar and its abuse contact (climbing
+  from a subdomain spoof to the registered parent) and the hosting network's abuse contact.
+  Saving a notice also writes `<name>.evidence.json` with the full result, the contacts, a
+  timestamp and the SHA-256 of the notice bytes.
+- Variants DNS never answered are settled with RDAP (registered / free); registered ones count
+  as registered (`rdap_registered`). On `example.com` this turned all 6-7 inconclusive variants
+  into confirmed registrations. Rides on the WHOIS switch, so `--no-whois` skips it.
 - `dns_inconclusive` per result and a warning when DNS never answered a variant: its status is
   unknown, which is no longer reported as "not registered".
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).

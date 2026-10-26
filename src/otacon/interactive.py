@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import webbrowser
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
+import httpx
 import questionary
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import FormattedText
@@ -22,7 +25,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import permutations, reporters, scoring
+from . import __version__, enrich, permutations, reporters, scoring
 from ._asyncutils import run_async
 from ._scanner import run_scan
 from ._validate import (
@@ -457,6 +460,30 @@ def _handle_rescan(ctx: _ActionContext) -> str:
     return _ActionResult.NEXT_DOMAIN if not updated.is_registered else _ActionResult.CONTINUE
 
 
+def _evidence_pack(r: DomainResult, contacts: dict[str, str], notice: str) -> str:
+    """JSON record of everything behind a takedown notice, for the case file.
+
+    The SHA-256 ties the record to the exact notice text that was sent.
+    """
+    return json.dumps(
+        {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "tool": f"otacon {__version__}",
+            "notice_sha256": hashlib.sha256(notice.encode("utf-8")).hexdigest(),
+            "contacts": contacts,
+            "result": r.model_dump(mode="json"),
+        },
+        indent=2,
+    )
+
+
+async def _takedown_contacts(r: DomainResult) -> dict[str, str]:
+    """RDAP abuse contacts for *r*'s registrar and the network hosting its first IP."""
+    async with httpx.AsyncClient() as client:
+        ip = r.ip_addresses[0] if r.ip_addresses else None
+        return await enrich.takedown_contacts(client, r.domain, ip)
+
+
 def _handle_takedown(ctx: _ActionContext) -> str:
     """Generates an abuse takedown notice template with all collected evidence."""
     r = ctx.selected
@@ -480,9 +507,19 @@ def _handle_takedown(ctx: _ActionContext) -> str:
         if r.risk_reasons
         else "  - Suspicious domain impersonation"
     )
+    hosting_str = (
+        f"AS{r.asn} {r.as_name or ''} ({r.ip_country or '??'})" if r.asn is not None else "Unknown"
+    )
 
-    report_text = f"""SUBJECT: Urgent Abuse / Phishing Takedown Notice: {defanged}
+    ctx.console.print("[muted]Looking up the registrar and hosting abuse contacts (RDAP)…[/muted]")
+    contacts = run_async(_takedown_contacts(r))
+    recipients = [contacts[k] for k in ("registrar_abuse", "hosting_abuse") if k in contacts]
+    to_line = ", ".join(dict.fromkeys(recipients)) or "(no abuse contact in RDAP; check WHOIS)"
+
+    report_text = f"""TO: {to_line}
+SUBJECT: Urgent Abuse / Phishing Takedown Notice: {defanged}
 TARGET BRAND: {ctx.target}
+REGISTRAR: {contacts.get("registrar", "Unknown")}
 
 DATE: {now_str}
 MALICIOUS DOMAIN: {defanged} (raw: {r.domain})
@@ -492,6 +529,7 @@ RISK EVALUATION: {r.risk_score}/100 [{r.risk_level.value.upper()}]
 INCIDENT EVIDENCE:
 - Domain: {r.domain}
 - IP Address(es): {ips_str}
+- Hosting Network: {hosting_str}
 - Mail Server(s) (MX): {mx_str}
 - SSL/TLS Certificate: {ssl_str}
 - Web Service: {http_str}
@@ -523,8 +561,15 @@ targeting {ctx.target} users and customers.
             safe_path = safe_relative_path(fname)
             if safe_path:
                 try:
-                    Path(safe_path).write_text(report_text, encoding="utf-8")
-                    ctx.console.print(f"[ok]✓ Saved takedown request to {safe_path}[/ok]")
+                    notice = Path(safe_path)
+                    # newline="": the bytes on disk must hash to notice_sha256 on Windows too.
+                    notice.write_text(report_text, encoding="utf-8", newline="")
+                    evidence = notice.with_name(notice.stem + ".evidence.json")
+                    evidence.write_text(_evidence_pack(r, contacts, report_text), encoding="utf-8")
+                    ctx.console.print(
+                        f"[ok]✓ Saved takedown request to {escape(safe_path)}"
+                        f" and its evidence to {escape(evidence.name)}[/ok]"
+                    )
                 except OSError as exc:
                     ctx.console.print(f"[danger]Error saving file: {escape(str(exc))}[/danger]")
             else:

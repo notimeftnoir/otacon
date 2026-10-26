@@ -58,6 +58,10 @@ class DomainResult(BaseModel):
     # Signals collected by the resolver. False/empty = not found / error.
     resolves: bool = False
     ip_addresses: list[str] = Field(default_factory=list)
+    # Hosting network of the first IP (Team Cymru), for registered variants.
+    asn: int | None = None
+    as_name: str | None = None
+    ip_country: str | None = None
     has_mx: bool = False  # readiness for email phishing
     has_spf: bool = False  # SPF published: set up to *send* authenticated mail
     mx_records: list[str] = Field(default_factory=list)
@@ -76,6 +80,8 @@ class DomainResult(BaseModel):
     # No DNS answer at all, even after retries: registration is unknown, which
     # is not the same as "not registered".
     dns_inconclusive: bool = False
+    # DNS stayed silent but the registry (RDAP) says the domain exists.
+    rdap_registered: bool = False
 
     # Page title — parsed from HTML body on 2xx responses; None when absent/failed.
     page_title: str | None = None
@@ -97,7 +103,7 @@ class DomainResult(BaseModel):
     @property
     def is_registered(self) -> bool:
         """Whether the variant looks actively registered / in use."""
-        return self.resolves or self.has_mx or self.has_ssl
+        return self.resolves or self.has_mx or self.has_ssl or self.rdap_registered
 
 
 class Discovery(BaseModel):
