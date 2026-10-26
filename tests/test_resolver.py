@@ -690,8 +690,9 @@ async def test_probe_http_propagates_unexpected_exception():
 
 
 @pytest.mark.asyncio
-async def test_probe_http_cancels_hanging_https_on_early_http_success():
+async def test_probe_http_cancels_hanging_https_on_early_http_success(monkeypatch):
     """When HTTP succeeds, HTTPS task must be cancelled promptly without stalling."""
+    monkeypatch.setattr("otacon.resolver._HTTPS_GRACE", 0.1)
     async with Resolver() as r:
         with respx.mock(assert_all_called=False) as mock_router:
             mock_router.get("http://fast.example.com/").respond(200, text="OK")

@@ -599,6 +599,9 @@ class _FakeResolver:
     async def __aexit__(self, *exc) -> bool:
         return False
 
+    async def mail_posture(self, domain):
+        return True, "reject"
+
     async def check_one(self, perm):
         return DomainResult(domain=perm.domain, kind=perm.kind, resolves=True)
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
+import aiodns
+import pycares
 import pytest
 
 
@@ -18,3 +20,16 @@ def _no_feed_downloads(monkeypatch, request):
         return
     monkeypatch.setattr("otacon.intel.load_feeds", AsyncMock(return_value={}))
     monkeypatch.delenv("ABUSECH_AUTH_KEY", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_dns(monkeypatch, request):
+    """Any DNS query a test did not mock answers NXDOMAIN instead of going out.
+
+    Tests that care patch ``resolver._dns.query_dns`` on the instance, which
+    takes precedence; ``-m network`` tests keep the real resolver.
+    """
+    if "network" in request.keywords:
+        return
+    nxdomain = aiodns.error.DNSError(pycares.errno.ARES_ENOTFOUND, "Domain name not found")
+    monkeypatch.setattr(aiodns.DNSResolver, "query_dns", AsyncMock(side_effect=nxdomain))

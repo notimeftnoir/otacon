@@ -77,6 +77,20 @@ def _variant_summary(perms: list[Permutation]) -> str:
     return f"[ok]✓[/ok] [value]{len(perms)}[/value] lookalikes generated  {parts}"
 
 
+def _dmarc_advice(target: str, policy: str | None) -> str:
+    """Plain-language warning for a target that does not enforce DMARC."""
+    if policy is None:
+        return (
+            f"{escape(target)} publishes no DMARC policy: anyone can send email claiming to be"
+            " from it, and many inboxes will accept it. Publish a DMARC record, starting with"
+            " p=quarantine."
+        )
+    return (
+        f"{escape(target)} has DMARC set to p=none (monitoring only): email spoofing it is still"
+        " delivered. Move to p=quarantine, then p=reject."
+    )
+
+
 async def run_scan(
     target: str,
     concurrency: int,
@@ -125,6 +139,8 @@ async def run_scan(
                 nameservers=nameservers,
             )
         )
+
+        report.target_spf, report.target_dmarc = await resolver.mail_posture(target)
 
         # Feeds are matched locally against every variant up front; only the
         # opt-in URLhaus lookup sends names out, and only for registered ones.
@@ -179,6 +195,8 @@ async def run_scan(
         )
     if report.dns_hijack_detected:
         console.print(_HIJACK_WARNING)
+    if report.target_dmarc in (None, "none"):
+        console.print(f"[warn]⚠  {_dmarc_advice(target, report.target_dmarc)}[/warn]")
     if report.discovered:
         examples = ", ".join(d.host for d in report.discovered[:3])
         console.print(

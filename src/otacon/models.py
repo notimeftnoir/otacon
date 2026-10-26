@@ -59,6 +59,7 @@ class DomainResult(BaseModel):
     resolves: bool = False
     ip_addresses: list[str] = Field(default_factory=list)
     has_mx: bool = False  # readiness for email phishing
+    has_spf: bool = False  # SPF published: set up to *send* authenticated mail
     mx_records: list[str] = Field(default_factory=list)
     # Nameservers, fetched for registered variants only: parking providers
     # give themselves away here even when the page title does not.
@@ -115,6 +116,10 @@ class ScanReport(BaseModel):
     # True when the local resolver answered a random nonexistent domain —
     # NXDOMAIN hijacking. Affected answers were discarded (see Resolver).
     dns_hijack_detected: bool = False
+    # The target's own mail posture: None = not checked. A missing or "none"
+    # DMARC policy lets anyone send mail as the target.
+    target_spf: bool | None = None
+    target_dmarc: str | None = None
     # Brand-bearing hosts found outside the permutations (see Discovery).
     discovered: list[Discovery] = Field(default_factory=list)
 

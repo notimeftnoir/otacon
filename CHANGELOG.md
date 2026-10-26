@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Brand mentions: hosts in those feeds that carry the brand in their name
   (`allegro.id-23843.click`) are listed under `discovered` in the report. Most real phishing
   looks like this, and no permutation can produce it (9,574 such hosts for `allegro`).
+- Mail posture: SPF on a registered lookalike scores +10 (set up to send mail), and the scan
+  warns when your own domain has no DMARC policy or only `p=none`, i.e. anyone can send email
+  as it. New `has_spf`, `target_spf` and `target_dmarc` fields.
 - `dns_inconclusive` per result and a warning when DNS never answered a variant: its status is
   unknown, which is no longer reported as "not registered".
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).

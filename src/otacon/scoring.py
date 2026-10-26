@@ -42,6 +42,7 @@ class ScoringWeights:
         self.points_http_4xx = 5
         self.points_http_5xx = 3
         self.points_mx = 25
+        self.points_spf = 10
         self.points_ssl = 15
         self.points_ssl_fresh = 10
         self.points_ssl_san_mismatch = 5
@@ -348,6 +349,9 @@ def score(
     if result.has_mx:
         points += weights.points_mx
         reasons.append(f"has an MX record — ready for email phishing (+{weights.points_mx})")
+    if result.has_spf:
+        points += weights.points_spf
+        reasons.append(f"publishes SPF — set up to send email (+{weights.points_spf})")
     points += _tls_points(result, reasons, weights)
     points += _redirect_points(result, reasons, weights)
     points += _age_points(result, reasons, weights)

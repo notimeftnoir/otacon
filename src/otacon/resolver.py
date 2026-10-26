@@ -129,6 +129,7 @@ _DNS_TRANSIENT = frozenset(
         pycares.errno.ARES_EOF,
     }
 )
+_DMARC_POLICY_RE = re.compile(r"(?:^|;)\s*p\s*=\s*(\w+)", re.IGNORECASE)
 _QTYPE = {
     "A": pycares.QUERY_TYPE_A,
     "AAAA": pycares.QUERY_TYPE_AAAA,
@@ -359,6 +360,28 @@ class Resolver:
         """True when the canary fired — the local resolver hijacks NXDOMAIN."""
         t = self._wildcard_task
         return bool(t is not None and t.done() and not t.cancelled() and t.result())
+
+    async def _txt(self, name: str) -> list[str]:
+        """TXT strings of *name*, decoded leniently."""
+        return [
+            rec.data.decode("utf-8", "replace") if isinstance(rec.data, bytes) else str(rec.data)
+            for rec in await self._lookup(name, "TXT")
+        ]
+
+    async def mail_posture(self, domain: str) -> tuple[bool, str | None]:
+        """(publishes SPF, DMARC policy) for *domain*; policy is None without DMARC.
+
+        For a lookalike, SPF means someone set it up to send authenticated mail.
+        For the user's own domain, a missing or ``p=none`` DMARC policy means
+        anyone can send mail as it and many inboxes will accept it.
+        """
+        spf, dmarc = await asyncio.gather(self._txt(domain), self._txt(f"_dmarc.{domain}"))
+        policy = None
+        for record in dmarc:
+            if record.lower().startswith("v=dmarc1"):
+                m = _DMARC_POLICY_RE.search(record)
+                policy = m.group(1).lower() if m else "none"
+        return any(t.lower().startswith("v=spf1") for t in spf), policy
 
     async def _resolve_mx(self, domain: str) -> list[str]:
         """Returns MX records. Presence = the domain can send/receive mail."""
@@ -644,10 +667,10 @@ class Resolver:
                     result.page_title = title
 
                 if result.is_registered:
-                    result.ns_records = [
-                        _strip_unsafe_chars(rec.nsdname).lower()
-                        for rec in await self._lookup(perm.domain, "NS")
-                    ]
+                    ns, (result.has_spf, _) = await asyncio.gather(
+                        self._lookup(perm.domain, "NS"), self.mail_posture(perm.domain)
+                    )
+                    result.ns_records = [_strip_unsafe_chars(rec.nsdname).lower() for rec in ns]
 
                 # WHOIS only for registered domains — unregistered aren't worth the quota.
                 if result.is_registered and self._check_whois:
