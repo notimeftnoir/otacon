@@ -30,7 +30,7 @@ This Code of Conduct applies within all community spaces — issues, pull reques
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainer at **gabriel.bieszczad@gmail.com**. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported privately to the maintainer through [GitHub private reporting](https://github.com/notimeftnoir/otacon/security/advisories/new) — the project's only private channel, and conduct reports are accepted there. Behaviour that also breaches GitHub's Terms of Service can be reported directly to [GitHub Support](https://github.com/contact/report-abuse). All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 
