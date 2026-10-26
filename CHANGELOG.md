@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parking detected from nameservers (Sedo, Bodis, ParkingCrew, Afternic, ParkLogic, …) and from
   "domain for sale" titles in Polish, German, French, Spanish, Italian, Dutch and Russian.
   New `ns_records` field, fetched for registered variants only.
+- Threat intel: OpenPhish and Phishing Army feeds, downloaded whole, cached for 6 h and matched
+  locally (lookalike names never leave the machine). A listed variant scores +40 and a redirect
+  home no longer clears it. URLhaus is queried per registered variant only when `ABUSECH_AUTH_KEY`
+  is set. `--no-intel` turns all of it off.
+- Brand mentions: hosts in those feeds that carry the brand in their name
+  (`allegro.id-23843.click`) are listed under `discovered` in the report. Most real phishing
+  looks like this, and no permutation can produce it (9,574 such hosts for `allegro`).
 - `dns_inconclusive` per result and a warning when DNS never answered a variant: its status is
   unknown, which is no longer reported as "not registered".
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).

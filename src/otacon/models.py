@@ -70,6 +70,8 @@ class DomainResult(BaseModel):
     http_status: int | None = None  # HTTP(S) response
     server_header: str | None = None
     redirects_to: str | None = None
+    # Threat-intel feeds listing this domain or a subdomain of it (see intel.py).
+    intel_sources: list[str] = Field(default_factory=list)
     # No DNS answer at all, even after retries: registration is unknown, which
     # is not the same as "not registered".
     dns_inconclusive: bool = False
@@ -95,6 +97,14 @@ class DomainResult(BaseModel):
         return self.resolves or self.has_mx or self.has_ssl
 
 
+class Discovery(BaseModel):
+    """A host carrying the brand that turned up outside the permutation set
+    (threat-intel feeds, certificate logs). Reported, never probed."""
+
+    host: str
+    sources: list[str] = Field(default_factory=list)
+
+
 class ScanReport(BaseModel):
     """Complete scan report — root of the JSON export object."""
 
@@ -105,6 +115,8 @@ class ScanReport(BaseModel):
     # True when the local resolver answered a random nonexistent domain —
     # NXDOMAIN hijacking. Affected answers were discarded (see Resolver).
     dns_hijack_detected: bool = False
+    # Brand-bearing hosts found outside the permutations (see Discovery).
+    discovered: list[Discovery] = Field(default_factory=list)
 
     @property
     def registered(self) -> list[DomainResult]:

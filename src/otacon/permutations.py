@@ -402,6 +402,15 @@ def _from_ace(label: str) -> str:
     return ".".join(parts)
 
 
+def brand_label(domain: str) -> str:
+    """The brand word of *domain* as phishers spell it, in plain ASCII.
+
+    'example.co.uk' -> 'example', 'xn--abka-99a.pl' -> 'zabka'.
+    """
+    label = _from_ace(_split_domain(domain)[0]).split(".")[-1]
+    return "".join(_FOLD.get(ch, ch) for ch in label)
+
+
 def _combos(label: str, tld: str = "") -> set[str]:
     """Combosquatting: original + bait word, with and without a hyphen."""
     out: set[str] = set()

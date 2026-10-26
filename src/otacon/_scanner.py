@@ -10,12 +10,15 @@ copies of the loop.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from collections import Counter
 from contextlib import AsyncExitStack
 
+import httpx
 from rich.console import Console, Group
 from rich.live import Live
+from rich.markup import escape
 from rich.progress import (
     BarColumn,
     Progress,
@@ -25,8 +28,8 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from . import permutations, reporters, scoring
-from .models import DomainResult, Permutation, ScanReport
+from . import __version__, intel, permutations, reporters, scoring
+from .models import Discovery, DomainResult, Permutation, ScanReport
 from .resolver import Resolver
 
 _HIJACK_WARNING = (
@@ -84,6 +87,7 @@ async def run_scan(
     show_progress: bool = True,
     check_whois: bool = True,
     nameservers: list[str] | None = None,
+    check_intel: bool = True,
 ) -> ScanReport:
     """Scans every permutation of *target* and returns the scored report.
 
@@ -122,8 +126,35 @@ async def run_scan(
             )
         )
 
+        # Feeds are matched locally against every variant up front; only the
+        # opt-in URLhaus lookup sends names out, and only for registered ones.
+        listed: dict[str, list[str]] = {}
+        intel_client: httpx.AsyncClient | None = None
+        urlhaus_key = os.environ.get(intel.URLHAUS_KEY_ENV) if check_intel else None
+        if check_intel:
+            intel_client = await stack.enter_async_context(
+                httpx.AsyncClient(timeout=20.0, headers={"User-Agent": f"Otacon/{__version__}"})
+            )
+            feeds = await intel.load_feeds(intel_client)
+            perm_domains = {p.domain for p in perms}
+            listed = intel.match(perm_domains, feeds)
+            mentioned = intel.mentions(permutations.brand_label(target), feeds, target)
+            report.discovered = [
+                Discovery(host=host, sources=sources)
+                for host, sources in sorted(mentioned.items())
+                if host not in perm_domains
+            ]
+
         for coro in asyncio.as_completed([resolver.check_one(p) for p in perms]):
             result = await coro
+            result.intel_sources = listed.get(result.domain, [])
+            if (
+                urlhaus_key
+                and intel_client is not None
+                and result.is_registered
+                and await intel.urlhaus_listed(intel_client, result.domain, urlhaus_key)
+            ):
+                result.intel_sources = [*result.intel_sources, "URLhaus"]
             scored = scoring.score(result, target, weights, resolver.target_title)
             report.results.append(scored)
             if scored.is_registered:
@@ -148,6 +179,13 @@ async def run_scan(
         )
     if report.dns_hijack_detected:
         console.print(_HIJACK_WARNING)
+    if report.discovered:
+        examples = ", ".join(d.host for d in report.discovered[:3])
+        console.print(
+            f"[danger]⚠  {len(report.discovered)} host(s) already reported as phishing carry"
+            f" this brand in their name[/danger] [muted](e.g. {escape(examples)};"
+            " full list in the --json report)[/muted]"
+        )
     if report.inconclusive:
         console.print(
             f"[warn]⚠  {len(report.inconclusive)} variant(s) got no DNS answer even after"

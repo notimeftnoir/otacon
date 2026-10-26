@@ -281,6 +281,7 @@ async def _run_scan(
     weights: scoring.ScoringWeights | None = None,
     check_whois: bool = True,
     nameservers: list[str] | None = None,
+    check_intel: bool = True,
 ) -> ScanReport:
     """Runs a full scan; streams registered hits into a live table as they arrive."""
     return await run_scan(
@@ -293,6 +294,7 @@ async def _run_scan(
         show_progress=not quiet,
         check_whois=check_whois,
         nameservers=nameservers,
+        check_intel=check_intel,
     )
 
 
@@ -379,6 +381,11 @@ def scan(
         " Try 1.1.1.1 if your router drops queries.",
         callback=_validate_resolvers,
     ),
+    no_intel: bool = typer.Option(
+        False,
+        "--no-intel",
+        help="Skip threat-intel feeds (OpenPhish, Phishing Army) and the URLhaus lookup.",
+    ),
     concurrency: int = typer.Option(
         50,
         "--concurrency",
@@ -459,6 +466,7 @@ def scan(
                     weights=weights,
                     check_whois=not no_whois,
                     nameservers=resolvers or None,
+                    check_intel=not no_intel,
                 )
             )
         except KeyboardInterrupt:

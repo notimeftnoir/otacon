@@ -50,6 +50,8 @@ class ScoringWeights:
         self.points_age_new = 12
         self.points_age_recent = 5
         self.points_cloned_title = 25
+        # Someone already reported it as phishing: the strongest single signal.
+        self.points_intel = 40
 
         self.kind_base: dict[PermutationType, int] = {
             PermutationType.HOMOGLYPH: 25,
@@ -192,7 +194,9 @@ def _detect_defensive(result: DomainResult, target: str) -> None:
     """
     if not (result.redirects_to and target):
         return
-    if result.has_mx:
+    # Phishing kits redirect to the real site to look harmless when probed, so
+    # a redirect home clears neither a mail server nor a phishing report.
+    if result.has_mx or result.intel_sources:
         return
     parsed = parse_redirect(result.redirects_to)
     if parsed is None:
@@ -348,6 +352,11 @@ def score(
     points += _redirect_points(result, reasons, weights)
     points += _age_points(result, reasons, weights)
     points += _title_points(result, reasons, weights, target_title)
+    if result.intel_sources:
+        points += weights.points_intel
+        reasons.append(
+            f"reported as phishing by {', '.join(result.intel_sources)} (+{weights.points_intel})"
+        )
 
     result.risk_score = min(points, 100)
     result.risk_level = RiskLevel.from_score(result.risk_score)

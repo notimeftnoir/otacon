@@ -101,6 +101,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
     "network: live-network regression tests, excluded by default (run: pytest -m network)",
+    "real_feeds: use the real intel.load_feeds (with mocked HTTP) instead of the no-op stub",
 ]
 addopts = "-m 'not network'"
 
