@@ -33,7 +33,7 @@
     width="860">
 </p>
 
-<sub><i>Real output: a full scan of <code>example.com</code> recorded on 2026-09-20 — 234 permutations, 13 registered lookalikes at the time, ranked by risk. Registrations change daily, so a scan today shows different domains. Regenerate with <code>python tools/render_demo_svg.py example.com assets/brand/demo-scan.svg</code>.</i></sub>
+<sub><i>Real output: a full scan of <code>example.com</code> recorded on 2026-10-26 — 239 permutations, 71 registered lookalikes at the time; the verdict card and the ten riskiest rows. Registrations change daily, so a scan today shows different domains. Regenerate with <code>python tools/render_demo_svg.py example.com assets/brand/demo-scan.svg</code>.</i></sub>
 
 ---
 

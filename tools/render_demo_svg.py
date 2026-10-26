@@ -18,7 +18,9 @@ from rich.terminal_theme import TerminalTheme
 from otacon import reporters
 from otacon._asyncutils import run_async
 from otacon._scanner import run_scan
-from otacon.theme import OTACON_THEME
+from otacon.theme import BANNER, OTACON_THEME
+
+_ROWS = 10
 
 # Matches the banner SVG and the terminal palette in theme.py.
 OTACON_TERMINAL = TerminalTheme(
@@ -54,7 +56,15 @@ def main() -> int:
     report = run_async(
         run_scan(target, concurrency=50, check_http=True, console=console, show_progress=False)
     )
-    reporters.render_table(report, console)
+    # Banner, verdict and the riskiest rows: the full table of a busy target
+    # is taller than any README should be.
+    console.print(BANNER)
+    console.print(reporters._verdict_card(report))
+    console.print()
+    table = reporters.build_live_table(report.registered, target, limit=_ROWS)
+    if len(report.registered) > _ROWS:
+        table.caption = f"+{len(report.registered) - _ROWS} more in the full report"
+    console.print(table)
     console.save_svg(out, title=f"otacon scan {target}", theme=OTACON_TERMINAL)
     print(f"wrote {out}: {len(report.registered)} registered of {report.total_permutations}")
     return 0

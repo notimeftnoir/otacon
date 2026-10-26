@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from enum import Enum
 
+from rich.color import Color
+from rich.text import Text
 from rich.theme import Theme
 
 # Semantic palette. Names describe MEANING, not color, so re-theming
@@ -29,8 +31,33 @@ OTACON_THEME = Theme(
         "field": "bold #afafaf",  # field labels
         "value": "#ffffff",
         "url": "underline #5fafff",
+        "spoof": "bold #ff5f87",  # the planted homoglyph in the wordmark
     }
 )
+
+# Brand gradient, teal to sky blue. Truecolor stops; Rich downsamples them on
+# 256- and 16-colour terminals, so no capability check is needed here.
+GRADIENT = ("#00d7af", "#00c0d0", "#00a8e8", "#5f8fff")
+
+
+def gradient_color(t: float, stops: tuple[str, ...] = GRADIENT) -> str:
+    """Hex colour at position *t* (0..1) along *stops*, linearly interpolated."""
+    t = min(max(t, 0.0), 1.0) * (len(stops) - 1)
+    i = min(int(t), len(stops) - 2)
+    a = Color.parse(stops[i]).get_truecolor()
+    b = Color.parse(stops[i + 1]).get_truecolor()
+    f = t - i
+    r, g, bl = (round(x + (y - x) * f) for x, y in zip(a, b, strict=True))
+    return f"#{r:02x}{g:02x}{bl:02x}"
+
+
+def gradient(text: str, bold: bool = True) -> Text:
+    """*text* coloured character by character along the brand gradient."""
+    out = Text()
+    last = max(len(text) - 1, 1)
+    for i, ch in enumerate(text):
+        out.append(ch, style=f"{'bold ' if bold else ''}{gradient_color(i / last)}")
+    return out
 
 
 class RiskLevel(str, Enum):
@@ -113,6 +140,7 @@ SAFE_GLYPHS = frozenset(
     "✓✗"  # ✓ ✗ check marks
     "⚠"  # ⚠ warning
     "→←"  # → ← arrows
+    "►•"  # ► • step marker and bullet (WGL4, in every font listed above)
     "О"  # noqa: RUF001 — Cyrillic capital O (U+041E) homoglyph target in banner
     "·—…›─"  # noqa: RUF001 - punctuation and rules; the last two are U+203A, U+2500
 )
@@ -126,7 +154,23 @@ GLYPH_DEFENSIVE = "»"
 # same glyphs instead of hardcoding its own copy that could drift out of sync.
 LOGO_DOTS_TOP = "● ● ● ○ ○ ○"
 LOGO_DOTS_BOT = "○ ○ ○ ● ● ●"
+# The wordmark carries its own spoof: the fifth letter is Cyrillic, exactly
+# the kind of lookalike the tool exists to catch.
+WORDMARK = "OTACОN"  # noqa: RUF001
+SPOOF_INDEX = 4
+TAGLINE = "domain impersonation detector"
+
+
+def _wordmark_markup() -> str:
+    """WORDMARK as Rich markup: gradient letters, the one at SPOOF_INDEX in red."""
+    last = len(WORDMARK) - 1
+    return "".join(
+        f"[spoof]{ch}[/]" if i == SPOOF_INDEX else f"[bold {gradient_color(i / last)}]{ch}[/]"
+        for i, ch in enumerate(WORDMARK)
+    )
+
+
 _LOGO_TOP = f" [brand]{LOGO_DOTS_TOP}[/]"
-_LOGO_MID = "   OTAC[brand]О[/brand]N   [muted]← [0x041E] homoglyph target[/muted]"  # noqa: RUF001
-_LOGO_BOT = f" [brand]{LOGO_DOTS_BOT}[/]  [muted]domain impersonation detector[/]"
+_LOGO_MID = f"   {_wordmark_markup()}   [muted]← [0x041E] homoglyph target[/muted]"
+_LOGO_BOT = f" [brand.dim]{LOGO_DOTS_BOT}[/]  [muted]{TAGLINE}[/]"
 BANNER = f"\n{_LOGO_TOP}\n{_LOGO_MID}\n{_LOGO_BOT}\n"

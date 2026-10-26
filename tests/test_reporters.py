@@ -144,7 +144,7 @@ def _make_console(no_color: bool = True):
     return Console(file=buf, no_color=no_color, theme=OTACON_THEME, width=120), buf
 
 
-def test_render_table_footer_shows_medium_count():
+def test_render_table_verdict_shows_medium_count():
     report = ScanReport(target="example.com", total_permutations=10)
     r = DomainResult(
         domain="exmaple.com",
@@ -156,7 +156,7 @@ def test_render_table_footer_shows_medium_count():
     report.results.append(r)
     console, buf = _make_console()
     render_table(report, console)
-    assert "med:" in buf.getvalue()
+    assert "1 medium" in buf.getvalue()
 
 
 def test_render_table_shows_defensive_flag():

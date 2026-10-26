@@ -28,7 +28,14 @@ from otacon.theme import BANNER, SAFE_GLYPHS
 #    browser paints, and browsers substitute a fallback font per-glyph instead
 #    of showing tofu/'?' the way a fixed-font console does, so the console-font
 #    budget SAFE_GLYPHS enforces does not apply to it.
-_UI_MODULES = ("theme.py", "reporters.py", "interactive.py", "cli.py", "_scanner.py")
+_UI_MODULES = (
+    "theme.py",
+    "reporters.py",
+    "interactive.py",
+    "cli.py",
+    "_scanner.py",
+    "_splash.py",
+)
 
 _SRC = Path(__file__).resolve().parent.parent / "src" / "otacon"
 

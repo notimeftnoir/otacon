@@ -145,7 +145,15 @@ Action for githubupdate.com:
 
 Designed for triaging a fresh scan without leaving the terminal: safely inspect lookalike sites via urlscan sandbox links, retrieve RDAP/WHOIS details, draft abuse takedown notices with embedded technical evidence, or allow-list defensive domains.
 
+Picking a domain first shows its **dossier**: every signal Otacon found, each with a one-line explanation of what it means (for example *Mail: mx.lookalike.com, can send email that looks like it is from you*).
+
 ---
+
+## Terminal output
+
+Every scan ends with a **verdict card**: a plain-language headline, a bar showing how the registered lookalikes split across risk levels, and the raw counts. Below it, each row of the table lists the domain's two strongest reasons. A short *Next steps* list suggests the follow-up commands that fit the result; `-q` silences it along with the rest of the UI.
+
+The bare `otacon` command opens with a short animation: the wordmark decodes out of lookalike characters. It only plays in an interactive colour terminal. Pipes, CI (`CI` set), `NO_COLOR` and `OTACON_NO_ANIMATION=1` get the static banner instead.
 
 ---
 

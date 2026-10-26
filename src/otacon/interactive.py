@@ -15,9 +15,11 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.shortcuts import prompt as _pt_prompt
 from prompt_toolkit.validation import ValidationError, Validator
-from rich.console import Console
+from rich import box
+from rich.console import Console, Group
 from rich.markup import escape
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 
 from . import permutations, reporters, scoring
@@ -135,18 +137,30 @@ def _validate_limit(text: str) -> bool | str:
 
 def run(console: Console) -> None:
     """Called by cli._main when otacon is invoked with no subcommand."""
+    console.print(
+        "[muted]Type the domain you want to protect. Otacon builds the lookalikes an "
+        "attacker could register and checks which ones exist.[/muted]\n"
+    )
     domain = questionary.text(
-        "Enter your domain:", validate=_validate_domain, qmark=_QMARK, style=_STYLE_DOMAIN
+        "Your domain (e.g. example.com):",
+        validate=_validate_domain,
+        qmark=_QMARK,
+        style=_STYLE_DOMAIN,
     ).ask()
     if domain is None:
         return
     domain = normalize_domain(domain)
 
     mode = questionary.select(
-        "Mode:",
+        "What should I do?",
         choices=[
-            questionary.Choice("scan    — DNS + HTTP, detects registered variants", value="scan"),
-            questionary.Choice("generate — offline variants, no network", value="generate"),
+            questionary.Choice(
+                "Scan      find registered lookalikes and rate the risk (recommended)",
+                value="scan",
+            ),
+            questionary.Choice(
+                "Generate  just list possible lookalikes, offline", value="generate"
+            ),
         ],
         pointer=_POINTER,
         qmark=_QMARK,
@@ -164,10 +178,12 @@ def run(console: Console) -> None:
 def _interactive_scan(domain: str, console: Console) -> None:
     """Guided scan: asks for network mode and show-all, then runs the resolver."""
     network = questionary.select(
-        "Network:",
+        "How thorough?",
         choices=[
-            questionary.Choice("DNS + HTTP  (full, slower)", value="full"),
-            questionary.Choice("DNS only    (fast)", value="dns"),
+            questionary.Choice(
+                "Full      DNS + websites + certificates, about a minute", value="full"
+            ),
+            questionary.Choice("Quick     DNS only, a few seconds, fewer clues", value="dns"),
         ],
         pointer=_POINTER,
         qmark=_QMARK,
@@ -176,7 +192,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
     if network is None:
         return
 
-    show_all = _confirm("Show unregistered variants?")
+    show_all = _confirm("Also list lookalikes nobody has registered?")
     if show_all is None:
         return
 
@@ -540,6 +556,74 @@ _ACTION_CHOICES = [
 ]
 
 
+def _evidence(r: DomainResult) -> list[tuple[str, str, str]]:
+    """(label, fact, what it means) rows for the dossier, plain words first."""
+    rows: list[tuple[str, str, str]] = []
+    if r.resolves:
+        rows.append(("Online", ", ".join(r.ip_addresses[:3]), "points to a live server"))
+    if r.has_mx:
+        rows.append(
+            ("Mail", ", ".join(r.mx_records[:2]), "can send email that looks like it is from you")
+        )
+    if r.redirects_to:
+        meaning = (
+            "sends visitors to your own site, likely yours"
+            if r.is_likely_defensive
+            else "sends visitors somewhere else"
+        )
+        rows.append(("Redirect", r.redirects_to, meaning))
+    elif r.http_status is not None:
+        title = f'"{r.page_title}"' if r.page_title else f"HTTP {r.http_status}"
+        meaning = "a page is up"
+        if r.title_similarity is not None and r.title_similarity >= 0.8:
+            meaning = "its page title copies yours"
+        rows.append(("Website", title, meaning))
+    if r.has_ssl:
+        age = f", {r.ssl_cert_age_days} days old" if r.ssl_cert_age_days is not None else ""
+        rows.append(
+            ("Certificate", f"{r.ssl_issuer or 'unknown issuer'}{age}", "browsers show a padlock")
+        )
+    if r.age_days is not None:
+        rows.append(("Registered", format_age(r.age_days) + " ago", "domain age from WHOIS/RDAP"))
+    if r.is_parked:
+        rows.append(("Parked", "placeholder page", "not in use yet, keep an eye on it"))
+    return rows
+
+
+def _dossier(r: DomainResult) -> Panel:
+    """One card with everything known about *r*, explained for non-specialists.
+
+    Every value is appended as Text, never parsed as markup: titles, issuers
+    and MX hosts come straight from the lookalike's own servers.
+    """
+    grid = Table.grid(padding=(0, 2))
+    grid.add_column(style="field", no_wrap=True)
+    grid.add_column(style="value", overflow="fold")
+    grid.add_column(style="muted")
+    for label, fact, meaning in _evidence(r):
+        grid.add_row(label, Text(fact), meaning)
+
+    head = Text()
+    head.append(f"{r.risk_level.icon} {r.risk_level.value.upper()} ", style=r.risk_level.style)
+    head.append(f"{r.risk_score}/100", style="value")
+    head.append(f"   {r.kind.value}", style="brand.dim")
+    if r.note:
+        head.append(f" · {r.note}", style="muted")
+    parts: list[Text | Table] = [head, Text()]
+    if grid.row_count:
+        parts.append(grid)
+    else:
+        parts.append(Text("No network signals: registered, but nothing is running.", "muted"))
+    return Panel(
+        Group(*parts),
+        title=Text(f" {r.domain} ", style="bold white"),
+        title_align="left",
+        border_style=r.risk_level.style,
+        box=box.SQUARE,
+        padding=(1, 2),
+    )
+
+
 def _pick_domain(report: ScanReport, session_allowed: set[str]) -> DomainResult | None:
     """Renders the domain picker and returns the chosen result (or None to exit)."""
     candidates = sorted(
@@ -551,13 +635,13 @@ def _pick_domain(report: ScanReport, session_allowed: set[str]) -> DomainResult 
         return None
     choices = [
         questionary.Choice(
-            f"{r.domain:<40} [{r.risk_level.value}]  score: {r.risk_score}",
+            f"{r.risk_level.icon} {r.domain:<40} {r.risk_level.value:<9} {r.risk_score:>3}",
             value=r,
         )
         for r in candidates
     ] + [questionary.Choice("── quit ──")]
     selected = questionary.select(
-        "Domain:",
+        "Pick a domain to inspect (riskiest first):",
         choices=choices,
         pointer=_POINTER,
         qmark=_QMARK,
@@ -569,6 +653,7 @@ def _pick_domain(report: ScanReport, session_allowed: set[str]) -> DomainResult 
 def _run_action_menu(ctx: _ActionContext) -> str:
     """Inner loop — keeps prompting for an action on ``ctx.selected`` until
     the handler signals NEXT_DOMAIN or QUIT."""
+    ctx.console.print(_dossier(ctx.selected))
     while True:
         action = questionary.select(
             f"Action for {ctx.selected.domain}:",

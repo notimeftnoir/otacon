@@ -17,7 +17,9 @@ import io
 import re
 from datetime import UTC
 
-from rich.console import Console
+from rich import box
+from rich.console import Console, Group
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
@@ -104,13 +106,30 @@ def _age_cell(age_days: int | None) -> Text:
 _HIGH_RISK_LEVELS = {RiskLevel.HIGH, RiskLevel.CRITICAL}
 
 
+_POINTS_RE = re.compile(r"\s*\(\+(\d+)\)$")
+
+
+def _why(result: DomainResult, limit: int = 2) -> str:
+    """The *limit* highest-scoring reasons in plain words, without point tags."""
+    scored = []
+    for reason in result.risk_reasons:
+        m = _POINTS_RE.search(reason)
+        if m and not reason.startswith("technique"):
+            scored.append((int(m.group(1)), reason[: m.start()]))
+    scored.sort(key=lambda p: p[0], reverse=True)
+    return " · ".join(text for _, text in scored[:limit])
+
+
 def _domain_cell(result: DomainResult) -> Text:
-    """Domain name + dim technique subtitle. Redirect host appended when defensive.
-    Page title shown for high/critical rows."""
+    """Domain name + dim technique subtitle and the main reasons it scored.
+    Redirect host appended when defensive. Page title shown for high/critical rows."""
     t = Text()
-    t.append(result.domain, style="value")
+    t.append(result.domain, style="bold white")
     t.append("\n")
-    t.append(result.kind.value, style="muted")
+    t.append(result.kind.value, style="brand.dim")
+    why = _why(result) if result.risk_level != RiskLevel.SAFE else ""
+    if why:
+        t.append(f" · {why}", style="muted")
     if result.is_likely_defensive and result.redirects_to:
         t.append(f"  {GLYPH_DEFENSIVE} ", style="warn")
         t.append(_redirect_host(result.redirects_to), style="warn")
@@ -162,6 +181,88 @@ def _verdict_banner(report: ScanReport) -> Text:
     return t
 
 
+_LEVELS_DESC = (
+    RiskLevel.CRITICAL,
+    RiskLevel.HIGH,
+    RiskLevel.MEDIUM,
+    RiskLevel.LOW,
+    RiskLevel.SAFE,
+)
+_DIST_WIDTH = 40
+
+
+def _headline(report: ScanReport) -> tuple[str, str, str]:
+    """(style, headline, explanation) in plain words for the verdict card."""
+    registered = report.registered
+    n, target = len(registered), report.target
+    plural = "s" if n != 1 else ""
+    if not registered:
+        return (
+            "ok",
+            f"✓ All clear: none of the {report.total_permutations} lookalikes "
+            f"of {target} are registered",
+            "Nobody has registered a domain that imitates yours. New ones appear "
+            "every day, so run this again from time to time.",
+        )
+    worst = max(r.risk_level.rank for r in registered)
+    if worst >= RiskLevel.HIGH.rank:
+        k = sum(1 for r in registered if r.risk_level.rank >= RiskLevel.HIGH.rank)
+        return (
+            "danger",
+            f"⚠ {k} lookalike{'s' if k != 1 else ''} of {target} look{'' if k != 1 else 's'} "
+            "dangerous",
+            "Registered and set up like a real website or mail server. "
+            "Start with the top rows of the table.",
+        )
+    if worst >= RiskLevel.LOW.rank:
+        return (
+            "warn",
+            f"● {n} registered lookalike{plural} of {target}, nothing urgent",
+            "They exist, but show few signs of being used for attacks yet. Worth a look.",
+        )
+    return (
+        "ok",
+        f"✓ {n} registered lookalike{plural} of {target}, all look harmless",
+        "Parked pages or redirects back to your own site.",
+    )
+
+
+def _distribution(registered: list[DomainResult]) -> Group:
+    """Stacked bar of registered lookalikes by risk level, plus its legend."""
+    counts = {lvl: sum(1 for r in registered if r.risk_level == lvl) for lvl in _LEVELS_DESC}
+    total = max(len(registered), 1)
+    # Every non-empty level keeps at least one cell, so a lone critical
+    # among fifty harmless parked domains is still visible.
+    bar, legend = Text(), Text()
+    for lvl in _LEVELS_DESC:
+        if not counts[lvl]:
+            continue
+        style = _BAR_STYLE[lvl]
+        bar.append(lvl.icon * max(1, round(counts[lvl] / total * _DIST_WIDTH)), style=style)
+        legend.append(f"{lvl.icon} ", style=style)
+        label = "harmless" if lvl == RiskLevel.SAFE else lvl.value
+        legend.append(f"{counts[lvl]} {label}   ", style="value")
+    return Group(bar, legend)
+
+
+def _verdict_card(report: ScanReport) -> Panel:
+    """Boxed verdict: a plain-language headline, what it means, and the numbers."""
+    style, headline, explanation = _headline(report)
+    stats = Text(f"{report.total_permutations} checked · ", style="muted")
+    stats.append_text(_verdict_banner(report))
+    parts: list[Text | Group] = [Text(headline, style=style), Text(explanation, style="muted")]
+    if report.registered:
+        parts += [Text(), _distribution(report.registered), Text(), stats]
+    return Panel(
+        Group(*parts),
+        title="[field] Verdict [/field]",
+        title_align="left",
+        border_style=style,
+        box=box.SQUARE,
+        padding=(1, 2),
+    )
+
+
 def _results_table(target: str, rows: list[DomainResult]) -> Table:
     """Builds the results table shared by the live scan view and the final report.
 
@@ -177,18 +278,24 @@ def _results_table(target: str, rows: list[DomainResult]) -> Table:
     table = Table(
         title=title,
         title_justify="left",
+        caption_justify="left",
+        caption_style="muted",
         header_style="field",
         expand=True,
+        box=box.SIMPLE_HEAD,
         border_style="brand.dim",
         show_lines=False,
+        leading=1,
     )
-    table.add_column("Domain", no_wrap=False, min_width=30)
+    # ratio=1: the domain and its reasons take whatever width the fixed
+    # signal columns leave over.
+    table.add_column("Domain", no_wrap=False, min_width=30, ratio=1)
     table.add_column("Risk", width=14)
-    table.add_column("Age", width=6, justify="right")
-    table.add_column("DNS", width=5, justify="center")
-    table.add_column("MX", width=5, justify="center")
-    table.add_column("SSL", width=5, justify="center")
-    table.add_column("HTTP", width=7, justify="center")
+    table.add_column("Age", width=5, justify="right")
+    table.add_column("DNS", width=3, justify="center")
+    table.add_column("MX", width=3, justify="center")
+    table.add_column("SSL", width=3, justify="center")
+    table.add_column("HTTP", width=4, justify="center")
 
     for r in sorted(rows, key=lambda r: r.risk_score, reverse=True):
         table.add_row(
@@ -204,12 +311,18 @@ def _results_table(target: str, rows: list[DomainResult]) -> Table:
     return table
 
 
-def build_live_table(hits: list[DomainResult], domain: str) -> Table:
+def build_live_table(hits: list[DomainResult], domain: str, limit: int = 0) -> Table:
     """Partial results table for the live scan view — registered hits only, sorted by score.
 
     Designed to be passed into a rich.Live renderable alongside a Progress bar.
+    *limit* > 0 keeps only the riskiest rows and notes how many are held back.
     """
-    return _results_table(domain, hits)
+    rows = sorted(hits, key=lambda r: r.risk_score, reverse=True)
+    if limit <= 0 or len(rows) <= limit:
+        return _results_table(domain, rows)
+    table = _results_table(domain, rows[:limit])
+    table.caption = f"+{len(rows) - limit} more · full table when the scan ends"
+    return table
 
 
 def render_table(report: ScanReport, console: Console, show_safe: bool = False) -> None:
@@ -219,38 +332,23 @@ def render_table(report: ScanReport, console: Console, show_safe: bool = False) 
     Defensive registrations (redirect → original) are flagged with GLYPH_DEFENSIVE.
     """
     console.print()
-    console.print(_verdict_banner(report))
+    console.print(_verdict_card(report))
 
     rows = report.results if show_safe else report.registered
 
     if not rows:
-        console.print(f"[muted]  Checked {report.total_permutations} permutations.[/muted]\n")
+        console.print()
         return
 
     console.print()
     console.print(_results_table(report.target, rows))
 
-    threats = report.threats
-    crit = sum(1 for r in threats if r.risk_level == RiskLevel.CRITICAL)
-    high = sum(1 for r in threats if r.risk_level == RiskLevel.HIGH)
-    med = sum(1 for r in threats if r.risk_level == RiskLevel.MEDIUM)
-    defensive = sum(1 for r in rows if r.is_likely_defensive)
-
-    footer = Text()
-    footer.append(
-        f"Permutations: {report.total_permutations} · registered: {len(report.registered)} · ",
-        style="value",
-    )
-    footer.append(f"med: {med}", style="warn")
-    footer.append(" · ", style="muted")
-    footer.append(f"high: {high}", style="danger")
-    footer.append(" · ", style="muted")
-    footer.append(f"crit: {crit}", style="critical")
-    if defensive:
-        footer.append(
-            f"    {GLYPH_DEFENSIVE} = likely defensive (redirects to original)", style="warn"
+    # The counts already live in the verdict card; only the marker needs a key.
+    if any(r.is_likely_defensive for r in rows):
+        console.print(
+            f"[warn]{GLYPH_DEFENSIVE}[/warn] [muted]= likely defensive: redirects to your own "
+            "site, probably registered by you[/muted]"
         )
-    console.print(footer)
     console.print()
 
 
