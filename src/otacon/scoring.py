@@ -54,6 +54,7 @@ class ScoringWeights:
         self.kind_base: dict[PermutationType, int] = {
             PermutationType.HOMOGLYPH: 25,
             PermutationType.IDN: 25,
+            PermutationType.DIACRITIC: 25,
             PermutationType.SUBDOMAIN: 22,
             PermutationType.WWW_MERGE: 20,
             PermutationType.COMBO: 20,
@@ -113,8 +114,39 @@ _PARKING_TITLES = {
     "cashpark",
     "bodis",
     "domainname",
+    # "Domain for sale" in the languages of the regional TLDs we generate.
+    # Whole phrases, not bare "for sale" words: a shop titled "sprzedaż
+    # hurtowa" must not be mistaken for parking and have its signals ignored.
+    "domena na sprzedaż",
+    "ta domena jest na sprzedaż",
+    "ta strona jest na sprzedaż",
+    "domain zu verkaufen",
+    "diese domain steht zum verkauf",
+    "domaine à vendre",
+    "ce domaine est à vendre",
+    "dominio en venta",
+    "este dominio está en venta",
+    "dominio in vendita",
+    "domein te koop",
+    "домен продается",
+    "домен продаётся",
 }
 _PARKING_SERVERS = {"parkingcrew", "sedo", "bodis"}
+# Nameserver domains of parking / domain-resale services. A lookalike
+# delegated here is parked whatever its page says, and the title check misses
+# the many parking pages that render their text with JavaScript.
+# ponytail: static list, add providers as they show up in scans.
+_PARKING_NS = (
+    "sedoparking.com",
+    "bodis.com",
+    "parkingcrew.net",
+    "above.com",
+    "dan.com",
+    "afternic.com",
+    "hugedomains.com",
+    "parklogic.com",
+    "ztomy.com",
+)
 
 # Age-based scoring thresholds. Single source of truth: reporters.py and
 # html_report.py read from these constants instead of inlining the magic
@@ -135,11 +167,18 @@ def count_fresh(results: Iterable[DomainResult]) -> int:
 
 
 def _detect_parking(result: DomainResult) -> None:
-    """Sets ``result.is_parked`` based on title / Server header heuristics."""
+    """Sets ``result.is_parked`` from nameservers, page title or Server header."""
     title = (result.page_title or "").lower()
     server = (result.server_header or "").lower()
-    if any(sig in title for sig in _PARKING_TITLES) or any(
-        sig in server for sig in _PARKING_SERVERS
+    parked_ns = any(
+        ns.rstrip(".") == p or ns.rstrip(".").endswith("." + p)
+        for ns in result.ns_records
+        for p in _PARKING_NS
+    )
+    if (
+        parked_ns
+        or any(sig in title for sig in _PARKING_TITLES)
+        or any(sig in server for sig in _PARKING_SERVERS)
     ):
         result.is_parked = True
 

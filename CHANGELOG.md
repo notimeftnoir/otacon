@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--no-whois` CLI flag to bypass WHOIS / RDAP lookups, preventing registry rate-limits and IP blocking during high-volume scans.
 - European ccTLDs (`.pl`, `.de`, `.uk`, `.eu`, `.fr`) to `_ALT_TLDS` mutation table.
 - `--resolver` / `-r` to query specific DNS servers instead of the system resolver.
+- `diacritic` technique: one diacritic added or dropped, or all dropped (`allegro` -> `allęgro`,
+  `żabka` -> `zabka`).
+- Parking detected from nameservers (Sedo, Bodis, ParkingCrew, Afternic, ParkLogic, …) and from
+  "domain for sale" titles in Polish, German, French, Spanish, Italian, Dutch and Russian.
+  New `ns_records` field, fetched for registered variants only.
 - `dns_inconclusive` per result and a warning when DNS never answered a variant: its status is
   unknown, which is no longer reported as "not registered".
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).
@@ -34,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a transitive dependency via `tldextract`) requires Python 3.11+.
 
 ### Fixed
+- IDN brands (`żabka.pl`) were rejected as invalid, and their punycode form was permuted as the
+  literal `xn--…` string. Targets are now ACE-encoded on input and decoded before permuting.
+- Page titles kept `&nbsp;` as U+00A0 because whitespace was collapsed before entities were
+  decoded, so phrase matching and title similarity missed such pages.
 - DNS false negatives: every query that timed out counted as "not registered". Queries are now
   capped at 32 in flight and retried on timeout/SERVFAIL/REFUSED (NXDOMAIN is final). On
   `example.com` through 1.1.1.1 this finds 84-85 registered variants on every run instead of 73-78.

@@ -105,6 +105,7 @@ unlabelled guess.
 |---|---|---|
 | **Homoglyph** | `examp1e.com`, `ex4mple.com` | Visual identity — humans can't tell the difference |
 | **IDN / Punycode** | `xn--exampe-7db.com` *(`l` → ł)* | ACE-encoded unicode that browsers may render natively |
+| **Diacritic** | `ęxample.com`; `zabka.pl` for `żabka.pl` | A mark added or dropped: readers skim past it, and IDN brands lose theirs in plain-ASCII links |
 | **Typo** | `exmple.com`, `exsmple.com`, `exampel.com` | Fat-finger typing on QWERTY keyboards |
 | **Combosquat** | `example-login.com`, `secureexample.com` | Adds "trust" keyword — common in phishing email links |
 | **TLD swap** | `example.io`, `example.top`, `example.icu` | Same name, different (often cheap/abused) TLD |

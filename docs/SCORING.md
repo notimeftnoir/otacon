@@ -12,7 +12,7 @@ Every score is the sum of **explicit, explainable signals** — no ML, no black 
 | Signal | Points |
 |---|---|
 | **MX record** — ready for email phishing | +25 |
-| **Technique** — homoglyph / IDN | +25 |
+| **Technique** — homoglyph / IDN / diacritic | +25 |
 | &nbsp;&nbsp;subdomain spoof | +22 |
 | &nbsp;&nbsp;combosquat · www-merge | +20 / +20 |
 | &nbsp;&nbsp;typo | +18 |

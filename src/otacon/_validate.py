@@ -6,6 +6,7 @@ same rules instead of each module rolling its own.
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import re
 from urllib.parse import urlparse
@@ -40,7 +41,14 @@ def normalize_domain(value: str) -> str:
     ``www.``-prefixed FQDN (``_www_merge`` produces ``wwwexample``), so keeping
     the prefix would make ``--exclude www.example.net`` match nothing at all.
     """
-    return value.strip().lower().removeprefix("www.").rstrip(".")
+    domain = value.strip().lower().removeprefix("www.").rstrip(".")
+    if not domain.isascii():
+        # An IDN brand ("żabka.pl") becomes its ACE form, the only spelling DNS
+        # and is_valid_domain understand; permutations decode it back to permute.
+        # Not encodable: left as typed, for is_valid_domain to reject.
+        with contextlib.suppress(UnicodeError):
+            domain = domain.encode("idna").decode("ascii")
+    return domain
 
 
 def parse_domain_list(content: str) -> set[str]:

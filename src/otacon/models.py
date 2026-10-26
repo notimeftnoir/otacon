@@ -36,6 +36,7 @@ class PermutationType(str, Enum):
     PLURAL = "plural"  # plural / singular suffix variation
     IDN = "idn"  # ACE/punycode encoding of unicode homoglyph
     WWW_MERGE = "www-merge"  # 'www' subdomain merged into the domain (dot omission)
+    DIACRITIC = "diacritic"  # diacritic added or dropped: allegro <-> allęgro, żabka <-> zabka
 
 
 class Permutation(BaseModel):
@@ -59,6 +60,9 @@ class DomainResult(BaseModel):
     ip_addresses: list[str] = Field(default_factory=list)
     has_mx: bool = False  # readiness for email phishing
     mx_records: list[str] = Field(default_factory=list)
+    # Nameservers, fetched for registered variants only: parking providers
+    # give themselves away here even when the page title does not.
+    ns_records: list[str] = Field(default_factory=list)
     has_ssl: bool = False  # active certificate (port 443)
     ssl_issuer: str | None = None  # CN of the cert issuer (e.g. "Let's Encrypt")
     ssl_cert_age_days: int | None = None  # days since cert notBefore — fresh = phishing signal

@@ -357,6 +357,51 @@ def _homoglyphs(label: str) -> set[str]:
     return out
 
 
+# Latin letters and their diacritic forms (Polish set). Readers skim past a
+# missing or an extra mark, so both directions are lookalikes:
+# allegro -> allęgro, żabka -> zabka. .pl and most gTLDs accept these as
+# IDN labels.
+_DIACRITICS: dict[str, str] = {
+    "a": "ą",
+    "c": "ć",
+    "e": "ę",
+    "l": "ł",
+    "n": "ń",
+    "o": "ó",
+    "s": "ś",
+    "z": "żź",
+}
+_FOLD: dict[str, str] = {mark: base for base, marks in _DIACRITICS.items() for mark in marks}
+
+
+def _diacritics(label: str) -> set[str]:
+    """Adds one diacritic, drops one, or drops them all (the plain-ASCII spelling)."""
+    out: set[str] = set()
+    for i, ch in enumerate(label):
+        for mark in _DIACRITICS.get(ch, ""):
+            out.add(label[:i] + mark + label[i + 1 :])
+        if ch in _FOLD:
+            out.add(label[:i] + _FOLD[ch] + label[i + 1 :])
+    out.add("".join(_FOLD.get(ch, ch) for ch in label))
+    out.discard(label)
+    return out
+
+
+def _from_ace(label: str) -> str:
+    """Unicode spelling of a possibly-ACE label ('xn--abka-ufa' -> 'żabka').
+
+    Targets arrive in ACE form (normalize_domain encodes them), and every
+    technique must mutate the name people read, not its 'xn--' encoding.
+    """
+    parts = []
+    for part in label.split("."):
+        try:
+            parts.append(part.encode("ascii").decode("idna") if part.startswith("xn--") else part)
+        except UnicodeError:
+            parts.append(part)
+    return ".".join(parts)
+
+
 def _combos(label: str, tld: str = "") -> set[str]:
     """Combosquatting: original + bait word, with and without a hyphen."""
     out: set[str] = set()
@@ -508,6 +553,7 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
     label, tld = _split_domain(domain)
     if not label:
         return []
+    label = _from_ace(label)
 
     # Canonical form of the input, used everywhere below that needs the full
     # domain rather than its parts. The trailing root dot goes so a dotted FQDN
@@ -548,6 +594,7 @@ def generate(domain: str, exclude: set[str] | None = None) -> list[Permutation]:
             _idn_squats(homoglyph_variants),
             "ACE/punycode unicode homoglyph",
         ),
+        (PermutationType.DIACRITIC, _diacritics(label), "diacritic added or dropped"),
         (PermutationType.TYPO, _typos(label), "typo / keyboard error"),
         (PermutationType.BITSQUAT, _bitsquats(label), "bit-flip (memory error)"),
         (PermutationType.HYPHEN, _hyphenation(label), "hyphen modification"),

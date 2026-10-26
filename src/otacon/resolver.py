@@ -78,7 +78,9 @@ def _parse_title(body: str) -> str | None:
     m = _TITLE_RE.search(body)
     if not m:
         return None
-    title = _strip_unsafe_chars(_html.unescape(" ".join(m.group(1).split())))
+    # Unescape first: &nbsp; decodes to U+00A0, which the split() then folds
+    # into a plain space; the other order left it in for phrase matching.
+    title = _strip_unsafe_chars(" ".join(_html.unescape(m.group(1)).split()))
     return title[:_TITLE_MAX] if title else None
 
 
@@ -132,6 +134,7 @@ _QTYPE = {
     "AAAA": pycares.QUERY_TYPE_AAAA,
     "MX": pycares.QUERY_TYPE_MX,
     "TXT": pycares.QUERY_TYPE_TXT,
+    "NS": pycares.QUERY_TYPE_NS,
 }
 _HTTP_TIMEOUT = 4.0
 # Port probed for a served TLS certificate — a named constant alongside the
@@ -279,7 +282,9 @@ class Resolver:
         if self._http is not None:
             await self._http.aclose()
 
-    async def _lookup(self, domain: str, rtype: Literal["A", "AAAA", "MX", "TXT"]) -> list[Any]:
+    async def _lookup(
+        self, domain: str, rtype: Literal["A", "AAAA", "MX", "TXT", "NS"]
+    ) -> list[Any]:
         """Record data of type *rtype* for *domain*; [] when there is none.
 
         Bounded by _DNS_INFLIGHT. A query the server never answered is retried
@@ -637,6 +642,12 @@ class Resolver:
                     result.server_header = server
                     result.redirects_to = redirect
                     result.page_title = title
+
+                if result.is_registered:
+                    result.ns_records = [
+                        _strip_unsafe_chars(rec.nsdname).lower()
+                        for rec in await self._lookup(perm.domain, "NS")
+                    ]
 
                 # WHOIS only for registered domains — unregistered aren't worth the quota.
                 if result.is_registered and self._check_whois:
