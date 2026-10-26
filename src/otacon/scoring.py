@@ -145,8 +145,15 @@ def _detect_parking(result: DomainResult) -> None:
 
 
 def _detect_defensive(result: DomainResult, target: str) -> None:
-    """Sets ``result.is_likely_defensive`` when the redirect points back to *target*."""
+    """Sets ``result.is_likely_defensive`` when the redirect points back to *target*.
+
+    Refuses when the domain has an active MX record: an active mail server indicates
+    email phishing / BEC infrastructure readiness, so an HTTP redirect alone must not
+    clear the domain's risk.
+    """
     if not (result.redirects_to and target):
+        return
+    if result.has_mx:
         return
     parsed = parse_redirect(result.redirects_to)
     if parsed is None:
@@ -232,7 +239,7 @@ def _tls_points(result: DomainResult, reasons: list[str], weights: ScoringWeight
         return 0
     points = weights.points_ssl
     reasons.append(f"active SSL certificate (+{weights.points_ssl})")
-    if result.ssl_cert_age_days is not None and result.ssl_cert_age_days < AGE_FRESH_DAYS:
+    if result.ssl_cert_age_days is not None and 0 <= result.ssl_cert_age_days < AGE_FRESH_DAYS:
         points += weights.points_ssl_fresh
         reasons.append(
             f"SSL certificate issued {result.ssl_cert_age_days} days ago — fresh "

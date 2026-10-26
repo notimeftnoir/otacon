@@ -101,6 +101,35 @@ def test_score_sets_is_likely_defensive_when_redirect_matches_target():
     assert result.risk_level == RiskLevel.SAFE
 
 
+def test_score_does_not_set_defensive_when_domain_has_mx():
+    """An active MX record indicates mail spoofing readiness; web redirect must not clear risk."""
+    r = DomainResult(
+        domain="googel.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        has_mx=True,
+        mx_records=["mail.attacker.com"],
+        redirects_to="https://www.google.com/",
+    )
+    result = score(r, target="google.com")
+    assert result.is_likely_defensive is False
+    assert result.risk_score > 0
+    assert result.risk_level != RiskLevel.SAFE
+
+
+def test_score_negative_ssl_cert_age_not_scored_as_fresh():
+    """Negative SSL cert age (future notBefore/clock skew) must not receive fresh-cert boost."""
+    r = DomainResult(
+        domain="lookalike.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        has_ssl=True,
+        ssl_cert_age_days=-1,
+    )
+    scored = score(r)
+    assert not any("SSL certificate issued -1 days ago" in reason for reason in scored.risk_reasons)
+
+
 def test_score_does_not_set_defensive_for_unrelated_redirect():
     r = DomainResult(
         domain="googel.com",

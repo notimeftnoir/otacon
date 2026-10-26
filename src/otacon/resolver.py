@@ -114,6 +114,9 @@ _HTTPS_PORT = 443
 # hostile server trickling one byte per read could otherwise hold a concurrency
 # slot almost indefinitely (slow-loris against the scanner).
 _HTTP_DEADLINE = 15.0
+# After HTTP answers first, HTTPS gets this long to catch up: it carries the
+# title and the real redirect target, but a firewalled :443 must not stall us.
+_HTTPS_GRACE = 2.0
 # Hard cap on how much (decompressed) HTTP body we ever read. The page <title>
 # lives in <head>, so 64 KB is plenty — and the cap is what stops a hostile
 # lookalike server from OOM-ing the scanner with a giant body or a gzip bomb.
@@ -174,6 +177,7 @@ class Resolver:
         concurrency: int = DEFAULT_CONCURRENCY,
         check_http: bool = True,
         target: str = "",
+        check_whois: bool = True,
     ) -> None:
         self._concurrency = concurrency
         self._sem = asyncio.Semaphore(concurrency)
@@ -184,6 +188,7 @@ class Resolver:
         self._whois_sem = asyncio.Semaphore(4)
         self._dns = aiodns.DNSResolver(timeout=_DNS_TIMEOUT, tries=1)
         self._check_http = check_http
+        self._check_whois = check_whois
         self.target = target
         self._target_title: str | None = None
         # One HTTP client reused for all requests (connection pooling).
@@ -377,7 +382,8 @@ class Resolver:
             raw = cn_attrs[0].value
             issuer_cn = raw if isinstance(raw, str) else raw.decode("utf-8", "replace")
 
-        age_days: int | None = (datetime.now(UTC) - cert.not_valid_before_utc).days
+        diff = (datetime.now(UTC) - cert.not_valid_before_utc).days
+        age_days: int | None = max(0, diff)
 
         san_matches: bool | None = None
         try:
@@ -442,7 +448,8 @@ class Resolver:
 
         # Check both schemes in parallel; each gets a hard wall-clock deadline.
         # When HTTPS succeeds, HTTP is cancelled immediately to avoid stalling
-        # on firewalled port 80. HTTPS wins ties.
+        # on firewalled port 80. HTTPS wins ties; an early HTTP answer waits at
+        # most _HTTPS_GRACE for HTTPS before it is used.
         https_task = asyncio.create_task(asyncio.wait_for(_get("https"), _HTTP_DEADLINE))
         http_task = asyncio.create_task(asyncio.wait_for(_get("http"), _HTTP_DEADLINE))
 
@@ -474,7 +481,12 @@ class Resolver:
             return None, None, None, None
         else:
             http_exc = http_task.exception()
-            if http_exc is not None and not isinstance(
+            if http_exc is None:
+                try:
+                    return await asyncio.wait_for(https_task, _HTTPS_GRACE)
+                except (TimeoutError, httpx.HTTPError, UnicodeError, OSError):
+                    return http_task.result()
+            if not isinstance(
                 http_exc, (httpx.HTTPError, UnicodeError, OSError, asyncio.TimeoutError)
             ):
                 https_task.cancel()
@@ -488,8 +500,6 @@ class Resolver:
                 https_exc, (httpx.HTTPError, UnicodeError, OSError, asyncio.TimeoutError)
             ):
                 raise https_exc
-            if http_exc is None:
-                return http_task.result()
             return None, None, None, None
 
     async def _probe(
@@ -574,7 +584,7 @@ class Resolver:
                     result.page_title = title
 
                 # WHOIS only for registered domains — unregistered aren't worth the quota.
-                if result.is_registered:
+                if result.is_registered and self._check_whois:
                     created, age = await self._cached_whois(perm.domain)
                     result.created_at = created
                     result.age_days = age

@@ -504,7 +504,7 @@ class _FakeResolver:
 
     dns_hijack_detected = False
 
-    def __init__(self, concurrency, check_http, target) -> None:
+    def __init__(self, concurrency, check_http, target, check_whois=True) -> None:
         self.target_title = None
 
     async def __aenter__(self) -> _FakeResolver:
@@ -571,9 +571,51 @@ async def test_run_scan_reports_dns_hijack_warning(monkeypatch, capsys) -> None:
     assert "NXDOMAIN hijacking" in capsys.readouterr().out
 
 
+@pytest.mark.asyncio
+async def test_run_scan_sorts_results_deterministically(monkeypatch) -> None:
+    from otacon.models import Permutation, PermutationType
+
+    def fake_generate(target, exclude=None):
+        return [
+            Permutation(domain="z.example.com", kind=PermutationType.TYPO),
+            Permutation(domain="a.example.com", kind=PermutationType.TYPO),
+            Permutation(domain="m.example.com", kind=PermutationType.TYPO),
+        ]
+
+    monkeypatch.setattr(cli.permutations, "generate", fake_generate)
+    monkeypatch.setattr("otacon._scanner.Resolver", _FakeResolver)
+    report = await cli._run_scan("example.com", concurrency=5, check_http=True, quiet=True)
+    domains = [r.domain for r in report.results]
+    assert domains == sorted(domains)
+
+
 # ---------------------------------------------------------------------------
 # scan command — quiet JSON + failed file writes
 # ---------------------------------------------------------------------------
+
+
+def test_scan_no_whois_flag_passed_to_scan(monkeypatch) -> None:
+    from otacon.models import ScanReport
+
+    called_kwargs = {}
+
+    async def fake_run_scan(
+        domain,
+        concurrency,
+        check_http,
+        exclude=None,
+        quiet=False,
+        weights=None,
+        check_whois=True,
+    ):
+        called_kwargs["check_whois"] = check_whois
+        return ScanReport(target=domain, total_permutations=0)
+
+    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    runner = CliRunner()
+    result = runner.invoke(app, ["scan", "example.com", "--no-whois"])
+    assert result.exit_code == 0
+    assert called_kwargs.get("check_whois") is False
 
 
 def test_scan_quiet_mode_emits_json(monkeypatch) -> None:
