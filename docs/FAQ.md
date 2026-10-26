@@ -84,7 +84,7 @@ Otacon first queries modern **RDAP (Registration Data Access Protocol)** over HT
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `pip` tries to compile `pycares` and fails | No prebuilt wheel for your Python/platform (wheels cover CPython 3.10–3.14 on Linux, macOS and Windows; PyPy or an unusual CPU architecture may lack one) | Use CPython 3.10–3.13, or install the `c-ares` headers (`apt install libc-ares-dev` / `brew install c-ares`) so it can build |
+| `pip` tries to compile `pycares` and fails | No prebuilt wheel for your Python/platform (wheels cover CPython 3.10–3.14 on Linux, macOS and Windows; PyPy or an unusual CPU architecture may lack one) | Use CPython 3.11–3.13, or install the `c-ares` headers (`apt install libc-ares-dev` / `brew install c-ares`) so it can build |
 | Scan hangs at "Checking variants" | DNS resolver unreachable or rate-limiting | Lower `--concurrency`, switch resolver (`1.1.1.1`, `8.8.8.8`) |
 | WHOIS always `—` for `.ai` / `.io` / `.pl` | Registry WHOIS rate-limit | Re-run later; this is normal |
 | Windows: `ConnectionResetError [WinError 10054]` | Should be auto-fixed in 1.0+ | Ensure you're on the latest version; this used the Proactor loop, we've switched to Selector on Windows |

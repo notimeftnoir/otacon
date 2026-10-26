@@ -3,7 +3,7 @@ name = "otacon"
 version = "1.1.0"
 description = "Domain impersonation detector — typosquatting, homoglyph & combosquat detection."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Gabriel" }]
 keywords = [
@@ -19,7 +19,6 @@ classifiers = [
     "Topic :: Security",
     "Topic :: Internet :: Name Service (DNS)",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -75,7 +74,7 @@ otacon = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = [
@@ -88,6 +87,7 @@ select = [
 ignore = [
     "S101",  # asserts are fine — pytest depends on them
     "S311",  # we never use `random` for crypto; secrets.token_hex covers nonces
+    "UP042", # StrEnum changes str()/format() output of CLI and report enums
     # RUF001/003 fire on UI glyphs (›, –, ×) that are intentionally non-ASCII —
     # use noqa for the rare false positive instead of disabling the rule globally.
 ]
@@ -105,7 +105,7 @@ markers = [
 addopts = "-m 'not network'"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 ignore_missing_imports = true
 warn_unused_configs = true

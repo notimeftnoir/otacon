@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import ssl
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -344,7 +344,7 @@ def _make_der_cert(
     from cryptography.x509.oid import NameOID
 
     key = ec.generate_private_key(ec.SECP256R1())
-    nb = not_before or (datetime.now(timezone.utc) - timedelta(days=2))
+    nb = not_before or (datetime.now(UTC) - timedelta(days=2))
     subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "subject.example")])
     if issuer_cn is None:
         # An issuer with no CN at all — only an organizationName.
@@ -440,7 +440,7 @@ def test_inspect_cert_reads_der_under_cert_none():
 def test_inspect_cert_full_match():
     der = _make_der_cert(
         issuer_cn="Let's Encrypt",
-        not_before=datetime.now(timezone.utc) - timedelta(days=2),
+        not_before=datetime.now(UTC) - timedelta(days=2),
         san=("lookalike.example.com",),
     )
     issuer, age, san_match = Resolver._inspect_cert(

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import asyncwhois
 import httpx
@@ -47,7 +47,7 @@ async def _fetch_rdap(domain: str, client: httpx.AsyncClient | None = None) -> d
                         clean_str = raw_date.replace("Z", "+00:00")
                         dt = datetime.fromisoformat(clean_str)
                         if dt.tzinfo is None:
-                            dt = dt.replace(tzinfo=timezone.utc)
+                            dt = dt.replace(tzinfo=UTC)
                         candidates.append(dt)
                     except ValueError:
                         pass
@@ -94,8 +94,8 @@ async def fetch_domain_age(
         return None, None
 
     if created.tzinfo is None:
-        created = created.replace(tzinfo=timezone.utc)
-    age_days = (datetime.now(timezone.utc) - created).days
+        created = created.replace(tzinfo=UTC)
+    age_days = (datetime.now(UTC) - created).days
     if age_days < 0:
         # A creation date in the future means the value is wrong — clock skew,
         # or asyncwhois mapping an expiry field into `created`.

@@ -22,7 +22,7 @@ import secrets
 import ssl
 import unicodedata
 import warnings
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 import aiodns
@@ -338,7 +338,7 @@ class Resolver:
                     with contextlib.suppress(OSError, ssl.SSLError):
                         await writer.wait_closed()
                 return True, issuer_cn, age_days, san_matches
-            except (OSError, asyncio.TimeoutError, ssl.SSLError, UnicodeError):
+            except (TimeoutError, OSError, ssl.SSLError, UnicodeError):
                 return False, None, None, None
 
     @staticmethod
@@ -377,7 +377,7 @@ class Resolver:
             raw = cn_attrs[0].value
             issuer_cn = raw if isinstance(raw, str) else raw.decode("utf-8", "replace")
 
-        age_days: int | None = (datetime.now(timezone.utc) - cert.not_valid_before_utc).days
+        age_days: int | None = (datetime.now(UTC) - cert.not_valid_before_utc).days
 
         san_matches: bool | None = None
         try:

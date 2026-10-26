@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from otacon.html_report import to_html
 from otacon.models import DomainResult, PermutationType, ScanReport
@@ -14,7 +14,7 @@ def _report(*results: DomainResult, total: int = 10) -> ScanReport:
         target="example.com",
         total_permutations=total,
         results=list(results),
-        started_at=datetime(2024, 6, 1, 12, 0, tzinfo=timezone.utc),
+        started_at=datetime(2024, 6, 1, 12, 0, tzinfo=UTC),
     )
 
 

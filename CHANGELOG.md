@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **BREAKING:** dropped Python 3.10 support (EOL October 2026). Patched `filelock`
+  (a transitive dependency via `tldextract`) requires Python 3.11+.
+
+### Security
+- `certifi` 2026.10.23 (PYSEC-2026-4320) and `filelock` 4.2.4
+  (CVE-2026-112907, CVE-2026-112913, CVE-2026-112940).
+
 ## [1.1.0] — 2026-10-14
 
 ### Added
