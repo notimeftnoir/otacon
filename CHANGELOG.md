@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Favicon fingerprint: live lookalikes get a Shodan-compatible `favicon_hash`
   (`http.favicon.hash:<n>` finds other servers running the same kit); serving the target's exact
   favicon scores +20 as a clone. Pure-stdlib MurmurHash3, verified against `mmh3`.
+- Certificate Transparency via crt.sh: certificates issued in the last 30 days for names
+  carrying the brand join `discovered` (with `first_seen`). Runs alongside the scan with
+  retries, a 6 h cache and a stale fallback; `ct_available: false` and a notice when crt.sh is
+  unreachable. The whitelist now also hides discovered hosts under your own domains.
 - `dns_inconclusive` per result and a warning when DNS never answered a variant: its status is
   unknown, which is no longer reported as "not registered".
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).

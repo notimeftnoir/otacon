@@ -14,6 +14,7 @@ import os
 import time
 from collections import Counter
 from contextlib import AsyncExitStack
+from datetime import datetime
 
 import httpx
 from rich.console import Console, Group
@@ -28,7 +29,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from . import __version__, intel, permutations, reporters, scoring
+from . import __version__, ct, intel, permutations, reporters, scoring
 from .models import Discovery, DomainResult, Permutation, ScanReport
 from .resolver import Resolver
 
@@ -75,6 +76,20 @@ def _variant_summary(perms: list[Permutation]) -> str:
     kinds = Counter(p.kind.value for p in perms).most_common(5)
     parts = " [muted]·[/muted] ".join(f"[muted]{k}[/muted] {n}" for k, n in kinds)
     return f"[ok]✓[/ok] [value]{len(perms)}[/value] lookalikes generated  {parts}"
+
+
+# Longest the scan waits for crt.sh after its own work is done.
+_CT_WAIT = 90.0
+
+
+def _is_allowed(host: str, allowed: set[str]) -> bool:
+    """True when *host* is a whitelisted domain or a subdomain of one."""
+    labels = host.split(".")
+    return any(".".join(labels[i:]) in allowed for i in range(len(labels) - 1))
+
+
+def _examples(found: list[Discovery], n: int = 3) -> str:
+    return escape(", ".join(d.host for d in found[:n]))
 
 
 def _dmarc_advice(target: str, policy: str | None) -> str:
@@ -145,21 +160,26 @@ async def run_scan(
         # Feeds are matched locally against every variant up front; only the
         # opt-in URLhaus lookup sends names out, and only for registered ones.
         listed: dict[str, list[str]] = {}
+        discovered: dict[str, Discovery] = {}
+        perm_domains = {p.domain for p in perms}
         intel_client: httpx.AsyncClient | None = None
+        ct_task: asyncio.Task[dict[str, datetime] | None] | None = None
         urlhaus_key = os.environ.get(intel.URLHAUS_KEY_ENV) if check_intel else None
         if check_intel:
             intel_client = await stack.enter_async_context(
                 httpx.AsyncClient(timeout=20.0, headers={"User-Agent": f"Otacon/{__version__}"})
             )
+            brand = permutations.brand_label(target)
+            # CT runs alongside the scan: crt.sh can take a minute, the scan should not.
+            ct_task = asyncio.create_task(ct.recent_certificates(intel_client, brand, target))
+            stack.callback(ct_task.cancel)  # no-op once done; stops it if the scan fails
             feeds = await intel.load_feeds(intel_client)
-            perm_domains = {p.domain for p in perms}
             listed = intel.match(perm_domains, feeds)
-            mentioned = intel.mentions(permutations.brand_label(target), feeds, target)
-            report.discovered = [
-                Discovery(host=host, sources=sources)
-                for host, sources in sorted(mentioned.items())
+            discovered = {
+                host: Discovery(host=host, sources=sources)
+                for host, sources in intel.mentions(brand, feeds, target).items()
                 if host not in perm_domains
-            ]
+            }
 
         for coro in asyncio.as_completed([resolver.check_one(p) for p in perms]):
             result = await coro
@@ -186,6 +206,25 @@ async def run_scan(
 
         report.dns_hijack_detected = resolver.dns_hijack_detected
 
+        if ct_task is not None:
+            try:
+                certs = await asyncio.wait_for(ct_task, _CT_WAIT)
+            except TimeoutError:
+                certs = None
+            report.ct_available = certs is not None
+            for host, issued in (certs or {}).items():
+                if host not in perm_domains:
+                    found = discovered.setdefault(host, Discovery(host=host))
+                    found.sources.append("CT")
+                    found.first_seen = issued
+        # The whitelist covers the brand's other domains (allegrogroup.com) and
+        # all their subdomains, which CT and feeds otherwise keep surfacing.
+        allowed = {e.lower() for e in exclude or ()}
+        report.discovered = sorted(
+            (d for d in discovered.values() if not _is_allowed(d.host, allowed)),
+            key=lambda d: d.host,
+        )
+
     # Sort results deterministically: registered threats first (descending by score),
     # then alphabetically by domain. Ensures reproducible JSON reports and CI diffs.
     report.results.sort(key=lambda r: (-r.risk_score, r.domain))
@@ -199,12 +238,23 @@ async def run_scan(
         console.print(_HIJACK_WARNING)
     if report.target_dmarc in (None, "none"):
         console.print(f"[warn]⚠  {_dmarc_advice(target, report.target_dmarc)}[/warn]")
-    if report.discovered:
-        examples = ", ".join(d.host for d in report.discovered[:3])
+    reported = [d for d in report.discovered if any(s != "CT" for s in d.sources)]
+    if reported:
         console.print(
-            f"[danger]⚠  {len(report.discovered)} host(s) already reported as phishing carry"
-            f" this brand in their name[/danger] [muted](e.g. {escape(examples)};"
+            f"[danger]⚠  {len(reported)} host(s) already reported as phishing carry this brand"
+            f" in their name[/danger] [muted](e.g. {_examples(reported)};"
             " full list in the --json report)[/muted]"
+        )
+    certified = [d for d in report.discovered if "CT" in d.sources]
+    if certified:
+        console.print(
+            f"[warn]→  {len(certified)} new certificate name(s) in the last {ct.WINDOW_DAYS} days"
+            f" carry this brand[/warn] [muted](crt.sh; e.g. {_examples(certified)})[/muted]"
+        )
+    if report.ct_available is False:
+        console.print(
+            "[muted]Certificate Transparency (crt.sh) was unreachable; new-certificate checks"
+            " were skipped. Re-run later.[/muted]"
         )
     if report.inconclusive:
         console.print(

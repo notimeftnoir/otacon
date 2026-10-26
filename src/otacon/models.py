@@ -106,6 +106,8 @@ class Discovery(BaseModel):
 
     host: str
     sources: list[str] = Field(default_factory=list)
+    # Earliest certificate notBefore, for hosts found in CT logs.
+    first_seen: datetime | None = None
 
 
 class ScanReport(BaseModel):
@@ -122,6 +124,8 @@ class ScanReport(BaseModel):
     # DMARC policy lets anyone send mail as the target.
     target_spf: bool | None = None
     target_dmarc: str | None = None
+    # Certificate Transparency lookup: None = not run, False = crt.sh unreachable.
+    ct_available: bool | None = None
     # Brand-bearing hosts found outside the permutations (see Discovery).
     discovered: list[Discovery] = Field(default_factory=list)
 

@@ -159,6 +159,20 @@ The bare `otacon` command opens with a short animation: the wordmark decodes out
 
 ---
 
+## Threat intel and Certificate Transparency
+
+Every scan also asks three outside sources what they already know. `--no-intel` turns all of them off.
+
+| Source | What it adds | Leaves your machine |
+|---|---|---|
+| OpenPhish + Phishing Army feeds | A variant listed as phishing scores +40; listed hosts carrying your brand (`allegro.id-23843.click`) go to `discovered` | nothing: both feeds are downloaded whole and matched locally, cached 6 h |
+| crt.sh (Certificate Transparency) | Certificates issued in the last 30 days for names carrying your brand, also in `discovered` | your brand word |
+| URLhaus | A registered variant on record scores +40 | each registered variant's name; only runs when `ABUSECH_AUTH_KEY` is set |
+
+Most real phishing hangs the brand off a throwaway domain that no permutation produces, which is why `discovered` exists: those hosts are reported, never probed. crt.sh is often slow or down; it runs alongside the scan, and when it cannot be reached the report says so instead of showing zero. Your own other domains (`allegrogroup.com`) belong in the whitelist, which also hides them and their subdomains from `discovered`.
+
+---
+
 ## Whitelist / defensive flag
 
 Brands often own their own lookalikes defensively (e.g., `google.com` owns `gooogle.com` and redirects it). Otacon flags these with `»` when the redirect points back to the original:
