@@ -603,6 +603,75 @@ def scan(
             raise typer.Exit(2)
 
 
+@app.command()
+def check(
+    ctx: typer.Context,
+    link: str = typer.Argument(..., help="The suspicious link or domain, defanged or not."),
+    brand: str = typer.Option(
+        None, "--brand", "-b", help="The real domain it may imitate, e.g. allegro.pl."
+    ),
+    no_http: bool = typer.Option(
+        False, "--no-http", help="Do not contact the site at all: DNS and feeds only."
+    ),
+    no_intel: bool = typer.Option(False, "--no-intel", help="Skip the phishing feeds."),
+    resolvers: list[str] = typer.Option(
+        None, "--resolver", "-r", help="DNS server IP to use.", callback=_validate_resolvers
+    ),
+) -> None:
+    """Checks one suspicious link: which brand it imitates and how dangerous it is.
+
+    Only the domain's front page is fetched, never the link's own path, so a
+    tracking token in the link cannot tell the sender you clicked.
+    """
+    from .check import check as run_check
+    from .check import host_of
+
+    quiet = _state(ctx).quiet
+    host, decoy = host_of(link)
+    if host is None:
+        console.print("[danger]Error: that does not contain a valid domain.[/danger]")
+        raise typer.Exit(1)
+    if brand:
+        brand = normalize_domain(brand)
+        if not is_valid_domain(brand):
+            raise typer.BadParameter(f"not a domain: {brand}", param_hint="--brand")
+
+    console.print(f"\n[brand]►[/brand] Checking [bold white]{escape(host)}[/bold white]")
+    found = run_async(
+        run_check(
+            host,
+            brand,
+            check_http=not no_http,
+            check_intel=not no_intel,
+            nameservers=resolvers or None,
+            decoy=decoy,
+        )
+    )
+    from .interactive import render_check
+
+    render_check(found, console)
+    dangerous = found.dangerous
+    if quiet:
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "input": link,
+                    "host": found.host,
+                    "verdict": found.verdict,
+                    "dangerous": dangerous,
+                    "brand": found.match.brand if found.match else None,
+                    "official": list(found.match.official) if found.match else [],
+                    "notes": found.notes,
+                    "result": found.result.model_dump(mode="json") if found.result else None,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+    if dangerous:
+        raise typer.Exit(2)
+
+
 _EVENT_STYLE = {"new": "danger", "escalated": "warn", "gone": "ok", "discovered": "info"}
 
 

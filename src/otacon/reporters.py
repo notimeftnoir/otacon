@@ -16,6 +16,7 @@ import csv
 import io
 import re
 from datetime import UTC
+from typing import TYPE_CHECKING
 
 from rich import box
 from rich.console import Console, Group
@@ -27,6 +28,9 @@ from ._validate import parse_redirect
 from .models import DomainResult, ScanReport
 from .theme import GLYPH_DEFENSIVE, RiskLevel
 from .whois import format_age
+
+if TYPE_CHECKING:
+    from .check import CheckResult
 
 _BAR_STYLE: dict[RiskLevel, str] = {
     RiskLevel.SAFE: "ok",
@@ -243,6 +247,74 @@ def _distribution(registered: list[DomainResult]) -> Group:
         label = "harmless" if lvl == RiskLevel.SAFE else lvl.value
         legend.append(f"{counts[lvl]} {label}   ", style="value")
     return Group(bar, legend)
+
+
+def _check_headline(found: CheckResult) -> tuple[str, str, str]:
+    """(style, headline, explanation) for ``otacon check``, in plain words."""
+    brand = found.match.brand.title() if found.match else ""
+    real = found.match.official[0] if found.match else ""
+    r = found.result
+    if found.verdict == "official":
+        return "ok", f"✓ This is the real {brand}", f"{found.host} belongs to {brand}."
+    if found.verdict == "reported":
+        target = f"a fake {brand} site" if brand else "a phishing site"
+        return (
+            "danger",
+            f"⚠ Already reported as {target}",
+            f"Listed by {', '.join(r.intel_sources) if r else 'a phishing feed'}. Do not use it.",
+        )
+    if found.verdict == "deceptive":
+        return (
+            "danger",
+            f"⚠ A disguised link pretending to be {brand}",
+            f"It does not go to {real} at all, but to {found.host}. Do not use it.",
+        )
+    if found.verdict == "established" and r is not None:
+        return (
+            "warn",
+            f"● Resembles {brand}, but has existed for {format_age(r.age_days)}",
+            f"Probably an unrelated business. The real one is {real}; check which you meant.",
+        )
+    if found.verdict == "impersonation" and r is not None:
+        how = found.match.how if found.match else ""
+        if not r.is_registered:
+            return (
+                "warn",
+                f"● Imitates {brand} {how}, but nobody has registered it",
+                f"Harmless right now. The real site is {real}.",
+            )
+        if r.risk_level.rank >= RiskLevel.HIGH.rank:
+            return (
+                "danger",
+                f"⚠ Looks like a fake {brand} site",
+                f"It imitates {real} {how} and is set up to be used. The real site is {real}.",
+            )
+        return (
+            "warn",
+            f"● Imitates {brand} {how}",
+            f"Few signs of use yet, but it is not {real}. Do not log in there.",
+        )
+    return (
+        "info",
+        "No well-known brand imitated",
+        "Otacon knows no brand this name copies; --brand checks against a specific one.",
+    )
+
+
+def check_card(found: CheckResult) -> Panel:
+    """Boxed verdict for ``otacon check``: headline, meaning, notes."""
+    style, headline, explanation = _check_headline(found)
+    parts: list[Text] = [Text(headline, style=style), Text(explanation, style="muted")]
+    for note in found.notes:
+        parts.append(Text(f"• {note}", style="warn"))
+    return Panel(
+        Group(*parts),
+        title="[field] Verdict [/field]",
+        title_align="left",
+        border_style=style,
+        box=box.SQUARE,
+        padding=(1, 2),
+    )
 
 
 def _verdict_card(report: ScanReport) -> Panel:

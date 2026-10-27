@@ -34,6 +34,8 @@ from ._validate import (
     parse_domain_list,
     safe_relative_path,
 )
+from .check import CheckResult, host_of
+from .check import check as run_check
 from .models import DomainResult, Permutation, ScanReport
 from .resolver import DEFAULT_CONCURRENCY, Resolver
 from .theme import GLYPH_DEFENSIVE
@@ -164,6 +166,7 @@ def run(console: Console) -> None:
             questionary.Choice(
                 "Generate  just list possible lookalikes, offline", value="generate"
             ),
+            questionary.Choice("Check     a suspicious link someone sent me", value="check"),
         ],
         pointer=_POINTER,
         qmark=_QMARK,
@@ -172,6 +175,9 @@ def run(console: Console) -> None:
     if mode is None:
         return
 
+    if mode == "check":
+        _interactive_check(console)
+        return
     if mode == "scan":
         _interactive_scan(domain, console)
     else:
@@ -613,13 +619,14 @@ def _evidence(r: DomainResult) -> list[tuple[str, str, str]]:
     elif r.rdap_registered:
         rows.append(("Registered", "confirmed by the registry", "DNS is down, the name is taken"))
     if r.asn is not None:
-        where = f"AS{r.asn} {r.as_name or ''}".strip() + (
-            f" ({r.ip_country})" if r.ip_country else ""
-        )
+        where = f"AS{r.asn} {r.as_name or ''}".strip()
+        # Cymru names often end in the country already ("Cloudflare, Inc., US").
+        if r.ip_country and not where.endswith(r.ip_country):
+            where += f" ({r.ip_country})"
         rows.append(("Hosting", where, "the network a takedown can also go to"))
     if r.has_mx:
         rows.append(
-            ("Mail", ", ".join(r.mx_records[:2]), "can send email that looks like it is from you")
+            ("Mail", ", ".join(r.mx_records[:2]), "can send and receive email under this name")
         )
     if r.has_spf:
         rows.append(("SPF", "published", "set up to send email that passes basic checks"))
@@ -657,7 +664,7 @@ def _evidence(r: DomainResult) -> list[tuple[str, str, str]]:
     return rows
 
 
-def _dossier(r: DomainResult) -> Panel:
+def _dossier(r: DomainResult, show_risk: bool = True) -> Panel:
     """One card with everything known about *r*, explained for non-specialists.
 
     Every value is appended as Text, never parsed as markup: titles, issuers
@@ -671,11 +678,14 @@ def _dossier(r: DomainResult) -> Panel:
         grid.add_row(label, Text(fact), meaning)
 
     head = Text()
-    head.append(f"{r.risk_level.icon} {r.risk_level.value.upper()} ", style=r.risk_level.style)
-    head.append(f"{r.risk_score}/100", style="value")
-    head.append(f"   {r.kind.value}", style="brand.dim")
-    if r.note:
-        head.append(f" · {r.note}", style="muted")
+    if show_risk:
+        head.append(f"{r.risk_level.icon} {r.risk_level.value.upper()} ", style=r.risk_level.style)
+        head.append(f"{r.risk_score}/100   ", style="value")
+        head.append(r.kind.value, style="brand.dim")
+        if r.note:
+            head.append(f" · {r.note}", style="muted")
+    else:
+        head.append("What the network shows", style="field")
     parts: list[Text | Table] = [head, Text()]
     if grid.row_count:
         parts.append(grid)
@@ -689,6 +699,39 @@ def _dossier(r: DomainResult) -> Panel:
         box=box.SQUARE,
         padding=(1, 2),
     )
+
+
+def render_check(found: CheckResult, console: Console) -> None:
+    """Verdict card, dossier and, when it matters, what to do: shared by
+    ``otacon check`` and the guided mode."""
+    console.print(reporters.check_card(found))
+    if found.result is not None:
+        console.print(_dossier(found.result, show_risk=found.show_risk))
+    if found.dangerous:
+        console.print(
+            "[field]What to do[/field]\n"
+            "  [brand]•[/brand] Do not enter passwords, codes or card details on that site.\n"
+            "  [brand]•[/brand] Report it: [url]https://incydent.cert.pl[/url] (Poland) or"
+            " [url]https://safebrowsing.google.com/safebrowsing/report_phish/[/url]\n"
+            "  [brand]•[/brand] Got it by email or text? Delete it; do not reply.\n"
+        )
+
+
+def _interactive_check(console: Console) -> None:
+    """Guided ``check``: asks for the link, then shows the verdict."""
+    link = questionary.text(
+        "Paste the link (it is not opened, only its domain is looked at):",
+        validate=lambda t: host_of(t)[0] is not None or "That does not contain a domain",
+        qmark=_QMARK,
+        style=_STYLE_DOMAIN,
+    ).ask()
+    if not link:
+        return
+    host, decoy = host_of(link)
+    if host is None:
+        return
+    console.print(f"[muted]Checking {escape(host)}…[/muted]")
+    render_check(run_async(run_check(host, decoy=decoy)), console)
 
 
 def _pick_domain(report: ScanReport, session_allowed: set[str]) -> DomainResult | None:

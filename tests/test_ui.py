@@ -136,7 +136,7 @@ def test_dossier_explains_signals_and_never_parses_hostile_markup() -> None:
     console.print(_dossier(r))
     out = buf.getvalue()
     assert "[link=https://evil.example]Login[/link]" in out
-    assert "can send email" in out and "203.0.113.9" in out
+    assert "can send and receive email" in out and "203.0.113.9" in out
 
 
 # --- next steps ---------------------------------------------------------------
