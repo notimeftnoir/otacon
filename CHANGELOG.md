@@ -42,6 +42,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Variants DNS never answered are settled with RDAP (registered / free); registered ones count
   as registered (`rdap_registered`). On `example.com` this turned all 6-7 inconclusive variants
   into confirmed registrations. Rides on the WHOIS switch, so `--no-whois` skips it.
+- `otacon watch`: scans, compares with the previous run (SQLite state) and reports only new,
+  escalated, gone and discovered items, with Slack/Discord/Teams/JSON webhooks (`--webhook` or
+  `OTACON_WEBHOOK`), defanged domains in alerts, `--exit-code` and `-q` JSON. Probe signals
+  (certificate, website, MX, SPF) escalate only once seen in two runs in a row and are then
+  remembered; DNS and feed listings escalate at once; a variant is "gone" after two misses in a
+  row. Four live runs on `example.com` raised 0, 2, 0 alerts after the baseline (9 and 7 per
+  run without this).
+- `action.yml`: a composite GitHub Action running `otacon watch` on a schedule, state kept in
+  the Actions cache, inputs passed through the environment (no script injection).
 - `dns_inconclusive` per result and a warning when DNS never answered a variant: its status is
   unknown, which is no longer reported as "not registered".
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).

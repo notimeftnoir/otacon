@@ -138,6 +138,7 @@ module = [
     "test_favicon",
     "test_ct",
     "test_enrich",
+    "test_watch",
     "conftest",
 ]
 ignore_errors = true

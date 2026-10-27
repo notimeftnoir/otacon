@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import io
+import json
 import logging
 import signal as _signal
 import sys
@@ -10,6 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+import httpx
 import typer
 from rich.console import Console
 from rich.markup import escape
@@ -563,6 +566,115 @@ def scan(
             for r in rep.registered
         ):
             raise typer.Exit(2)
+
+
+_EVENT_STYLE = {"new": "danger", "escalated": "warn", "gone": "ok", "discovered": "info"}
+
+
+@app.command()
+def watch(
+    ctx: typer.Context,
+    domain: list[str] = typer.Argument(default=None, help="Domain(s) to watch."),
+    domains_file: Path = typer.Option(
+        None, "--domains-file", "-D", help="File with domains to watch (one per line)."
+    ),
+    webhook: list[str] = typer.Option(
+        None,
+        "--webhook",
+        envvar="OTACON_WEBHOOK",
+        help="Slack, Discord, Teams or any URL taking JSON; repeatable. Prefer the"
+        " OTACON_WEBHOOK variable so the secret stays out of shell history.",
+    ),
+    state: Path = typer.Option(
+        None, "--state", help="SQLite state file (default: per-user data directory)."
+    ),
+    exit_code: bool = typer.Option(
+        False, "--exit-code", help="Exit 2 when anything changed (for CI and schedulers)."
+    ),
+    no_http: bool = typer.Option(False, "--no-http", help="Skip HTTP/SSL probing."),
+    no_whois: bool = typer.Option(False, "--no-whois", help="Skip WHOIS / RDAP lookups."),
+    no_intel: bool = typer.Option(False, "--no-intel", help="Skip threat intel and CT."),
+    resolvers: list[str] = typer.Option(
+        None, "--resolver", "-r", help="DNS server IP to use.", callback=_validate_resolvers
+    ),
+    concurrency: int = typer.Option(50, "--concurrency", "-c", min=1, max=500),
+    exclude: str = typer.Option(None, "--exclude", "-x", help="Whitelist, comma-separated."),
+    exclude_file: Path = typer.Option(None, "--exclude-file", help="Whitelist file."),
+) -> None:
+    """Scans and reports only what changed since the last run; alerts webhooks.
+
+    Meant for cron, the Task Scheduler or a scheduled GitHub Action. The first
+    run of each domain records a baseline and alerts nothing.
+    """
+    from . import watch as watching
+
+    quiet = _state(ctx).quiet
+    domains = _load_domains(domain or [], domains_file)
+    if not domains or not all(is_valid_domain(d) for d in domains):
+        console.print("[danger]Error: provide valid domain(s) to watch.[/danger]")
+        raise typer.Exit(1)
+    exclusions = _load_exclusions(exclude, exclude_file)
+    store = watching.State(state or watching.default_state_path())
+    changed: dict[str, list[watching.Event]] = {}
+    try:
+        for d in domains:
+            console.print(f"\n[brand]►[/brand] Watching [bold white]{escape(d)}[/bold white]")
+            report = run_async(
+                _run_scan(
+                    d,
+                    concurrency,
+                    check_http=not no_http,
+                    exclude=exclusions,
+                    quiet=quiet,
+                    check_whois=not no_whois,
+                    nameservers=resolvers or None,
+                    check_intel=not no_intel,
+                )
+            )
+            baseline = not store.has_baseline(d)
+            events = [] if baseline else store.diff(report)
+            store.save(report)
+            if baseline:
+                console.print(
+                    f"[ok]✓ Baseline saved:[/ok] {len(report.registered)} registered lookalikes,"
+                    f" {len(report.discovered)} discovered hosts. Changes alert from the next run."
+                )
+            elif not events:
+                console.print("[ok]✓ No changes since the last run.[/ok]")
+            else:
+                changed[d] = events
+                for e in events:
+                    console.print(
+                        f"  [{_EVENT_STYLE[e.kind]}]{e.kind.upper():<10}[/]"
+                        f" [value]{escape(e.domain)}[/value] [muted]{escape(e.detail)}[/muted]"
+                    )
+    finally:
+        store.close()
+
+    # An unset CI secret arrives as an empty OTACON_WEBHOOK, not as no value.
+    urls = [u.strip() for u in webhook or [] if u.strip()]
+    if changed and urls:
+
+        async def _send() -> list[bool]:
+            async with httpx.AsyncClient() as client:
+                return [
+                    await watching.notify(client, url, target, events)
+                    for target, events in changed.items()
+                    for url in urls
+                ]
+
+        sent = run_async(_send())
+        console.print(f"[muted]Webhooks: {sum(sent)}/{len(sent)} delivered.[/muted]")
+
+    if quiet:
+        sys.stdout.write(
+            json.dumps(
+                {t: [dataclasses.asdict(e) for e in ev] for t, ev in changed.items()}, indent=2
+            )
+            + "\n"
+        )
+    if exit_code and changed:
+        raise typer.Exit(2)
 
 
 @app.command()

@@ -173,6 +173,52 @@ Most real phishing hangs the brand off a throwaway domain that no permutation pr
 
 ---
 
+## Monitoring (`otacon watch`)
+
+`watch` scans once, compares with the previous run and reports only what changed, so it belongs in a scheduler rather than a terminal:
+
+```text
+NEW         examp1e.com      registered, risk 90
+ESCALATED   exampel.com      mail server added, website went live (risk 85)
+GONE        exmple.com       no longer registered or reachable
+DISCOVERED  allegro.id-23843.click   seen in Phishing Army
+```
+
+- The first run records a baseline and alerts nothing.
+- Probes flap: a TLS handshake or HTTP request to a slow host fails in some runs and not others. A certificate, website, mail server or SPF record therefore escalates only once it is seen in two runs in a row, and is remembered from then on; a DNS answer or a feed listing escalates at once. A variant must be missing two runs in a row to count as gone, and one DNS never answered is never gone.
+- `--webhook URL` (repeatable) or the `OTACON_WEBHOOK` variable: Slack, Discord and Teams URLs get their native message shape, anything else the JSON events. Domains in messages are defanged (`exampel[.]com`) so chat apps do not turn them into clickable links.
+- `--exit-code` exits 2 when something changed; `-q` prints the events as JSON.
+- State lives in `%LOCALAPPDATA%\otacon\watch.sqlite` (Windows) or `~/.local/share/otacon/watch.sqlite`; `--state PATH` overrides it.
+
+**cron** (every 6 hours):
+
+```cron
+0 */6 * * * OTACON_WEBHOOK=https://hooks.slack.com/services/... otacon watch example.com --resolver 1.1.1.1
+```
+
+**Windows Task Scheduler:**
+
+```powershell
+schtasks /Create /TN "Otacon watch" /SC HOURLY /MO 6 /TR "otacon watch example.com --resolver 1.1.1.1"
+```
+
+**GitHub Actions** (the repository ships an action; the state is kept in the Actions cache):
+
+```yaml
+on:
+  schedule: [{cron: "0 */6 * * *"}]
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: notimeftnoir/otacon@<release-tag>
+        with:
+          domains: example.com example.pl
+          webhook: ${{ secrets.OTACON_WEBHOOK }}
+```
+
+---
+
 ## Whitelist / defensive flag
 
 Brands often own their own lookalikes defensively (e.g., `google.com` owns `gooogle.com` and redirects it). Otacon flags these with `»` when the redirect points back to the original:

@@ -1,0 +1,59 @@
+name: Otacon watch
+description: >-
+  Watch for new lookalike domains of your brand (typosquats, homoglyphs,
+  phishing-feed and certificate-log hits) and alert a webhook when something changes.
+author: notimeftnoir
+branding:
+  icon: eye
+  color: green
+
+inputs:
+  domains:
+    description: Space-separated domains to watch, e.g. "example.com example.pl".
+    required: true
+  webhook:
+    description: Slack, Discord, Teams or JSON webhook URL. Pass it from a secret.
+    required: false
+    default: ""
+  resolver:
+    description: DNS server to query; runners' default resolvers drop bursts.
+    required: false
+    default: "1.1.1.1"
+  fail-on-change:
+    description: Fail the job when anything changed, so the run shows red.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      with:
+        python-version: "3.12"
+
+    # The state file is what makes `watch` report changes rather than everything:
+    # each run restores the newest one and saves its own under a fresh key.
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: ${{ runner.temp }}/otacon-state
+        key: otacon-watch-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: otacon-watch-
+
+    # Installs the code at the ref this action was pinned to, not whatever PyPI has.
+    - shell: bash
+      run: python -m pip install --quiet "$ACTION_PATH"
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+
+    # Inputs travel through env, never ${{ }} inside the script: no injection.
+    - shell: bash
+      run: |
+        args=(--state "$RUNNER_TEMP/otacon-state/watch.sqlite" --resolver "$RESOLVER")
+        if [ "$FAIL_ON_CHANGE" = "true" ]; then args+=(--exit-code); fi
+        read -r -a domains <<< "$DOMAINS"
+        otacon watch "${domains[@]}" "${args[@]}"
+      env:
+        DOMAINS: ${{ inputs.domains }}
+        RESOLVER: ${{ inputs.resolver }}
+        FAIL_ON_CHANGE: ${{ inputs.fail-on-change }}
+        OTACON_WEBHOOK: ${{ inputs.webhook }}
