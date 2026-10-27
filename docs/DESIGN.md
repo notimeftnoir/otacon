@@ -26,58 +26,74 @@ This document explains *why* Otacon is built the way it is. For *how to use it*,
 ## Pipeline overview
 
 ```
-                    ┌─────────────────┐
-                    │  CLI / TUI      │  (cli.py · interactive.py)
-                    │  user input     │
-                    └────────┬────────┘
-                             ▼
-                    ┌─────────────────┐
-                    │ permutations.py │  pure function, no I/O
-                    │ 12 techniques   │  produces list[Permutation]
-                    └────────┬────────┘
-                             ▼
-                    ┌─────────────────┐
-                    │  resolver.py    │  async I/O (DNS · TLS · HTTP · WHOIS)
-                    │  semaphore-     │  one Resolver per scan, reused HTTP pool
-                    │  bounded        │
-                    └────────┬────────┘
-                             ▼
-                    ┌─────────────────┐
-                    │  scoring.py     │  pure function, no I/O
-                    │  rule-based     │  enriches DomainResult in place
-                    │  0–100 score    │
-                    └────────┬────────┘
-                             ▼
-            ┌────────────────┼────────────────┐
-            ▼                ▼                ▼
-       ┌─────────┐      ┌────────┐      ┌─────────┐
-       │ table   │      │ JSON   │      │ HTML    │     reporters.py · html_report.py
-       │ (rich)  │      │ MD     │      │ report  │
-       └─────────┘      └────────┘      └─────────┘
+        ┌──────────────┬──────────────┬──────────────┐
+        │  cli/        │  tui/        │  triage/     │   entry points
+        │  scan·tui·   │  Textual     │  guided      │
+        │  generate·   │  console     │  prompts     │
+        │  diff        │              │              │
+        └──────┬───────┴──────┬───────┴──────┬───────┘
+               │              │              │
+               ▼              │              │
+        ┌──────────────┐      │              │
+        │ permutations/│      │              │          pure, no I/O
+        │ 12 rules +   │      │              │          -> list[Permutation]
+        │ IDN encoding │      │              │
+        └──────┬───────┘      │              │
+               ▼              │              │
+        ┌──────────────┐      │              │
+        │  engine/     │      │              │          structured concurrency
+        │  scanner     │      │              │          + FD-bounded pool
+        └──────┬───────┘      │              │
+               ▼              │              │
+        ┌──────────────┐      │              │
+        │  net/        │      │              │          all async I/O lives here
+        │  dns · http  │      │              │          resolver fans out per
+        │  tls · whois │      │              │          permutation
+        │  rdap· dnsbl │      │              │
+        │  email_sec   │      │              │
+        └──────┬───────┘      │              │
+               ▼              │              │
+        ┌──────────────┐      │              │
+        │  scoring/    │      │              │          pure, no I/O
+        │  engine      │      │              │          returns a scored copy
+        │  classifiers │      │              │
+        └──────┬───────┘      │              │
+               ▼              ▼              ▼
+        ┌──────────────────────────────────────────────┐
+        │  reporters/  console · json · markdown ·      │
+        │              html · csv                       │
+        └──────────────────────────────────────────────┘
 ```
 
-Every stage exchanges Pydantic models — `Permutation`, then `DomainResult`, finally aggregated into a `ScanReport`. Each model carries enough information for downstream stages to be **stateless**: a reporter doesn't need to know how a domain was generated or how it got scored.
+Every stage exchanges models from `core/` — `Permutation`, then `DomainResult`, finally aggregated into a `ScanReport`. Each carries enough information for downstream stages to be **stateless**: a reporter does not need to know how a domain was generated or how it got scored. `score()` returns a scored copy rather than mutating its input, so the same result can be re-scored under different weights without a re-scan.
+
+`utils/` holds what every layer needs — the palette and the trust-boundary validators — and `core/` holds the models, enums and exceptions. Nothing in either imports from a layer above it.
 
 ---
 
 ## Module map
 
-| File | Responsibility | I/O? | Lines |
+| Package | Responsibility | I/O? | Lines |
 |---|---|---|---|
-| `models.py` | Pydantic data models flowing through the pipeline | no | ~110 |
-| `theme.py` | Single source of truth for colors, risk levels, banner | no | ~95 |
-| `permutations.py` | 12 permutation algorithms (incl. regional combosquatting); pure functions | no | ~440 |
-| `resolver.py` | Async DNS / TLS / HTTP / WHOIS orchestration (with HTTP race cancellation) | **yes** | ~590 |
-| `whois.py` | Domain age fetching via RDAP over HTTPS with TCP WHOIS fallback | yes | ~120 |
-| `scoring.py` | Rule-based 0–100 risk score, transparent reasons | no | ~270 |
-| `reporters.py` | Terminal table, JSON, Markdown rendering | output | ~480 |
-| `html_report.py` | Self-contained HTML report (pure CSS filters, inline SVG chart, zero-JS) | output | ~515 |
-| `cli.py` | Typer subcommands (`scan`, `generate`) | orchestration | ~520 |
-| `interactive.py` | Guided prompts, post-scan action loop & takedown notice generator | terminal | ~630 |
-| `_asyncutils.py` | Cross-platform event loop wrapper (Windows fix) | no | ~40 |
-| `_validate.py` | Shared input validators — domain syntax, SSRF-safe IP filtering, path traversal guards | no | ~110 |
+| `core/` | Models, enums and exceptions flowing through the pipeline | no | 552 |
+| `utils/` | Palette and the shared trust-boundary validators | no | 276 |
+| `permutations/` | 12 permutation rules (incl. regional combosquatting) and IDN encoding; pure | no | 618 |
+| `engine/` | Scan orchestration under structured concurrency, bounded by the OS descriptor limit | coordinates | 280 |
+| `net/` | Every async probe: DNS, HTTP, TLS, RDAP, WHOIS, DNSBL, mail security, content | **yes** | 1414 |
+| `scoring/` | Rule-based 0–100 score with transparent reasons, plus the parked/sinkhole/defensive classifiers | no | 608 |
+| `reporters/` | Terminal table, JSON, Markdown, CSV and the self-contained HTML report | output | 1230 |
+| `cli/` | Typer subcommands: `scan`, `tui`, `generate`, `diff` | orchestration | 1029 |
+| `triage/` | Guided prompts, the post-scan action loop, dossier and takedown notice | terminal | 961 |
+| `tui/` | Textual triage console | terminal | 579 |
 
-Total: ~3,900 lines, 492 tests.
+Alongside them sit a few single-file modules: `diff.py` (report comparison), `ct_logs.py`
+(Certificate Transparency discovery), `_splash.py` (the start-up animation) and
+`_asyncutils.py` (a cross-platform event-loop wrapper for a Windows socket teardown quirk).
+`theme.py`, `_validate.py`, `models.py`, `resolver.py`, `_scanner.py`, `html_report.py`,
+`_hashutils.py` and `interactive.py` are thin re-exports kept so pre-2.0 import paths keep
+resolving; none of them holds logic.
+
+Total: ~7,600 lines of source, 608 tests.
 
 
 ---
@@ -90,7 +106,7 @@ A pentester or SOC analyst presenting findings to a client cannot afford to say 
 |---|---|---|
 | **Auditable** | every score = sum of named signals in `risk_reasons` | weights are opaque, often non-monotonic |
 | **Zero training data** | useful on day one | needs labeled corpus, ongoing relabeling |
-| **Tunable** | one-line change in `scoring.py`, no retrain | retrain + revalidate + reship |
+| **Tunable** | a `--weights-file`, or a one-line change in `scoring/config.py`, no retrain | retrain + revalidate + reship |
 | **Explainable to non-engineers** | "registered 3 days ago + has MX = high" | "the dense layer activated" |
 | **Adversarially robust** | no gradient to exploit | model evasion is a research field |
 | **Fast** | O(signals) per result, sub-millisecond | depends on inference time |
@@ -113,10 +129,10 @@ Two separate semaphores in `Resolver`:
 WHOIS is the slowest single operation (~1–5s typical, up to 10s timeout). The resolver caches lookups by domain using `asyncio.Task`, so concurrent `check_one()` calls for the same domain share a single network round-trip. The cache is per-`Resolver`-instance, so each scan starts fresh.
 
 ### Single source of truth for theme
-`theme.py` defines the rich palette, risk-level thresholds, icons, and the banner. Terminal, HTML, and Markdown outputs all consult it — changing a color in one place propagates everywhere. This is enforced by importing `RiskLevel` and `OTACON_THEME` from `theme.py` in every renderer.
+`utils/theme.py` defines the rich palette, risk-level thresholds, icons, and the banner. Terminal, HTML, and Markdown outputs all consult it — changing a color in one place propagates everywhere. This is enforced by importing `RiskLevel` and `OTACON_THEME` from there in every renderer.
 
 ### Pydantic models as the data contract
-`DomainResult` flows unchanged from `resolver.py` through `scoring.py` and into every reporter. Each stage just *adds* fields (or doesn't). This gives us, for free:
+`DomainResult` flows unchanged from `net/resolver.py` through `scoring/engine.py` and into every reporter. Each stage just *adds* fields (or doesn't). This gives us, for free:
 - JSON serialization (`report.model_dump_json()`)
 - Type safety enforced at module boundaries
 - An evolving schema that's automatically backwards-compatible (Pydantic ignores unknown fields)
@@ -127,10 +143,10 @@ Every network call is wrapped. A failure returns `None` / `[]` / `False` and the
 The `check_one()` method has a broad `except Exception` at the outermost level. This is deliberate and documented: an unhandled exception there would close the shared `httpx.AsyncClient` and cascade-kill every other concurrent coroutine. We accept the precision loss in exchange for scan integrity.
 
 ### Defensive-redirect detection
-Brand owners often register their own lookalikes and 301 them back. We detect this in `scoring.py` by parsing the `Location` header from a 3xx response and matching the hostname against the target (exact or subdomain). Flagged with `»` in the output and **does not** lower the score — it's informational; the user decides.
+Brand owners often register their own lookalikes and 301 them back. `scoring/classifiers.py` detects this by parsing the `Location` header from a 3xx response and matching the hostname against the target (exact or subdomain). A match **clears the score to 0** and flags the row with `»`, on the reasoning that a domain redirecting to you is one you already control. The check deliberately refuses to fire when the variant has an MX record: a redirect costs an attacker nothing to add, and mail is the capability that makes a lookalike dangerous.
 
 ### Self-contained HTML report
-`html_report.py` produces a single `.html` file with inlined CSS, no JavaScript (100% CSP-compliant `default-src 'none'`), pure-CSS table filtering (`All`, `Threats`, `Critical`, `High`, `MX`), and inline SVG risk distribution charts. Domain names are automatically defanged (`[.]`) and link to safe inspection sandboxes (urlscan.io). Hand it to legal, attach it to a ticket, upload it to S3 — it just works. No Jinja2 dependency; we use pure f-strings and `html.escape()`.
+`reporters/html.py` produces a single `.html` file with inlined CSS, no JavaScript (100% CSP-compliant `default-src 'none'`), pure-CSS table filtering (`All`, `Threats`, `Critical`, `High`, `MX`), and inline SVG risk distribution charts. Domain names are automatically defanged (`[.]`) and link to safe inspection sandboxes (urlscan.io). Hand it to legal, attach it to a ticket, upload it to S3 — it just works. No Jinja2 dependency; we use pure f-strings and `html.escape()`.
 
 ### Cross-platform event loop handling
 Windows' `ProactorEventLoop` raises `ConnectionResetError` on normal HTTP teardowns. `_asyncutils.py` switches to `SelectorEventLoop` on Windows:
@@ -232,14 +248,20 @@ Three immutability boundaries:
 
 ## Performance characteristics
 
-Measured on a residential 100 Mbit connection, `--concurrency 50`, against typical e-commerce / SaaS targets:
+Measured on a residential connection at `--concurrency 50` unless noted. "DNS-only"
+means `--no-http --no-whois --no-dnsbl --no-ct`; "full" is the default, every check on.
 
-| Scenario | Permutations | Time | Notes |
-|---|---|---|---|
-| `example.com`, DNS-only | ~180 | ~3s | bounded by DNS roundtrip latency |
-| `example.com`, full | ~180 | ~12s | WHOIS dominates for registered variants |
-| `microsoft.com`, full | ~210 | ~25s | many registered → WHOIS-heavy |
-| `github.com`, DNS-only `-c 100` | ~160 | ~2s | concurrency cap relaxed |
+| Scenario | Permutations | Resolving | Time | Notes |
+|---|---|---|---|---|
+| `example.com`, DNS-only | 239 | 74 | ~3s | bounded by DNS roundtrip latency |
+| `example.com`, full | 240 | 75 | ~34s | WHOIS dominates for registered variants |
+| `github.com`, DNS-only `-c 100` | 238 | 93 | ~5s | concurrency cap relaxed |
+| `github.com`, full | 240 | 123 | ~39s | heavily squatted → WHOIS-heavy |
+
+The gap between the two columns is the whole cost model: DNS fans out and finishes
+in seconds, while every *registered* variant then pulls a WHOIS or RDAP lookup that
+no amount of concurrency makes free. Reach for `--no-whois` when you want speed and
+`--no-http` when you want quiet.
 
 Memory: under 100 MB peak even for 200+ permutations. We hold all `DomainResult` objects in memory by design (cheap, simplifies the live table).
 
@@ -249,7 +271,6 @@ Memory: under 100 MB peak even for 200+ permutations. We hold all `DomainResult`
 
 Roadmap items, in rough priority order:
 
-1. **Per-permutation-type score weighting via CLI** — let users tune without editing `scoring.py`
 2. **Page-content fingerprint comparison** — diff the lookalike's HTML against the target to detect cloned login pages
 3. **Async WHOIS batching** — send multiple labels in one connection for TLDs that support it
 4. **Screenshot capture** — opt-in, requires headless browser; useful for legal evidence packs

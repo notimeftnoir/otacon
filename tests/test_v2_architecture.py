@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -206,6 +208,13 @@ def test_idn_squats_produces_ace_encoded_domains() -> None:
 # ---------------------------------------------------------------------------
 
 
+# patch() resolves its target by importing it, so these three cannot even be
+# collected on Windows, where `resource` does not exist. The Windows branch has
+# its own test below.
+_unix_only = pytest.mark.skipif(sys.platform == "win32", reason="resource is Unix-only")
+
+
+@_unix_only
 def test_resource_limiter_caps_when_limit_low() -> None:
     with patch("resource.getrlimit", return_value=(128, 256)):
         # (128 - 64) // 2 = 32 max safe concurrency
@@ -213,16 +222,44 @@ def test_resource_limiter_caps_when_limit_low() -> None:
         assert concurrency == 32
 
 
+@_unix_only
 def test_resource_limiter_allows_when_limit_high() -> None:
     with patch("resource.getrlimit", return_value=(8192, 8192)):
         concurrency = ResourceLimiter.compute_safe_concurrency(requested=50)
         assert concurrency == 50
 
 
+@_unix_only
 def test_resource_limiter_graceful_on_os_error() -> None:
     with patch("resource.getrlimit", side_effect=OSError("Operation not permitted")):
         concurrency = ResourceLimiter.compute_safe_concurrency(requested=75)
         assert concurrency == 75
+
+
+def test_resource_limiter_returns_request_unchanged_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows exposes no FD ceiling, so the requested concurrency passes through."""
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert ResourceLimiter.compute_safe_concurrency(requested=500) == 500
+
+
+def test_pool_does_not_import_resource_unguarded() -> None:
+    """`resource` is Unix-only; an unguarded module-level import kills Windows.
+
+    engine.scanner imports ResourceLimiter, so a ModuleNotFoundError here took the
+    whole CLI down on Windows — the platform the package classifiers advertise and
+    the CI matrix builds. A source-level assertion is the honest guard: the bug was
+    at import time, so no test that successfully imports the module can catch it on
+    a Unix runner.
+    """
+    source = (
+        Path(__file__).resolve().parent.parent / "src" / "otacon" / "engine" / "pool.py"
+    ).read_text(encoding="utf-8")
+    for line in source.splitlines():
+        if line.startswith("import resource"):
+            pytest.fail("pool.py imports `resource` at module level; guard it with sys.platform")
+    assert 'if sys.platform != "win32":' in source
 
 
 # ---------------------------------------------------------------------------

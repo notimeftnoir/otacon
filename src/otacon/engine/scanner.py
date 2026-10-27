@@ -164,7 +164,14 @@ async def run_scan(
             try:
                 ct_domains = await resolver.fetch_ct_domains()
                 existing = {p.domain for p in perms}
+                # CT aggregators are queried with include_subdomains, so most hits are
+                # the target's own infrastructure. Those are not impersonation — scoring
+                # them as lookalikes made the target's own subdomains the single largest
+                # source of critical findings.
+                own_suffix = f".{target}"
                 for d in sorted(ct_domains):
+                    if d == target or d.endswith(own_suffix):
+                        continue
                     if d not in existing and (exclude is None or d not in exclude):
                         perms.append(
                             Permutation(

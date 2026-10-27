@@ -30,11 +30,20 @@ class ScoringWeights:
         self.points_age_fresh = 20
         self.points_age_new = 12
         self.points_age_recent = 5
+        self.points_age_established = -15
+        self.points_age_veteran = -30
         self.points_cloned_title = 25
         self.points_cloned_favicon = 35
         self.points_login_form = 20
         self.points_dnsbl = 50
         self.points_mail_spoofable = 15
+
+        # Resolving, answering HTTP, having MX and holding a certificate are what
+        # every working website looks like; summed raw they reached ~85 points and
+        # made any live domain critical on their own. Capped, they establish "this
+        # is live and usable for an attack" while leaving the decisive range to the
+        # impersonation evidence (cloned title/favicon, login form, DNSBL, age).
+        self.infra_cap = 35
 
         self.kind_base: dict[PermutationType, int] = {
             PermutationType.HOMOGLYPH: 25,

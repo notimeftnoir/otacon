@@ -13,6 +13,7 @@ import httpx
 
 from ..core.models import DomainResult, Permutation
 from .content import _MAX_BODY_BYTES, _strip_unsafe_chars
+from .dns import query_records as _query_dns
 from .dnsbl import check_dnsbl
 from .email_sec import check_email_security
 from .http import (
@@ -36,19 +37,6 @@ _HTTP_TIMEOUT = DEFAULT_HTTP_TIMEOUT
 _HTTPS_PORT = HTTPS_PORT
 _HTTP_DEADLINE = HTTP_DEADLINE
 _HTTPS_GRACE = HTTPS_GRACE
-
-
-async def _query_dns(resolver: Any, name: str, rtype: str) -> Any:
-    """Invokes query_dns when available (avoiding deprecation warnings), or query when mocked."""
-    from unittest.mock import Mock
-
-    query_fn = getattr(resolver, "query", None)
-    is_custom = isinstance(query_fn, Mock) or (
-        hasattr(resolver, "__dict__") and "query" in resolver.__dict__
-    )
-    if is_custom or not hasattr(resolver, "query_dns"):
-        return await resolver.query(name, rtype)
-    return await resolver.query_dns(name, rtype)
 
 
 class Resolver:

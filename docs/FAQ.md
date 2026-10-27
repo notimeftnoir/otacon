@@ -16,7 +16,7 @@ That said, use it on **your own domains** or **within authorized engagements**. 
 <details>
 <summary><b>Why no machine learning?</b></summary>
 
-Because pentesters and SOC analysts need to *defend* their findings. "Our model gave it 87" is not a defensible answer. `risk_reasons` is. Every score in Otacon comes with the exact list of signals that produced it — auditable in five seconds, tunable in a one-line edit to `scoring.py`.
+Because pentesters and SOC analysts need to *defend* their findings. "Our model gave it 87" is not a defensible answer. `risk_reasons` is. Every score in Otacon comes with the exact list of signals that produced it — auditable in five seconds, tunable with a `--weights-file`, or a one-line edit to `scoring/config.py`.
 
 </details>
 
@@ -52,7 +52,7 @@ Partially. Otacon accepts unicode input but the permutation engine is tuned for 
 Most likely causes, in order:
 
 1. **DNS-only mode missed them** — with `--no-http`, you only see variants that resolve. Try a full scan.
-2. **They're behind Cloudflare / a CDN** — they resolve but the SSL/HTTP probe times out. Increasing `--concurrency` doesn't help; raise the per-request timeout in `resolver.py` if it's a recurring issue.
+2. **They're behind Cloudflare / a CDN** — they resolve but the SSL/HTTP probe times out. Increasing `--concurrency` doesn't help; raise the per-request timeout in `net/http.py` if it's a recurring issue.
 3. **Your DNS resolver is rate-limiting** — try with a different resolver or lower `--concurrency`.
 4. **The fakes are on a TLD not in our default list** — open an issue with the TLD.
 
@@ -68,10 +68,10 @@ Otacon first queries modern **RDAP (Registration Data Access Protocol)** over HT
 <details>
 <summary><b>How do I add my own permutation technique?</b></summary>
 
-1. Add a value to the `PermutationType` enum in `models.py`
-2. Add a `_my_technique(label: str) -> set[str]` function in `permutations.py`
+1. Add a value to the `PermutationType` enum in `core/types.py`
+2. Add a `rule_my_technique(label: str) -> set[str]` function in `permutations/rules.py`
 3. Add it to the pipeline list in `generate()` — order matters for dedup priority
-4. Add a base score in `scoring._KIND_BASE`
+4. Add a base score in `ScoringWeights.kind_base` (`scoring/config.py`)
 5. Open a PR with tests in `tests/test_permutations.py`
 
 </details>
@@ -84,7 +84,7 @@ Otacon first queries modern **RDAP (Registration Data Access Protocol)** over HT
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `pip` tries to compile `pycares` and fails | No prebuilt wheel for your Python/platform (wheels cover CPython 3.10–3.14 on Linux, macOS and Windows; PyPy or an unusual CPU architecture may lack one) | Use CPython 3.11–3.13, or install the `c-ares` headers (`apt install libc-ares-dev` / `brew install c-ares`) so it can build |
+| `pip` tries to compile `pycares` and fails | No prebuilt wheel for your Python/platform (wheels cover CPython 3.10–3.14 on Linux, macOS and Windows; PyPy or an unusual CPU architecture may lack one) | Use CPython 3.12–3.13, or install the `c-ares` headers (`apt install libc-ares-dev` / `brew install c-ares`) so it can build |
 | Scan hangs at "Checking variants" | DNS resolver unreachable or rate-limiting | Lower `--concurrency`, switch resolver (`1.1.1.1`, `8.8.8.8`) |
 | WHOIS always `—` for `.ai` / `.io` / `.pl` | Registry WHOIS rate-limit | Re-run later; this is normal |
 | Windows: `ConnectionResetError [WinError 10054]` | Should be auto-fixed in 1.0+ | Ensure you're on the latest version; this used the Proactor loop, we've switched to Selector on Windows |

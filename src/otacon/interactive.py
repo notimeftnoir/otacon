@@ -17,6 +17,7 @@ from ._validate import (
     safe_relative_path,
 )
 from .models import DomainResult, Permutation, ScanReport
+from .net.whois import fetch_domain_age, format_age
 from .resolver import DEFAULT_CONCURRENCY, Resolver
 from .theme import GLYPH_DEFENSIVE, RiskLevel
 from .triage.actions import (
@@ -57,7 +58,6 @@ from .triage.workflow import (
     _scan,
     run,
 )
-from .whois import fetch_domain_age, format_age
 
 __all__ = [
     "DEFAULT_CONCURRENCY",

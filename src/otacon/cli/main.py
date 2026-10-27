@@ -18,6 +18,7 @@ from ..utils.theme import BANNER, OTACON_THEME
 from .commands.diff import execute_diff
 from .commands.generate import execute_generate
 from .commands.scan import _CI, _FILTER, _NET, _OUT, execute_scan
+from .commands.tui import execute_tui
 from .state import _CliState
 
 
@@ -319,6 +320,33 @@ def diff(
         file2=file2,
         json_out=json_out,
         fail_on_threats=fail_on_threats,
+    )
+
+
+@app.command()
+def tui(
+    domain: str = typer.Argument(None, metavar="[domain]", help="Domain to scan, then triage."),
+    report_file: Path = typer.Option(
+        None, "--from", metavar="<path>", help="Triage a saved JSON report instead of scanning."
+    ),
+    concurrency: int = typer.Option(
+        50, "--concurrency", "-c", min=1, max=500, metavar="<int>", help="Concurrent checks."
+    ),
+    no_http: bool = typer.Option(False, "--no-http", help="Skip HTTP/SSL probing."),
+    no_whois: bool = typer.Option(False, "--no-whois", help="Skip WHOIS / domain-age lookups."),
+    no_dnsbl: bool = typer.Option(False, "--no-dnsbl", help="Skip DNSBL reputation lookups."),
+    no_ct: bool = typer.Option(False, "--no-ct", help="Skip Certificate Transparency discovery."),
+) -> None:
+    """Opens the keyboard-driven triage console on a scan or a saved report."""
+    execute_tui(
+        console=console,
+        domain=domain,
+        report_file=report_file,
+        concurrency=concurrency,
+        check_http=not no_http,
+        check_whois=not no_whois,
+        check_dnsbl=not no_dnsbl,
+        check_ct=not no_ct,
     )
 
 

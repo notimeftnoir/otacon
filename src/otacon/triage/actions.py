@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import webbrowser
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
@@ -26,6 +25,7 @@ from ..utils.validate import (
     parse_domain_list,
     safe_relative_path,
 )
+from .notice import build_takedown_notice
 from .prompts import _QMARK, _STYLE, _confirm
 
 
@@ -231,49 +231,7 @@ def _handle_rescan(ctx: _ActionContext) -> str:
 
 def _handle_takedown(ctx: _ActionContext) -> str:
     r = ctx.selected
-    defanged = r.domain.replace(".", "[.]")
-    now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-    ips_str = ", ".join(r.ip_addresses) if r.ip_addresses else "N/A"
-    mx_str = ", ".join(r.mx_records) if r.has_mx else "None detected"
-    ssl_str = (
-        f"Active (Issuer: {r.ssl_issuer or 'Unknown'}, Cert Age: {r.ssl_cert_age_days}d)"
-        if r.has_ssl
-        else "No active certificate"
-    )
-    http_str = (
-        f'HTTP {r.http_status} (Title: "{r.page_title or "N/A"}")'
-        if r.http_status is not None
-        else "No HTTP response"
-    )
-    reasons_bullets = (
-        "\n".join(f"  - {reason}" for reason in r.risk_reasons)
-        if r.risk_reasons
-        else "  - Suspicious domain impersonation"
-    )
-
-    report_text = f"""SUBJECT: Urgent Abuse / Phishing Takedown Notice: {defanged}
-TARGET BRAND: {ctx.target}
-
-DATE: {now_str}
-MALICIOUS DOMAIN: {defanged} (raw: {r.domain})
-IMPERSONATION TECHNIQUE: {r.kind.value}
-RISK EVALUATION: {r.risk_score}/100 [{r.risk_level.value.upper()}]
-
-INCIDENT EVIDENCE:
-- Domain: {r.domain}
-- IP Address(es): {ips_str}
-- Mail Server(s) (MX): {mx_str}
-- SSL/TLS Certificate: {ssl_str}
-- Web Service: {http_str}
-- Detected Risk Factors:
-{reasons_bullets}
-
-REQUESTED ACTION:
-We request immediate suspension, de-registration, or null-routing of domain '{r.domain}'
-to prevent unauthorized brand impersonation, fraudulent communications, and credential theft
-targeting {ctx.target} users and customers.
-"""
+    report_text = build_takedown_notice(r, ctx.target)
     ctx.console.print(
         Panel(Text(report_text), title="[brand]Abuse Takedown Notice[/brand]", border_style="brand")
     )

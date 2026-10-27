@@ -20,20 +20,32 @@ from otacon.theme import BANNER, SAFE_GLYPHS
 #    look-alike letters), not chrome — the tool's whole job is to show these
 #    literally so the analyst sees what the spoof looks like, so it must NOT be
 #    held to SAFE_GLYPHS. (That data does reach a terminal, unescaped, via
-#    cli.py's `generate` command and interactive.py's `_interactive_generate` —
+#    the `generate` command and interactive.py's `_interactive_generate` —
 #    `rich.markup.escape()` there only neutralises `[`/`]` markup syntax, not
 #    Unicode — so this exclusion is a deliberate scope decision, not a claim
 #    that the glyphs are somehow neutralised before they print.)
-#  - html_report.py: it never touches a terminal — it renders raw HTML that a
+#  - reporters/html.py: it never touches a terminal — it renders raw HTML that a
 #    browser paints, and browsers substitute a fallback font per-glyph instead
 #    of showing tofu/'?' the way a fixed-font console does, so the console-font
 #    budget SAFE_GLYPHS enforces does not apply to it.
+# Paths are relative to src/otacon. These are the modules that actually write to
+# a terminal; until the v2.0 cleanup this tuple named the legacy shim files
+# `reporters.py` and `cli.py`, which were unreachable dead code shadowed by the
+# packages of the same name — so the guard was checking files nothing rendered.
 _UI_MODULES = (
-    "theme.py",
-    "reporters.py",
+    "utils/theme.py",
+    "reporters/console.py",
     "interactive.py",
-    "cli.py",
-    "_scanner.py",
+    "cli/main.py",
+    "cli/commands/scan.py",
+    "cli/commands/generate.py",
+    "cli/commands/diff.py",
+    "engine/scanner.py",
+    "tui/app.py",
+    "cli/commands/tui.py",
+    "triage/dossier.py",
+    "triage/prompts.py",
+    "triage/actions.py",
     "_splash.py",
 )
 

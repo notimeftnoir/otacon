@@ -6,6 +6,8 @@ import asyncio
 import logging
 from typing import Any
 
+from .dns import query_records as _query_dns
+
 _log = logging.getLogger("otacon.net.dnsbl")
 
 _SPAMHAUS_CATEGORIES: dict[str, str] = {
@@ -18,19 +20,6 @@ _SPAMHAUS_CATEGORIES: dict[str, str] = {
     "127.0.1.105": "Spamhaus DBL (abused malware)",
     "127.0.1.106": "Spamhaus DBL (abused botnet C2)",
 }
-
-
-async def _query_dns(resolver: Any, name: str, rtype: str) -> Any:
-    """Invokes query_dns when available (avoiding deprecation warnings), or query when mocked."""
-    from unittest.mock import Mock
-
-    query_fn = getattr(resolver, "query", None)
-    is_custom = isinstance(query_fn, Mock) or (
-        hasattr(resolver, "__dict__") and "query" in resolver.__dict__
-    )
-    if is_custom or not hasattr(resolver, "query_dns"):
-        return await resolver.query(name, rtype)
-    return await resolver.query_dns(name, rtype)
 
 
 async def check_dnsbl(
