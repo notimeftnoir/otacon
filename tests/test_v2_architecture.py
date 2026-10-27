@@ -208,6 +208,13 @@ def test_idn_squats_produces_ace_encoded_domains() -> None:
 # ---------------------------------------------------------------------------
 
 
+# patch() resolves its target by importing it, so these three cannot even be
+# collected on Windows, where `resource` does not exist. The Windows branch has
+# its own test below.
+_unix_only = pytest.mark.skipif(sys.platform == "win32", reason="resource is Unix-only")
+
+
+@_unix_only
 def test_resource_limiter_caps_when_limit_low() -> None:
     with patch("resource.getrlimit", return_value=(128, 256)):
         # (128 - 64) // 2 = 32 max safe concurrency
@@ -215,12 +222,14 @@ def test_resource_limiter_caps_when_limit_low() -> None:
         assert concurrency == 32
 
 
+@_unix_only
 def test_resource_limiter_allows_when_limit_high() -> None:
     with patch("resource.getrlimit", return_value=(8192, 8192)):
         concurrency = ResourceLimiter.compute_safe_concurrency(requested=50)
         assert concurrency == 50
 
 
+@_unix_only
 def test_resource_limiter_graceful_on_os_error() -> None:
     with patch("resource.getrlimit", side_effect=OSError("Operation not permitted")):
         concurrency = ResourceLimiter.compute_safe_concurrency(requested=75)
