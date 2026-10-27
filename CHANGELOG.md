@@ -39,7 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING:** dropped Python 3.10 support (EOL October 2026). Patched `filelock`
   (a transitive dependency via `tldextract`) requires Python 3.11+.
 
+### Removed
+- Deleted four unreachable compatibility shims: `cli.py`, `scoring.py`, `reporters.py` and `permutations.py`. Each was shadowed by a package of the same name, so Python resolved every `otacon.cli` / `otacon.scoring` / `otacon.reporters` / `otacon.permutations` import to the package and none of these files was ever imported. The backwards compatibility they documented did not exist.
+- Collapsed `theme.py`, `_validate.py` and `whois.py` from full second copies into thin re-exports of `utils/theme.py`, `utils/validate.py` and `net/whois.py`. The palette, the trust-boundary validators and the WHOIS/RDAP client each existed twice, so a change had to be made in two places to take effect everywhere.
+
 ### Changed
+- The `SAFE_GLYPHS` guard in `tests/test_theme.py` now checks the modules that actually render — `reporters/console.py`, `cli/`, `triage/`, `engine/scanner.py` — instead of the legacy shim files `reporters.py` and `cli.py`, two of which were unreachable dead code.
 - Rebalanced risk scoring to separate impersonation evidence from infrastructure capacity. Resolving, answering HTTP, holding a certificate and accepting mail summed to roughly +85 raw — which is simply what a working website looks like — so any live domain scored critical on its own. Their combined contribution is now capped (`infra_cap`, default 35, overridable via `--weights-file`) and the reason list reports when the cap binds. On `github.com` this cut critical findings from 60 to 2, both of which are genuine (one with a cloned title and favicon, one listed on Spamhaus DBL).
 - Domain age can now reduce a score instead of only raising it: ≥2 years scores −15 and ≥5 years scores −30. A lookalike registered years ago and never used in a campaign is usually an unrelated business, not a live threat. Scores are floored at 0.
 - The fresh-certificate boost is now gated on the domain itself being under 90 days old. Let's Encrypt renews every 60 days, so a days-old certificate was firing on healthy sites across the web.
