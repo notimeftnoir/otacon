@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a transitive dependency via `tldextract`) requires Python 3.11+.
 
 ### Fixed
+- Fixed total loss of DNS detection under the pinned `aiodns==4.0.4`: aiodns 4 replaced `query()` with `query_dns()` and changed the return type from a flat list of records exposing `.host`/`.text` to a `DNSResult` whose `.answer` holds `DNSRecord`s with typed `.data` payloads. Iterating a `DNSResult` raises `TypeError`, which every call site's graceful-degradation handler swallowed, so A, AAAA, MX, NS, TXT and DNSBL lookups all returned empty and every scanned domain was reported as unregistered. Both record shapes are now normalised in a single adapter (`net.dns.query_records`), replacing three duplicate copies of the dispatch helper.
 - Fixed critical defensive detection bypass where domains redirecting to target were cleared to 0 risk despite having active MX mail servers.
 - Fixed asymmetric timeout in `Resolver._probe_http`: when HTTP answers first, HTTPS now gets a 2 s grace window instead of the full 15 s deadline, so a firewalled port 443 no longer stalls the scan while a fast `301 → https` still yields the HTTPS page title.
 - Enforced deterministic result sorting in scan reports (`-risk_score`, `domain`) for clean CI artifact diffing.
