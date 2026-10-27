@@ -53,6 +53,8 @@ the DNS engine (`pycares`) ships prebuilt wheels with `c-ares` built in.
 otacon scan example.com                   # full scan: DNS, MX, TLS, HTTP, WHOIS
 otacon scan example.com --no-http         # DNS only — roughly 3x faster
 otacon scan example.com --fail-on high    # CI gate: exit 2 on high or critical
+otacon tui example.com                    # scan, then triage in the console
+otacon tui --from report.json             # reopen a saved report
 otacon generate example.com -o list.txt   # offline wordlist, no network traffic
 otacon                                    # guided interactive mode
 ```
@@ -127,7 +129,7 @@ for why that matters when you read a report.
 
 | Document | What's in it |
 |---|---|
-| [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md) | Every CLI flag, the three modes, interactive triage, whitelisting |
+| [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md) | Every CLI flag, the four modes, the triage console, whitelisting |
 | [`docs/SCORING.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md) | Every signal and its point value, risk-level thresholds |
 | [`docs/OUTPUT.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/OUTPUT.md) | The five output formats and the JSON schema |
 | [`docs/CI.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/CI.md) | Ready-to-paste GitHub Actions and GitLab CI pipelines |
@@ -147,6 +149,7 @@ for why that matters when you read a report.
 | CI/CD exit code gating | ✓ `--fail-on` | ✗ |
 | Self-contained HTML report | ✓ dark theme, zero JS, pure-CSS filters, SVG charts, defanged IOCs | partial (`--format html`) |
 | Interactive post-scan triage | ✓ open (OPSEC safe) / whois / takedown / rescan / allow | ✗ |
+| Keyboard triage console (`otacon tui`) | ✓ filter by risk, search, live dossier pane | ✗ |
 | Automated abuse takedown notice | ✓ formatted draft with technical evidence | ✗ |
 | Permutation techniques | 12 (with regional combosquatting for `.pl`, `.de`, `.fr`) | 13+ |
 | Visual screenshots of pages | ✗ | ✓ |

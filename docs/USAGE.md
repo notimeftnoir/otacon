@@ -115,15 +115,53 @@ otacon scan example.com --weights-file weights.json
 
 ## Modes
 
-Otacon has two subcommands plus an interactive guided mode:
+Otacon has four subcommands plus an interactive guided mode:
 
 | Mode | Network? | Use when |
 |---|---|---|
 | `scan` | yes | One-shot audit. Most common. |
+| `tui` | yes (or none with `--from`) | **Triage console** — a scan produces a few hundred rows of which a handful matter. Work them from the keyboard. |
 | `generate` | **no** | Offline wordlist generation. Useful for feeding into external tooling (`subfinder`, `nuclei`, etc.) or sanity-checking what Otacon *would* check. |
+| `diff` | **no** | Compare two saved JSON reports to see what changed between scans. |
 | *(no subcommand)* | yes | **Interactive mode** — guided prompts, then a post-scan action loop (open in browser, WHOIS, rescan, allow-list). |
 
 ---
+
+---
+
+## Triage console (`otacon tui`)
+
+```bash
+otacon tui example.com            # scan, then open the console on the result
+otacon tui example.com --no-whois # same, skipping registry lookups
+otacon tui --from report.json     # reopen a saved report, no network at all
+```
+
+The table on the left is every row the scan produced, worst first. The pane on the
+right is the dossier for the row under the cursor: each signal with a one-line
+explanation of what it means, followed by the full scoring breakdown. Both update
+as you move.
+
+| Key | Action |
+|---|---|
+| `↑` `↓` or `k` `j` | Move the cursor |
+| `1` … `5` | Show only critical / high / medium / low / safe. The same key again lifts the filter. |
+| `0` | Clear the level filter |
+| `a` | Include variants nobody has registered (hidden by default) |
+| `/` | Filter domains by substring. `Esc` clears it. |
+| `w` | Fetch WHOIS / RDAP registration data for the selected row |
+| `t` | Render the abuse takedown notice and write it to the working directory |
+| `e` | Export the selected row as a single-result JSON report |
+| `q` | Quit |
+
+`--from` makes the console a reader for anything already on disk, so a nightly
+`otacon -q scan` in CI can write a report that is triaged by hand the next morning
+without touching the network again.
+
+Filenames written by `t` and `e` are derived from the scanned domain, which is
+attacker-influenced, so they go through the same containment check as the CLI's
+`--json` and `--html` paths. A name that would escape the working directory is
+refused rather than written.
 
 ---
 

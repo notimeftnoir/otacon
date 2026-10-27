@@ -101,3 +101,57 @@ async def test_dnsclient_resolves_through_modern_resolver() -> None:
         _DNSResult([_Rec(_Data(addr="93.184.216.34"))])
     )
     assert await client.query_ips("example.com", "A") == ["93.184.216.34"]
+
+
+# --------------------------------------------------------------------------
+# Live resolver check. Excluded by default (`-m 'not network'`); run with
+# `pytest -m network`. This is the test whose absence let the aiodns 4 break
+# ship: every other DNS test injects a fake record shape, so a change to the
+# library's real return type is invisible to them.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.network
+@pytest.mark.asyncio
+async def test_live_resolver_returns_records_against_real_aiodns() -> None:
+    import aiodns
+
+    resolver = aiodns.DNSResolver(timeout=5.0, tries=2)
+
+    a_records = await query_records(resolver, "example.com", "A")
+    assert a_records, "example.com must return at least one A record"
+    assert all(r.host for r in a_records), "A records must expose a non-empty .host"
+
+    ns_records = await query_records(resolver, "example.com", "NS")
+    assert ns_records, "example.com must return NS records"
+    assert all("." in r.host for r in ns_records)
+
+    txt_records = await query_records(resolver, "example.com", "TXT")
+    assert all(isinstance(r.text, str) for r in txt_records)
+
+
+@pytest.mark.network
+@pytest.mark.asyncio
+async def test_live_scan_finds_registered_lookalikes() -> None:
+    """End-to-end guard: a scan of a heavily squatted brand must not come back empty.
+
+    v2.0.0 reported "nothing registered" for all 280 github.com lookalikes because
+    the DNS TypeError was swallowed by graceful degradation. An all-clear verdict is
+    indistinguishable from a broken resolver without an assertion like this one.
+    """
+    from rich.console import Console
+
+    from otacon.engine.scanner import run_scan
+
+    report = await run_scan(
+        target="github.com",
+        concurrency=50,
+        check_http=False,
+        console=Console(quiet=True),
+        show_progress=False,
+        check_whois=False,
+        check_dnsbl=False,
+        check_ct=False,
+    )
+    registered = [r for r in report.results if r.resolves]
+    assert len(registered) > 20, f"only {len(registered)} of {len(report.results)} resolved"

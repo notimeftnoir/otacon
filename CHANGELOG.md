@@ -39,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING:** dropped Python 3.10 support (EOL October 2026). Patched `filelock`
   (a transitive dependency via `tldextract`) requires Python 3.11+.
 
+### Added
+- `otacon tui [domain]` — a keyboard-driven triage console built on Textual. A scan produces a few hundred rows of which a handful matter; the console keeps the whole report in memory and lets one hand work it. Arrows or `j`/`k` move, `1`–`5` filter to a single risk level, `/` filters by substring, `a` reveals unregistered variants, and `w` / `t` / `e` run WHOIS, render the abuse notice, and export the selected row. The dossier pane on the left tracks the cursor, showing every signal with its plain-language meaning and the full scoring breakdown.
+- `otacon tui --from <report.json>` reopens a saved report with no network traffic at all, so a nightly CI scan can be triaged by hand the next morning.
+- `triage/notice.py` with `build_takedown_notice()`, extracted from the questionary handler so the console and the guided mode render the same notice from one source, and so the text can be asserted without driving a prompt.
+- Network-marked regression tests (`pytest -m network`) that resolve against real DNS and assert a scan of a heavily squatted brand returns registered lookalikes. Their absence is what let the aiodns 4 break ship.
+
 ### Removed
 - Deleted four unreachable compatibility shims: `cli.py`, `scoring.py`, `reporters.py` and `permutations.py`. Each was shadowed by a package of the same name, so Python resolved every `otacon.cli` / `otacon.scoring` / `otacon.reporters` / `otacon.permutations` import to the package and none of these files was ever imported. The backwards compatibility they documented did not exist.
 - Collapsed `theme.py`, `_validate.py` and `whois.py` from full second copies into thin re-exports of `utils/theme.py`, `utils/validate.py` and `net/whois.py`. The palette, the trust-boundary validators and the WHOIS/RDAP client each existed twice, so a change had to be made in two places to take effect everywhere.
