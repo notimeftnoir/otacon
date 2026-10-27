@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Certificate Transparency (CT) log discovery via Certspotter API with graceful crt.sh fallback to discover certificates issued in the wild, with `--no-ct` CLI flag.
+- Deep Email Security inspection: SPF and DMARC policy analysis; identifies active email spoofing / BEC vectors (+15 pts) when MX is present without strict DMARC enforcement (`p=quarantine` or `p=reject`).
+- Continuous monitoring comparison engine and CLI command: `otacon diff <file1.json> <file2.json>` to track domain modifications, new registrations, mail activation, and dropped domains with optional `--fail-on-threats` CI gating.
+- Favicon MurmurHash3 (Shodan/Censys standard) fingerprinting in pure-Python (`mmh3_32`) to detect cloned visual brand assets.
+- Credential harvesting / login form heuristic detection (`<input type="password">` / auth fields).
+- Advanced domain parking classifier detecting parking nameservers (Sedo, Bodis, Dan.com, Afternic, Parkingcrew) and parking IP subnets.
+- Law-enforcement and CERT sinkhole classifier (Shadowserver, cert.pl, FBI seizure) to neutralize false-alarm scoring on seized domains.
+- Passive DNSBL threat intelligence integration (Spamhaus DBL and SURBL) via non-blocking async DNS queries with `--no-dnsbl` CLI flag.
+- Visual badges in terminal tables and HTML reports (`[DBL listed]`, `[cloned favicon]`, `[login form]`, `[spoofable mail]`, `[parked]`, `[sinkhole]`).
 - `--no-whois` CLI flag to bypass WHOIS / RDAP lookups, preventing registry rate-limits and IP blocking during high-volume scans.
 - European ccTLDs (`.pl`, `.de`, `.uk`, `.eu`, `.fr`) to `_ALT_TLDS` mutation table.
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).

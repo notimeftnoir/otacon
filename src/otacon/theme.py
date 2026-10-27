@@ -9,11 +9,11 @@ risk semantics based on intuition: red = threat, green = safe, yellow = caution.
 
 from __future__ import annotations
 
-from enum import Enum
-
 from rich.color import Color
 from rich.text import Text
 from rich.theme import Theme
+
+from .core.types import RiskLevel
 
 # Semantic palette. Names describe MEANING, not color, so re-theming
 # does not require changes in the logic.
@@ -58,61 +58,6 @@ def gradient(text: str, bold: bool = True) -> Text:
     for i, ch in enumerate(text):
         out.append(ch, style=f"{'bold ' if bold else ''}{gradient_color(i / last)}")
     return out
-
-
-class RiskLevel(str, Enum):
-    """Risk levels. String values make JSON serialization trivial."""
-
-    SAFE = "safe"
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
-
-    @property
-    def style(self) -> str:
-        """Maps a risk level to a rich style (from OTACON_THEME)."""
-        return {
-            RiskLevel.SAFE: "ok",
-            RiskLevel.LOW: "info",
-            RiskLevel.MEDIUM: "warn",
-            RiskLevel.HIGH: "danger",
-            RiskLevel.CRITICAL: "critical",
-        }[self]
-
-    @property
-    def icon(self) -> str:
-        """Status icon — works even without colors (e.g. when piped to a file).
-
-        A density ramp, not circles with partial or full fill (U+25D0-U+25D5,
-        plus U+25CF for critical) that would read more naturally: those are
-        missing from the fonts people run a terminal in. See SAFE_GLYPHS.
-        """
-        return {
-            RiskLevel.SAFE: "○",
-            RiskLevel.LOW: "░",
-            RiskLevel.MEDIUM: "▒",
-            RiskLevel.HIGH: "▓",
-            RiskLevel.CRITICAL: "█",
-        }[self]
-
-    @property
-    def rank(self) -> int:
-        """Numeric rank for threshold comparisons (0 = safe … 4 = critical)."""
-        return {"safe": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}[self.value]
-
-    @classmethod
-    def from_score(cls, score: int) -> RiskLevel:
-        """Maps a raw numeric score (0-100) to a risk level."""
-        if score >= 80:
-            return cls.CRITICAL
-        if score >= 60:
-            return cls.HIGH
-        if score >= 35:
-            return cls.MEDIUM
-        if score >= 15:
-            return cls.LOW
-        return cls.SAFE
 
 
 # Every glyph the UI prints has to live in this set.
@@ -174,3 +119,19 @@ _LOGO_TOP = f" [brand]{LOGO_DOTS_TOP}[/]"
 _LOGO_MID = f"   {_wordmark_markup()}   [muted]← [0x041E] homoglyph target[/muted]"
 _LOGO_BOT = f" [brand.dim]{LOGO_DOTS_BOT}[/]  [muted]{TAGLINE}[/]"
 BANNER = f"\n{_LOGO_TOP}\n{_LOGO_MID}\n{_LOGO_BOT}\n"
+
+__all__ = [
+    "BANNER",
+    "GLYPH_DEFENSIVE",
+    "GRADIENT",
+    "LOGO_DOTS_BOT",
+    "LOGO_DOTS_TOP",
+    "OTACON_THEME",
+    "SAFE_GLYPHS",
+    "SPOOF_INDEX",
+    "TAGLINE",
+    "WORDMARK",
+    "RiskLevel",
+    "gradient",
+    "gradient_color",
+]

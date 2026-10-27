@@ -5,7 +5,9 @@ __pycache__/
 
 # Virtual environment
 .venv/
+.venv*/
 venv/
+.graphify_venv/
 
 dist/
 build/
@@ -18,6 +20,12 @@ desktop.ini
 .idea/
 .vscode/
 
+# Temporary / backup files
+*.tmp
+*.bak
+*.swp
+*~
+
 # Claude Code project data (session memory, worktrees)
 .claude/
 
@@ -29,6 +37,9 @@ desktop.ini
 .coverage.*
 htmlcov/
 coverage.xml
+
+# Graphify knowledge graph artefacts & caches
+graphify-out/
 
 # Secrets — never commit local credentials or keys.
 .env

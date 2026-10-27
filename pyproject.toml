@@ -1,9 +1,9 @@
 [project]
 name = "otacon"
-version = "1.1.0"
+version = "2.0.0"
 description = "Domain impersonation detector — typosquatting, homoglyph & combosquat detection."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Gabriel" }]
 keywords = [
@@ -19,7 +19,6 @@ classifiers = [
     "Topic :: Security",
     "Topic :: Internet :: Name Service (DNS)",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
@@ -36,6 +35,7 @@ dependencies = [
     "questionary>=2.0.0,<3",
     "prompt_toolkit>=3.0.0,<4",
     "asyncwhois>=1.1.0,<2",
+    "idna>=3.7,<4",
 ]
 
 [project.optional-dependencies]
@@ -74,7 +74,7 @@ otacon = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -94,7 +94,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "cli.py" = ["B008"]
-"tests/*" = ["S", "N802", "N806", "SIM117"]  # tests exercise edge cases; CamelCase mocks OK
+"src/otacon/cli/*" = ["B008"]
+"src/otacon/cli/**/*" = ["B008"]
+"tests/*" = ["S", "N802", "N806", "SIM117", "RUF059"]  # tests exercise edge cases; CamelCase mocks OK
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -105,7 +107,7 @@ markers = [
 addopts = "-m 'not network'"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 ignore_missing_imports = true
 warn_unused_configs = true
@@ -140,6 +142,8 @@ verbose = 1
 quiet = false
 ignore-init-method = true
 ignore-magic = true
+ignore-semiprivate = true
+ignore-property-decorators = true
 ignore-nested-functions = true
 ignore-nested-classes = true
 # `__main__.py` is a 3-line shim; private helpers + setter/property are docs in

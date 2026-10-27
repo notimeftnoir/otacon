@@ -44,9 +44,10 @@ def test_gradient_endpoints_match_stops() -> None:
 def test_animation_disabled_off_terminal_and_by_env(monkeypatch) -> None:
     console, _ = _console()
     assert not _splash.animations_enabled(console)  # StringIO is not a TTY
-    tty, _ = _console(force_terminal=True, color_system="truecolor")
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.delenv("OTACON_NO_ANIMATION", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    tty, _ = _console(force_terminal=True, color_system="truecolor")
     assert _splash.animations_enabled(tty)
     monkeypatch.setenv("OTACON_NO_ANIMATION", "1")
     assert not _splash.animations_enabled(tty)
