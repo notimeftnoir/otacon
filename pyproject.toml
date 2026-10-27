@@ -139,6 +139,7 @@ module = [
     "test_ct",
     "test_enrich",
     "test_watch",
+    "test_soc",
     "conftest",
 ]
 ignore_errors = true

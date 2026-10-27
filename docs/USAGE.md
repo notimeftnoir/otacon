@@ -219,6 +219,51 @@ jobs:
 
 ---
 
+## Exports for security teams
+
+| Flag | Format | Consumer |
+|---|---|---|
+| `--stix out.json` | STIX 2.1 bundle, one `indicator` per medium+ variant and discovered host | OpenCTI, any TIP |
+| `--misp out.json` | MISP event (`Import from > MISP JSON`), TLP:AMBER, distribution "your organisation" | MISP |
+| `--syslog udp://host:514` | One JSON line per medium+ finding (RFC 3164) | Wazuh, any SIEM |
+
+Indicator and attribute IDs derive from the domain, so re-exporting updates the same objects instead of duplicating them. Variants reported by a phishing feed are `malicious-activity`; the rest `anomalous-activity`. MISP marks only high and critical variants `to_ids`. `otacon watch --syslog` sends change events (`watch.new`, `watch.escalated`, …) instead.
+
+**Wazuh.** Accept remote syslog on the manager (`ossec.conf`):
+
+```xml
+<remote>
+  <connection>syslog</connection>
+  <port>514</port>
+  <protocol>udp</protocol>
+  <allowed-ips>192.168.1.0/24</allowed-ips>
+</remote>
+```
+
+The line reads `otacon: {"otacon": {...}}`, so the predecoder sets `program_name` and the built-in JSON decoder exposes `otacon.*` fields. Rules for `local_rules.xml` (check them with `wazuh-logtest` against a line from `--syslog` first):
+
+```xml
+<group name="otacon,">
+  <rule id="100900" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="otacon.event">\.+</field>
+    <description>Otacon event</description>
+  </rule>
+  <rule id="100901" level="10">
+    <if_sid>100900</if_sid>
+    <field name="otacon.risk_level">^critical$|^high$</field>
+    <description>Otacon: $(otacon.risk_level) lookalike $(otacon.domain) of $(otacon.target)</description>
+  </rule>
+  <rule id="100902" level="12">
+    <if_sid>100900</if_sid>
+    <field name="otacon.event">^watch.new$</field>
+    <description>Otacon: new lookalike $(otacon.domain) registered against $(otacon.target)</description>
+  </rule>
+</group>
+```
+
+---
+
 ## Whitelist / defensive flag
 
 Brands often own their own lookalikes defensively (e.g., `google.com` owns `gooogle.com` and redirects it). Otacon flags these with `»` when the redirect points back to the original:

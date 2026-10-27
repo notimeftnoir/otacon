@@ -18,7 +18,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from . import permutations, reporters, scoring
+from . import permutations, reporters, scoring, soc
 from ._asyncutils import run_async
 from ._scanner import run_scan
 from ._splash import play_intro
@@ -301,6 +301,18 @@ async def _run_scan(
     )
 
 
+def _send_syslog(lines: list[str], destination: str) -> None:
+    """Sends syslog *lines*, reporting the outcome instead of raising."""
+    try:
+        sent = soc.send_syslog(lines, destination)
+    except (OSError, ValueError) as exc:
+        console.print(f"[danger]Error sending to syslog: {escape(str(exc))}[/danger]")
+        return
+    console.print(
+        f"[ok]→ Syslog:[/ok] [muted]{sent} event(s) sent to {escape(destination)}[/muted]"
+    )
+
+
 def _print_next_steps(reports: dict[str, ScanReport], html_written: bool, ci_gated: bool) -> None:
     """Up to three follow-up commands that fit this result, gh/vercel style.
 
@@ -363,6 +375,21 @@ def scan(
     ),
     csv_out: Path = typer.Option(
         None, "--csv", help="Write a CSV report to a file.", rich_help_panel=_OUT
+    ),
+    stix_out: Path = typer.Option(
+        None,
+        "--stix",
+        help="Write a STIX 2.1 bundle (threat-intel platforms).",
+        rich_help_panel=_OUT,
+    ),
+    misp_out: Path = typer.Option(
+        None, "--misp", help="Write a MISP event (Import from > MISP JSON).", rich_help_panel=_OUT
+    ),
+    syslog: str = typer.Option(
+        None,
+        "--syslog",
+        help="Send medium+ findings to a SIEM, e.g. udp://wazuh.lan:514 or tcp://host:514.",
+        rich_help_panel=_OUT,
     ),
     no_http: bool = typer.Option(
         False,
@@ -543,6 +570,14 @@ def scan(
             content = to_html(next(iter(all_reports.values())))
         _safe_write(html_out, content, "HTML")
 
+    if stix_out:
+        _safe_write(stix_out, soc.to_stix(list(all_reports.values())), "STIX")
+    if misp_out:
+        _safe_write(misp_out, soc.to_misp(list(all_reports.values())), "MISP")
+    if syslog:
+        lines = [line for rep in all_reports.values() for line in soc.syslog_lines(rep)]
+        _send_syslog(lines, syslog)
+
     _print_next_steps(all_reports, html_written=bool(html_out), ci_gated=fail_on is not None)
 
     if quiet:
@@ -600,6 +635,9 @@ def watch(
     concurrency: int = typer.Option(50, "--concurrency", "-c", min=1, max=500),
     exclude: str = typer.Option(None, "--exclude", "-x", help="Whitelist, comma-separated."),
     exclude_file: Path = typer.Option(None, "--exclude-file", help="Whitelist file."),
+    syslog: str = typer.Option(
+        None, "--syslog", help="Also send change events to a SIEM: udp://host:514 or tcp://..."
+    ),
 ) -> None:
     """Scans and reports only what changed since the last run; alerts webhooks.
 
@@ -650,6 +688,9 @@ def watch(
                     )
     finally:
         store.close()
+
+    if changed and syslog:
+        _send_syslog([line for t, ev in changed.items() for line in soc.watch_lines(t, ev)], syslog)
 
     # An unset CI secret arrives as an empty OTACON_WEBHOOK, not as no value.
     urls = [u.strip() for u in webhook or [] if u.strip()]

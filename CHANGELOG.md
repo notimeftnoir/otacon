@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run without this).
 - `action.yml`: a composite GitHub Action running `otacon watch` on a schedule, state kept in
   the Actions cache, inputs passed through the environment (no script injection).
+- SOC exports: `--stix` (STIX 2.1 bundle), `--misp` (MISP event) and `--syslog udp://host:514`
+  (one JSON line per medium+ finding, ready for Wazuh's JSON decoder; `watch --syslog` sends change
+  events). IDs derive from the domain, so re-exports update instead of duplicating. Wazuh
+  `<remote>` config and rules in `docs/USAGE.md`.
 - `dns_inconclusive` per result and a warning when DNS never answered a variant: its status is
   unknown, which is no longer reported as "not registered".
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).
