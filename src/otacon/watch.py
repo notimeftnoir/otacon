@@ -186,7 +186,7 @@ class State:
                 current = signals(r)
                 if baseline or domain not in before:
                     # What a variant shows when first met is its starting point, not news.
-                    seen, pending = current, set()
+                    seen, pending = current, set[str]()
                 else:
                     seen, pending, _ = before[domain]
                     seen = seen | (current & pending) | (current & _RELIABLE)
