@@ -48,12 +48,15 @@ Screen {
 }
 
 #rail {
-    width: 3fr;
+    width: 2fr;
     border-left: solid #1c2628;
 }
 
+/* The rail takes two thirds: its columns are fixed-width, and FLAGS — the
+   column that changes what an operator does with a row — is the one that gets
+   clipped first when the table is squeezed. The dossier reflows instead. */
 #dossier {
-    width: 2fr;
+    width: 1fr;
     padding: 1 2;
     overflow-y: auto;
 }

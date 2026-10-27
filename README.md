@@ -18,6 +18,7 @@
 <p align="center">
   <a href="#install"><b>Install</b></a> ·
   <a href="#quick-start"><b>Quick start</b></a> ·
+  <a href="#triage-console"><b>Triage console</b></a> ·
   <a href="#detection-techniques"><b>Techniques</b></a> ·
   <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md"><b>Usage</b></a> ·
   <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md"><b>Scoring</b></a> ·
@@ -33,7 +34,7 @@
     width="860">
 </p>
 
-<sub><i>Real output: a full scan of <code>example.com</code> recorded on 2026-10-26 — 239 permutations, 71 registered lookalikes at the time; the verdict card and the ten riskiest rows. Registrations change daily, so a scan today shows different domains. Regenerate with <code>python tools/render_demo_svg.py example.com assets/brand/demo-scan.svg</code>.</i></sub>
+<sub><i>Real output: a full scan of <code>example.com</code> — 240 permutations, 84 registered lookalikes at the time of recording; the verdict card and the ten riskiest rows. Registrations change daily, so a scan today shows different domains. Regenerate with <code>python tools/render_demo_svg.py example.com assets/brand/demo-scan.svg</code>.</i></sub>
 
 ---
 
@@ -44,7 +45,7 @@ pipx install otacon      # isolated global install (recommended)
 pip install otacon       # or into an active virtualenv
 ```
 
-Python 3.11–3.13 on Linux, macOS or Windows. No system libraries are needed:
+Python 3.12–3.13 on Linux, macOS or Windows. No system libraries are needed:
 the DNS engine (`pycares`) ships prebuilt wheels with `c-ares` built in.
 
 ## Quick start
@@ -73,6 +74,32 @@ you like, since every format renders from the same in-memory report.
 
 ---
 
+## What it checks
+
+For every variant that resolves, Otacon gathers the signals below and turns
+them into one explained score. Each is a flag you can switch off when you want
+a faster or quieter scan.
+
+| Group | Signals |
+|---|---|
+| **Reachability** | A / AAAA records, HTTP status, redirect target, server header, NXDOMAIN-hijack canary |
+| **Mail** | MX records, SPF, DMARC policy — a lookalike with mail and no enforced DMARC is a ready-made sender |
+| **TLS** | Certificate issuer, age, and whether its SAN actually covers the host |
+| **Brand cloning** | Page title similarity to yours, and a favicon MurmurHash3 match (the Shodan/Censys hash) |
+| **Credential capture** | Password and auth inputs detected in the served page |
+| **Reputation** | Spamhaus DBL and SURBL listings, passively over DNS |
+| **Discovery** | Certificate Transparency logs, surfacing lookalikes already holding a certificate that no permutation rule would have guessed |
+| **Registration** | Creation date via RDAP over HTTPS, falling back to port 43 WHOIS |
+
+Three classifiers then override the arithmetic: a **sinkholed** or
+law-enforcement-seized domain drops to zero, so does a **defensive
+registration** that redirects to you without mail, and a **parked** domain has
+its traffic signals ignored. See
+[`docs/SCORING.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md)
+for every point value.
+
+---
+
 ## Why Otacon?
 
 Phishing campaigns almost always start with a **lookalike domain**. Attackers register `github-update.com`, `paypa1.com`, `goog1e.com` weeks (or days) before the actual attack. By the time anyone notices, credentials are already gone.
@@ -87,6 +114,35 @@ Otacon is built for the people who need to find those domains **before the attac
 | **CI/CD gate** | Block deploys when a critical impersonation is live (`--fail-on critical`) |
 
 Otacon is **fully passive**: DNS queries, a TLS handshake, one HTTP GET per variant. No exploit attempts, no auth, no scraping at scale.
+
+---
+
+## Triage console
+
+A scan of a busy brand returns a few hundred rows of which a handful matter.
+`otacon tui` keeps the whole report in memory and lets one hand work it.
+
+```bash
+otacon tui example.com            # scan, then open the console on the result
+otacon tui --from report.json     # reopen a saved report, no network at all
+```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/notimeftnoir/otacon/main/assets/brand/demo-tui.svg"
+    alt="otacon tui — dossier pane on the left, results table on the right, risk filters bound to the number keys"
+    width="860">
+</p>
+
+The dossier on the left tracks the cursor: every signal with a one-line
+explanation of what it means, then the full scoring breakdown. Arrows or
+`j`/`k` move, `1`–`5` filter to a single risk level, `/` filters by substring,
+`a` reveals unregistered variants, and `w` / `t` / `e` run WHOIS, render an
+abuse notice, and export the selected row. Full key map in
+[`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md#triage-console-otacon-tui).
+
+`--from` makes it a reader for anything already on disk, so a nightly
+`otacon -q scan` in CI can be triaged by hand the next morning without
+touching the network again.
 
 ---
 
@@ -117,6 +173,11 @@ unlabelled guess.
 | **Vowel swap** | `exomple.com`, `exumple.com` | Replace one vowel with another |
 | **Plural** | `shops.com` ← `shop.com` | Singular ↔ plural variation |
 | **WWW-merge** | `wwwexample.com` | Dot dropped between "www" and the domain — easy to misread |
+
+Certificate Transparency discovery runs alongside these: it finds lookalikes
+that already hold a certificate, including ones no permutation rule would
+generate. Those are reported as `ct-log` rather than as a technique, and
+subdomains of your own domain are dropped before scoring.
 
 Every example above is real output, not an illustration. Each variant is
 reported once, under the first technique that produced it, and the original

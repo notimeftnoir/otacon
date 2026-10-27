@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a transitive dependency via `tldextract`) requires Python 3.11+.
 
 ### Added
+- README section covering the signals Otacon actually gathers — mail security, TLS, brand cloning, credential capture, DNSBL reputation, Certificate Transparency discovery and registration data. All of these shipped in v2.0 and none of them was mentioned on the landing page.
+- `tools/render_tui_svg.py`, the companion to `render_demo_svg.py`, so the triage-console screenshot in the README is reproducible from a real scan rather than a mock-up.
 - `otacon tui [domain]` — a keyboard-driven triage console built on Textual. A scan produces a few hundred rows of which a handful matter; the console keeps the whole report in memory and lets one hand work it. Arrows or `j`/`k` move, `1`–`5` filter to a single risk level, `/` filters by substring, `a` reveals unregistered variants, and `w` / `t` / `e` run WHOIS, render the abuse notice, and export the selected row. The dossier pane on the left tracks the cursor, showing every signal with its plain-language meaning and the full scoring breakdown.
 - `otacon tui --from <report.json>` reopens a saved report with no network traffic at all, so a nightly CI scan can be triaged by hand the next morning.
 - `triage/notice.py` with `build_takedown_notice()`, extracted from the questionary handler so the console and the guided mode render the same notice from one source, and so the text can be asserted without driving a prompt.
@@ -50,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Collapsed `theme.py`, `_validate.py` and `whois.py` from full second copies into thin re-exports of `utils/theme.py`, `utils/validate.py` and `net/whois.py`. The palette, the trust-boundary validators and the WHOIS/RDAP client each existed twice, so a change had to be made in two places to take effect everywhere.
 
 ### Changed
+- Widened the triage console's results table to two thirds of the window. Its columns are fixed-width and `FLAGS` — the column that changes what an operator does with a row — was clipped to four characters at the previous ratio; the dossier reflows instead.
+- Corrected the README's claimed Python support from 3.11–3.13 to 3.12–3.13. 3.11 was never able to build the package.
 - The `SAFE_GLYPHS` guard in `tests/test_theme.py` now checks the modules that actually render — `reporters/console.py`, `cli/`, `triage/`, `engine/scanner.py` — instead of the legacy shim files `reporters.py` and `cli.py`, two of which were unreachable dead code.
 - Rebalanced risk scoring to separate impersonation evidence from infrastructure capacity. Resolving, answering HTTP, holding a certificate and accepting mail summed to roughly +85 raw — which is simply what a working website looks like — so any live domain scored critical on its own. Their combined contribution is now capped (`infra_cap`, default 35, overridable via `--weights-file`) and the reason list reports when the cap binds. On `github.com` this cut critical findings from 60 to 2, both of which are genuine (one with a cloned title and favicon, one listed on Spamhaus DBL).
 - Domain age can now reduce a score instead of only raising it: ≥2 years scores −15 and ≥5 years scores −30. A lookalike registered years ago and never used in a campaign is usually an unrelated business, not a live threat. Scores are floored at 0.
