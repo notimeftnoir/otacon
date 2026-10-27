@@ -13,10 +13,12 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.markup import escape
+from rich.table import Table
 
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
 from ._scanner import run_scan
+from ._splash import play_intro
 from ._validate import (
     is_valid_domain,
     normalize_domain,
@@ -86,16 +88,37 @@ class _Threshold(str, Enum):
 
 app = typer.Typer(
     name="otacon",
-    help="Domain impersonation detector (typosquatting / impersonation).",
+    help=(
+        "Find lookalike domains that imitate yours (typos, homoglyphs, other TLDs) "
+        "and see which ones are registered and dangerous.\n\n"
+        "Run [bold]otacon[/bold] with no arguments for a guided mode."
+    ),
+    epilog=(
+        "[bold]Examples[/bold]\n\n"
+        "  otacon scan example.com                          quick check\n\n"
+        "  otacon scan example.com --html report.html       shareable report\n\n"
+        "  otacon -q scan example.com --fail-on high        CI: JSON out, exit 2 on threats"
+    ),
+    rich_markup_mode="rich",
     add_completion=False,
 )
+
+_OUT, _NET, _FILTER, _CI = "Reports", "Network", "Filtering", "Scoring & CI"
 
 console = Console(theme=OTACON_THEME)
 
 
-def _banner() -> None:
-    """Prints the Otacon ASCII banner."""
-    console.print(BANNER)
+def _banner(animate: bool = False) -> None:
+    """Prints the Otacon banner; *animate* plays the decode intro first."""
+    from . import __version__
+
+    if animate:
+        play_intro(console)
+    else:
+        console.print(BANNER, end="")
+    console.print(
+        f"  [muted]v{__version__} · find lookalike domains before attackers use them[/muted]\n"
+    )
 
 
 def _version_callback(value: bool) -> None:
@@ -164,7 +187,9 @@ def _main(
 
     _configure_logging(debug)
     if not quiet:
-        _banner()
+        # Motion only for the guided mode: a person is watching there, while
+        # subcommands are often scripted and should start instantly.
+        _banner(animate=ctx.invoked_subcommand is None)
 
     if ctx.invoked_subcommand is None:
         from .interactive import run as _interactive_run
@@ -257,6 +282,37 @@ async def _run_scan(
     )
 
 
+def _print_next_steps(reports: dict[str, ScanReport], html_written: bool, ci_gated: bool) -> None:
+    """Up to three follow-up commands that fit this result, gh/vercel style.
+
+    Newcomers rarely find --html or the guided mode on their own; a hint at
+    the moment they would want it costs one glance and is silenced by -q.
+    """
+    domain = escape(next(iter(reports)))
+    found = any(r.registered for r in reports.values())
+    dangerous = any(
+        t.risk_level.rank >= RiskLevel.HIGH.rank for r in reports.values() for t in r.threats
+    )
+    tips: list[tuple[str, str]] = []
+    if found and not html_written:
+        tips.append(
+            (f"otacon scan {domain} --html report.html", "a report to share with your team")
+        )
+    if dangerous:
+        tips.append(("otacon", "guided mode: WHOIS, takedown notice, whitelist"))
+    if not ci_gated:
+        tips.append(
+            (f"otacon -q scan {domain} --fail-on high", "automate it in CI or a nightly job")
+        )
+
+    grid = Table.grid(padding=(0, 2))
+    for cmd, why in tips[:3]:
+        grid.add_row("[brand]•[/brand]", f"[bold white]{cmd}[/bold white]", f"[muted]{why}[/muted]")
+    console.print("[field]Next steps[/field]")
+    console.print(grid)
+    console.print()
+
+
 @app.command()
 def scan(
     ctx: typer.Context,
@@ -270,43 +326,75 @@ def scan(
         "-D",
         help="File with domains to scan (one per line, '#' = comment).",
     ),
-    json_out: Path = typer.Option(None, "--json", help="Write the full JSON report to a file."),
+    json_out: Path = typer.Option(
+        None, "--json", help="Write the full JSON report to a file.", rich_help_panel=_OUT
+    ),
     md_out: Path = typer.Option(
-        None, "--markdown", "--md", help="Write the Markdown report to a file."
+        None,
+        "--markdown",
+        "--md",
+        help="Write the Markdown report to a file.",
+        rich_help_panel=_OUT,
     ),
     html_out: Path = typer.Option(
-        None, "--html", help="Write a self-contained HTML report to a file."
+        None,
+        "--html",
+        help="Write a self-contained HTML report to a file.",
+        rich_help_panel=_OUT,
     ),
-    csv_out: Path = typer.Option(None, "--csv", help="Write a CSV report to a file."),
+    csv_out: Path = typer.Option(
+        None, "--csv", help="Write a CSV report to a file.", rich_help_panel=_OUT
+    ),
     no_http: bool = typer.Option(
-        False, "--no-http", help="Skip HTTP/SSL probing (faster, fewer signals)."
+        False,
+        "--no-http",
+        help="Skip HTTP/SSL probing (faster, fewer signals).",
+        rich_help_panel=_NET,
     ),
     no_whois: bool = typer.Option(
         False,
         "--no-whois",
         help="Skip WHOIS / domain-age lookups (faster, avoids registry rate-limits).",
+        rich_help_panel=_NET,
     ),
     concurrency: int = typer.Option(
-        50, "--concurrency", "-c", help="Number of concurrent checks.", min=1, max=500
+        50,
+        "--concurrency",
+        "-c",
+        help="Number of concurrent checks.",
+        min=1,
+        max=500,
+        rich_help_panel=_NET,
     ),
-    show_all: bool = typer.Option(False, "--all", help="Show unregistered variants too."),
+    show_all: bool = typer.Option(
+        False, "--all", help="Show unregistered variants too.", rich_help_panel=_FILTER
+    ),
     exclude: str = typer.Option(
         None,
         "--exclude",
         "-x",
         help="Whitelist of domains to skip (comma-separated), e.g. legit aliases.",
+        rich_help_panel=_FILTER,
     ),
     exclude_file: Path = typer.Option(
-        None, "--exclude-file", help="File with a whitelist (one domain per line, '#' = comment)."
+        None,
+        "--exclude-file",
+        help="File with a whitelist (one domain per line, '#' = comment).",
+        rich_help_panel=_FILTER,
     ),
     fail_on: _Threshold = typer.Option(
         None,
         "--fail-on",
         help="Exit 2 if any registered result meets or exceeds this risk level."
         " Choices: low medium high critical.",
+        rich_help_panel=_CI,
     ),
     weights_file: Path = typer.Option(
-        None, "--weights-file", "-w", help="Path to a JSON file overriding default scoring weights."
+        None,
+        "--weights-file",
+        "-w",
+        help="Path to a JSON file overriding default scoring weights.",
+        rich_help_panel=_CI,
     ),
 ) -> None:
     """Scans domain variants and detects registered fakes."""
@@ -329,11 +417,11 @@ def scan(
             scan_errors.append(d)
             continue
 
-        console.print(f"[field]Target:[/field] [value]{escape(d)}[/value]")
+        console.print(f"\n[brand]►[/brand] Scanning [bold white]{escape(d)}[/bold white]")
         console.print(
-            f"[muted]Mode: {'DNS only' if no_http else 'DNS + HTTP/SSL'}"
-            + (" · WHOIS off" if no_whois else "")
-            + f" · concurrency: {concurrency}"
+            f"  [muted]{'DNS only' if no_http else 'DNS + HTTP/SSL'}"
+            + (" · WHOIS off" if no_whois else " · WHOIS")
+            + f" · {concurrency} parallel checks"
             + (f" · whitelist: {len(exclusions)}" if exclusions else "")
             + "[/muted]"
         )
@@ -420,6 +508,8 @@ def scan(
 
             content = to_html(next(iter(all_reports.values())))
         _safe_write(html_out, content, "HTML")
+
+    _print_next_steps(all_reports, html_written=bool(html_out), ci_gated=fail_on is not None)
 
     if quiet:
         # Keyed off the reports we actually produced, not the domains requested:

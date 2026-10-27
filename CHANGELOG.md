@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--no-whois` CLI flag to bypass WHOIS / RDAP lookups, preventing registry rate-limits and IP blocking during high-volume scans.
 - European ccTLDs (`.pl`, `.de`, `.uk`, `.eu`, `.fr`) to `_ALT_TLDS` mutation table.
 - Extended multi-part TLD coverage in `_COMMON_MULTI_TLDS` (`ac.uk`, `gov.uk`, `edu.au`, `gov.au`, `waw.pl`).
+- Verdict card at the end of every scan: plain-language headline, risk distribution bar
+  and counts. Each table row now lists the domain's two strongest reasons.
+- Staged scan view: variant breakdown, a progress bar with a running tally of registered
+  and dangerous hits plus time left, and a live table capped to the riskiest rows.
+- *Next steps* hints after a scan, grouped `--help` panels with examples.
+- Interactive mode: a dossier card explaining every signal of the picked domain, friendlier
+  prompts, and a short intro animation (interactive colour terminals only; disable with
+  `OTACON_NO_ANIMATION=1`).
+
+### Changed
+- Brand gradient wordmark with the Cyrillic homoglyph highlighted; lighter table style.
+- The progress spinner pulses the risk density ramp instead of Braille dots, which
+  Windows console fonts lack.
+- `assets/brand/demo-scan.svg` regenerated with the new layout.
 
 ### Removed
 - **BREAKING:** dropped Python 3.10 support (EOL October 2026). Patched `filelock`

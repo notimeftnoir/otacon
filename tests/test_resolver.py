@@ -409,8 +409,10 @@ def _with_negative_serial(der: bytes) -> bytes:
     """
     head = b"\xa0\x03\x02\x01\x02\x02"  # [0] version v3, then INTEGER tag
     i = der.index(head) + len(head) + 1  # skip the serial's length byte
-    first = 0xFF if der[i] == 0x00 else der[i] | 0x80
-    return der[:i] + bytes([first]) + der[i + 1 :]
+    # Always 0x80: negative, and minimal DER whatever byte follows. Setting
+    # just the sign bit of the random serial's first byte produced a redundant
+    # 0xFF prefix about 1 run in 130, which cryptography rejects outright.
+    return der[:i] + b"\x80" + der[i + 1 :]
 
 
 def test_inspect_cert_negative_serial_does_not_warn():
