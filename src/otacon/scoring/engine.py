@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from collections.abc import Iterable
 
 from ..core.models import DomainResult
@@ -13,37 +14,28 @@ from .config import ScoringWeights
 AGE_FRESH_DAYS = 7
 AGE_NEW_DAYS = 30
 AGE_RECENT_DAYS = 90
+# A lookalike that has been registered for years without ever being used in a
+# campaign is usually an unrelated business or a dormant portfolio holding, not
+# a live threat. Age is the only signal that can argue a domain *down*.
+AGE_ESTABLISHED_DAYS = 730
+AGE_VETERAN_DAYS = 1825
+
+
+def _threshold(name: str, default: int) -> int:
+    """Reads a threshold off ``otacon.scoring`` so monkeypatching it stays effective."""
+    pkg = sys.modules.get("otacon.scoring")
+    value = getattr(pkg, name, None) if pkg is not None else None
+    return int(value) if value is not None else default
 
 
 def get_age_fresh_days() -> int:
-    """Gets the active AGE_FRESH_DAYS threshold, tracking runtime monkeypatching."""
-    import sys
-
-    scoring_mod = sys.modules.get("otacon.scoring")
-    if scoring_mod is not None:
-        val = getattr(scoring_mod, "AGE_FRESH_DAYS", None)
-        if val is not None and val != 7:
-            return int(val)
-
-    engine_mod = sys.modules.get("otacon.scoring.engine")
-    if engine_mod is not None:
-        val = getattr(engine_mod, "AGE_FRESH_DAYS", None)
-        if val is not None and val != 7:
-            return int(val)
-
-    return AGE_FRESH_DAYS
+    """Gets the active AGE_FRESH_DAYS threshold, tracking runtime overrides."""
+    return _threshold("AGE_FRESH_DAYS", AGE_FRESH_DAYS)
 
 
 def get_age_new_days() -> int:
-    """Gets the active AGE_NEW_DAYS threshold, tracking runtime monkeypatching."""
-    import sys
-
-    scoring_mod = sys.modules.get("otacon.scoring")
-    if scoring_mod is not None:
-        val = getattr(scoring_mod, "AGE_NEW_DAYS", None)
-        if val is not None and val != 30:
-            return int(val)
-    return AGE_NEW_DAYS
+    """Gets the active AGE_NEW_DAYS threshold, tracking runtime overrides."""
+    return _threshold("AGE_NEW_DAYS", AGE_NEW_DAYS)
 
 
 def count_fresh(results: Iterable[DomainResult]) -> int:
@@ -102,7 +94,15 @@ def _tls_points(result: DomainResult, reasons: list[str], weights: ScoringWeight
         return 0
     points = weights.points_ssl
     reasons.append(f"active SSL certificate (+{weights.points_ssl})")
-    if result.ssl_cert_age_days is not None and 0 <= result.ssl_cert_age_days < AGE_FRESH_DAYS:
+    # Let's Encrypt renews every 60 days, so a days-old certificate is the normal
+    # state of the healthy web. It only means something on a domain that is itself
+    # new — an established site with a fresh cert has simply just renewed.
+    domain_is_new = result.age_days is None or result.age_days < AGE_RECENT_DAYS
+    if (
+        domain_is_new
+        and result.ssl_cert_age_days is not None
+        and 0 <= result.ssl_cert_age_days < AGE_FRESH_DAYS
+    ):
         points += weights.points_ssl_fresh
         reasons.append(
             f"SSL certificate issued {result.ssl_cert_age_days} days ago — fresh "
@@ -140,6 +140,19 @@ def _age_points(result: DomainResult, reasons: list[str], weights: ScoringWeight
     if age < AGE_RECENT_DAYS:
         reasons.append(f"registered {age} days ago (+{weights.points_age_recent})")
         return weights.points_age_recent
+    if age >= AGE_VETERAN_DAYS:
+        years = age // 365
+        reasons.append(
+            f"registered {years} years ago — long-established, not a fresh campaign "
+            f"({weights.points_age_veteran})"
+        )
+        return weights.points_age_veteran
+    if age >= AGE_ESTABLISHED_DAYS:
+        years = age // 365
+        reasons.append(
+            f"registered {years} years ago — established domain ({weights.points_age_established})"
+        )
+        return weights.points_age_established
     return 0
 
 
@@ -187,13 +200,34 @@ def score(
     defensive = is_defensive(result, target)
 
     reasons: list[str] = []
+
+    # How closely the name imitates the target.
     points = _technique_points(result, reasons, weights)
-    points += _network_points(result, reasons, weights, parked)
+
+    # Infrastructure: capacity to host an attack, not evidence of one. Every live
+    # site scores most of this, so it is capped (see ScoringWeights.infra_cap).
+    infra = _network_points(result, reasons, weights, parked)
     if result.has_mx:
-        points += weights.points_mx
+        infra += weights.points_mx
         reasons.append(f"has an MX record — ready for email phishing (+{weights.points_mx})")
-    points += _tls_points(result, reasons, weights)
-    points += _redirect_points(result, reasons, weights)
+    infra += _tls_points(result, reasons, weights)
+    infra += _redirect_points(result, reasons, weights)
+    if result.has_mx and result.is_mail_spoofable and not parked:
+        infra += weights.points_mail_spoofable
+        pol = result.dmarc_policy or "none"
+        reasons.append(
+            f"permissive/missing DMARC (p={pol}) — email spoofing vector "
+            f"(+{weights.points_mail_spoofable})"
+        )
+    if infra > weights.infra_cap:
+        reasons.append(
+            f"infrastructure signals capped at +{weights.infra_cap} "
+            f"(raw +{infra} — a working website is not itself evidence of impersonation)"
+        )
+        infra = weights.infra_cap
+    points += infra
+
+    # Evidence of intent: these decide the verdict.
     points += _age_points(result, reasons, weights)
     title_pts, title_sim = _title_points(result, reasons, weights, target_title)
     points += title_pts
@@ -208,20 +242,12 @@ def score(
         points += weights.points_login_form
         reasons.append(f"login form / credential input detected (+{weights.points_login_form})")
 
-    if result.has_mx and result.is_mail_spoofable and not parked:
-        points += weights.points_mail_spoofable
-        pol = result.dmarc_policy or "none"
-        reasons.append(
-            f"permissive/missing DMARC (p={pol}) — email spoofing vector "
-            f"(+{weights.points_mail_spoofable})"
-        )
-
     if result.dnsbl_listed:
         points += weights.points_dnsbl
         source = result.dnsbl_source or "Spamhaus DBL"
         reasons.append(f"listed on {source} — active threat (+{weights.points_dnsbl})")
 
-    final_score = min(points, 100)
+    final_score = max(0, min(points, 100))
     final_level = RiskLevel.from_score(final_score)
 
     if sinkhole:

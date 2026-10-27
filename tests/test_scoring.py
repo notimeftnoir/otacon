@@ -34,7 +34,15 @@ def test_score_resolves_with_typo_is_low_risk() -> None:
     assert "resolves to an IP" in scored.risk_reasons[1]
 
 
-def test_score_full_infrastructure_is_high_risk() -> None:
+def test_score_full_infrastructure_alone_is_not_critical() -> None:
+    """Infrastructure is capacity, not evidence: a fully working lookalike with no
+    cloned branding, no login form and no DNSBL listing must stay mid-range.
+
+    Raw infra here is 65 (resolves 10 + HTTP 200 15 + MX 25 + SSL 15), which the
+    cap takes to 35; with the combosquat base of 20 that is 55. Before the cap this
+    scored 85/critical, which made every live domain indistinguishable from a
+    confirmed phishing site.
+    """
     result = DomainResult(
         domain="example-login.com",
         kind=PermutationType.COMBO,
@@ -49,10 +57,11 @@ def test_score_full_infrastructure_is_high_risk() -> None:
 
     scored = score(result)
 
-    assert scored.risk_score == 85
-    assert scored.risk_level == RiskLevel.CRITICAL
+    assert scored.risk_score == 55
+    assert scored.risk_level == RiskLevel.MEDIUM
     assert any("has an MX record" in reason for reason in scored.risk_reasons)
     assert any("responds HTTP 200" in reason for reason in scored.risk_reasons)
+    assert any("infrastructure signals capped" in reason for reason in scored.risk_reasons)
 
 
 def test_score_tls_fresh_cert_and_san_mismatch_add_their_boosts() -> None:
@@ -76,8 +85,8 @@ def test_score_tls_fresh_cert_and_san_mismatch_add_their_boosts() -> None:
 
     scored = score(result)
 
-    # 25 (homoglyph) + 10 (resolves) + 15 (ssl) + 10 (fresh) + 5 (san mismatch) = 65
-    assert scored.risk_score == 65
+    # 25 (homoglyph) + min(35, 10 resolves + 15 ssl + 10 fresh + 5 san mismatch) = 60
+    assert scored.risk_score == 60
     assert scored.risk_level == RiskLevel.HIGH
     assert any("fresh" in reason for reason in scored.risk_reasons)
     assert any("SAN does not cover this host" in reason for reason in scored.risk_reasons)
@@ -650,3 +659,102 @@ def test_count_fresh_counts_only_results_under_the_threshold() -> None:
     ]
 
     assert count_fresh(results) == 1
+
+
+# --------------------------------------------------------------------------
+# Age as a mitigator, the fresh-certificate gate, and the infrastructure cap.
+# Added with the v2.0 scoring rebalance: before it, score() was purely additive,
+# so a long-established unrelated business scored the same 100 as a live
+# phishing clone.
+# --------------------------------------------------------------------------
+
+
+def test_long_established_domain_is_argued_down() -> None:
+    """A 16-year-old bitsquat of a brand is an unrelated business, not a campaign."""
+    result = DomainResult(
+        domain="bithub.com",
+        kind=PermutationType.BITSQUAT,
+        resolves=True,
+        ip_addresses=["1.2.3.4"],
+        has_mx=True,
+        mx_records=["mail.bithub.com"],
+        has_ssl=True,
+        http_status=301,
+        age_days=5982,
+    )
+
+    scored = score(result)
+
+    # 15 (bitsquat) + 35 (infra, capped) - 30 (veteran) = 20
+    assert scored.risk_score == 20
+    assert scored.risk_level == RiskLevel.LOW
+    assert any("long-established" in reason for reason in scored.risk_reasons)
+
+
+def test_established_band_mitigates_less_than_veteran_band() -> None:
+    base = dict(
+        domain="examp1e.com",
+        kind=PermutationType.HOMOGLYPH,
+        resolves=True,
+        ip_addresses=["1.2.3.4"],
+        has_ssl=True,
+        http_status=200,
+    )
+    three_years = score(DomainResult(**base, age_days=1100)).risk_score
+    ten_years = score(DomainResult(**base, age_days=3650)).risk_score
+
+    assert three_years > ten_years
+    assert score(DomainResult(**base, age_days=400)).risk_score > three_years
+
+
+def test_score_never_goes_negative() -> None:
+    """Mitigation must floor at 0 rather than wrap into a negative score."""
+    result = DomainResult(
+        domain="shop.com",
+        kind=PermutationType.PLURAL,
+        resolves=True,
+        ip_addresses=["1.2.3.4"],
+        age_days=9000,
+    )
+
+    scored = score(result)
+
+    assert scored.risk_score == 0
+    assert scored.risk_level == RiskLevel.SAFE
+
+
+def test_fresh_certificate_ignored_on_an_established_domain() -> None:
+    """Let's Encrypt renews every 60 days, so a new cert on an old domain is routine."""
+    base = dict(
+        domain="githuh.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        ip_addresses=["1.2.3.4"],
+        has_ssl=True,
+        ssl_cert_age_days=2,
+    )
+    established = score(DomainResult(**base, age_days=4000))
+    brand_new = score(DomainResult(**base, age_days=3))
+
+    assert not any("certificate issued" in r for r in established.risk_reasons)
+    assert any("certificate issued" in r for r in brand_new.risk_reasons)
+
+
+def test_infra_cap_is_configurable() -> None:
+    from otacon.scoring import ScoringWeights
+
+    result = DomainResult(
+        domain="example-login.com",
+        kind=PermutationType.COMBO,
+        resolves=True,
+        ip_addresses=["1.2.3.4"],
+        has_mx=True,
+        mx_records=["mail.example-login.com"],
+        has_ssl=True,
+        http_status=200,
+    )
+
+    uncapped = score(result, weights=ScoringWeights({"infra_cap": 100}))
+
+    assert uncapped.risk_score == 85
+    assert not any("capped" in reason for reason in uncapped.risk_reasons)
