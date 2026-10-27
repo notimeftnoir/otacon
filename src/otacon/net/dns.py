@@ -12,6 +12,70 @@ import aiodns
 from .content import _strip_unsafe_chars
 
 _log = logging.getLogger("otacon.net.dns")
+# aiodns >= 4 renamed query() -> query_dns() and changed the return type from a
+# flat list of records with .host/.text to a DNSResult whose .answer holds
+# DNSRecords with typed .data payloads (addr / exchange / nsdname / data).
+# Iterating a DNSResult raises TypeError, which the callers' graceful-degradation
+# handlers swallow — every domain then looks unregistered. Normalise both shapes
+# here so the call sites keep reading .host and .text.
+_HOST_FIELDS = ("addr", "exchange", "nsdname", "cname", "dname", "target")
+
+
+class _Record:
+    """Adapts an aiodns>=4 DNSRecord to the pre-4.0 .host / .text / .priority shape."""
+
+    __slots__ = ("_data", "ttl")
+
+    def __init__(self, record: Any) -> None:
+        self._data = record.data
+        self.ttl = getattr(record, "ttl", 0)
+
+    @property
+    def host(self) -> str:
+        """The single hostname or address this record points at."""
+        for field in _HOST_FIELDS:
+            value = getattr(self._data, field, None)
+            if value is not None:
+                return str(value)
+        return ""
+
+    @property
+    def text(self) -> str:
+        """TXT payload decoded to str."""
+        payload = getattr(self._data, "data", "")
+        if isinstance(payload, bytes):
+            return payload.decode("utf-8", "replace")
+        return str(payload)
+
+    @property
+    def priority(self) -> int:
+        """MX / SRV priority, 0 when the record type has none."""
+        return int(getattr(self._data, "priority", 0))
+
+
+async def query_records(resolver: Any, name: str, rtype: str) -> list[Any]:
+    """Queries *rtype* records for *name*, normalised across aiodns versions.
+
+    Returns records exposing ``.host`` / ``.text`` whether the resolver is an
+    aiodns>=4 instance (DNSResult), a pre-4.0 one (plain list), or a test double
+    patched onto ``.query``.
+    """
+    from unittest.mock import Mock
+
+    query_fn = getattr(resolver, "query", None)
+    is_custom = isinstance(query_fn, Mock) or (
+        hasattr(resolver, "__dict__") and "query" in resolver.__dict__
+    )
+    if is_custom or not hasattr(resolver, "query_dns"):
+        result = await resolver.query(name, rtype)
+    else:
+        result = await resolver.query_dns(name, rtype)
+    answer = getattr(result, "answer", None)
+    if answer is None:
+        return list(result)
+    return [_Record(r) for r in answer]
+
+
 DEFAULT_DNS_TIMEOUT = 3.0
 
 
@@ -28,15 +92,9 @@ class DNSClient:
         """Access underlying aiodns resolver for test patching."""
         return self._resolver
 
-    async def _query_raw(self, domain: str, rtype: str) -> Any:
+    async def _query_raw(self, domain: str, rtype: str) -> list[Any]:
         async with asyncio.timeout(self.timeout):
-            # Prefer query_dns if available, fallback to query for mocks/compat
-            if hasattr(self._resolver, "query_dns"):
-                try:
-                    return await self._resolver.query_dns(domain, rtype)
-                except AttributeError:
-                    return await self._resolver.query(domain, rtype)  # type: ignore[call-overload]
-            return await self._resolver.query(domain, rtype)  # type: ignore[call-overload]
+            return await query_records(self._resolver, domain, rtype)
 
     async def query_ips(self, domain: str, rtype: Literal["A", "AAAA"]) -> list[str]:
         """Resolves A or AAAA records, returning IP strings or empty list on error."""
@@ -105,4 +163,5 @@ class DNSClient:
 __all__ = [
     "DEFAULT_DNS_TIMEOUT",
     "DNSClient",
+    "query_records",
 ]
