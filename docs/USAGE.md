@@ -76,7 +76,7 @@ the JSON on stdout clean and puts every degradation event in `debug.log`.
 <details>
 <summary><b>Custom scoring weights (<code>--weights-file</code>)</b></summary>
 
-Override any subset of the default point values without touching `scoring.py`. Unspecified keys keep their default:
+Override any subset of the default point values without touching `scoring/config.py`. Unspecified keys keep their default:
 
 ```json
 {
