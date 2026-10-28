@@ -165,3 +165,30 @@ def test_stored_scans_are_owner_only(tmp_path: Path) -> None:
     assert path is not None
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+
+
+def test_the_suite_never_writes_to_the_real_history(isolate_scan_history: Path) -> None:
+    """Guards the conftest fixture that keeps fixture domains out of ~/.otacon.
+
+    `execute_scan` persists through `history.save`, so any test that reaches it
+    writes somewhere. Before this fixture existed, that somewhere was the
+    developer's own home directory, which filled with `evil-twin.com`,
+    `clean.com` and `a.com`.
+    """
+    assert history.history_dir() == isolate_scan_history
+    assert history.history_dir() != Path.home() / ".otacon"
+
+    history.save(_report("fixture-domain.com"))
+    assert history.targets() == ["fixture-domain.com"]
+    assert (isolate_scan_history / "fixture-domain.com").is_dir()
+
+
+def test_a_cli_scan_persists_into_the_isolated_directory(
+    isolate_scan_history: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The path that leaked: the scan command saves whatever it just produced."""
+    from otacon.cli.commands import scan as scan_cmd
+
+    saved = _report("from-cli.com")
+    scan_cmd.history.save(saved)
+    assert (isolate_scan_history / "from-cli.com").is_dir()
