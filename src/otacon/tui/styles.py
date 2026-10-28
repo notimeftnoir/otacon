@@ -96,8 +96,10 @@ DataTable > .datatable--hover {
 
 /* ── status bar: what the transient toasts used to say, but permanently ── */
 
+/* Height 2, not 1: border-top occupies a row of the box, so a one-row
+   widget with a border has nowhere left to draw its text. */
 #statusbar {
-    height: 1;
+    height: 2;
     background: $otacon-surface;
     color: $otacon-muted;
     border-top: solid $otacon-line;
@@ -107,7 +109,7 @@ DataTable > .datatable--hover {
 /* ── filter bar ────────────────────────────────────────────────────────── */
 
 #filterbar {
-    height: 1;
+    height: 2;
     background: $otacon-surface;
     border-top: solid $otacon-line;
     padding: 0 1;

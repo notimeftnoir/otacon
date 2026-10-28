@@ -25,7 +25,7 @@ SAFE = frozenset(
     "»"
     "✓✗"
     "⚠"
-    "→←"
+    "→←↑↓"
     "►•"
     "О"  # noqa: RUF001  — U+041E, the homoglyph the wordmark is built on
     "·—…›─"  # noqa: RUF001
@@ -46,6 +46,8 @@ ASCII_FALLBACK = {
     "⚠": "!",
     "→": "->",
     "←": "<-",
+    "↑": "^",
+    "↓": "v",
     "►": ">",
     "•": "*",
     "О": "O",  # noqa: RUF001
