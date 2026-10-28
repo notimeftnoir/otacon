@@ -305,6 +305,8 @@ rows are findable without reading any number.
 
 ## Phase 2 — the non-specialist path
 
+**Status: done.**
+
 **Goal:** someone who has never run a security tool can open the console, read
 one screen, and know what to do.
 
@@ -316,10 +318,10 @@ one screen, and know what to do.
       means for the reader. *(Phase 1)*
 - [x] **One label per concept** — `ui/copy.py`, so no surface invents its own
       spelling. *(Phase 0)* Wiring the console and HTML to it is Phase 5/6.
-- [ ] **Scan presets on the start screen** — *Quick* (DNS only, ~10s),
+- [x] **Scan presets on the start screen** — *Quick* (DNS only, ~10s),
       *Standard* (default), *Deep* (everything + CT), with the four checkboxes
       behind an *Advanced* disclosure instead of facing a first-time user.
-- [ ] **An overview screen after a scan** — verdict, distribution, the top
+- [x] **An overview screen after a scan** — verdict, distribution, the top
       three things to do, and the change since the previous scan of this target
       (history already stores it). `enter` opens the table.
 
@@ -410,6 +412,18 @@ product.
       and it is tiny. Add a larger lockup for the splash and the start screen,
       keeping the homoglyph `О` as the idea it already is.
 - [ ] **Regenerate the README SVGs** per theme once Phases 1–2 land.
+      *Blocked on an environment with working DNS.* The README states its
+      images are real output, and they currently show the pre-Phase-1
+      console and the old brand mark. Regenerating them needs a host that
+      can resolve: a cloud container behind an HTTPS-only proxy fails ~78%
+      of port-53 lookups, and `tools/render_demo_svg.py` there produces an
+      honest "Inconclusive" card rather than a table — which would
+      misrepresent the tool as broken. Run both tools from a normal
+      workstation:
+      ```
+      python tools/render_demo_svg.py example.com assets/brand/demo-scan.svg
+      python tools/render_tui_svg.py example.com assets/brand/demo-tui.svg
+      ```
 - [ ] **Theme gallery in the docs** — four themes, two colour depths.
 
 ---
@@ -433,7 +447,7 @@ product.
 |---|---|---|---|
 | ~~0 — tokens~~ | — | M | **Done.** Every other phase is cheaper afterwards |
 | ~~1 — hierarchy~~ | 0 | M | **Done.** The loudest defect, visible in one screenshot |
-| 2 — non-specialist | 0, 1 | M | The stated goal of the whole effort |
+| ~~2 — non-specialist~~ | 0, 1 | M | **Done.** The stated goal of the whole effort |
 | 3 — scan | 0 | S | Self-contained; closes a real CLI/console regression |
 | 5 — console | 0 | S | Mostly deletion once tokens and copy are shared |
 | 4 — operator | 1 | L | Largest surface area, lowest urgency |
