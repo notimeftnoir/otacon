@@ -8,7 +8,6 @@ import time
 from collections import Counter
 from collections.abc import Callable
 from contextlib import AsyncExitStack
-from typing import Any
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -21,10 +20,10 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
+from .. import permutations
 from ..core.models import DomainResult, Permutation, ScanReport
 from ..core.types import PermutationType
 from ..net.resolver import Resolver
-from ..permutations.generator import generate
 from ..reporters.console import build_live_table
 from ..scoring.config import ScoringWeights
 from ..scoring.engine import score
@@ -72,23 +71,6 @@ def _variant_summary(perms: list[Permutation]) -> str:
     return f"[ok]✓[/ok] [value]{len(perms)}[/value] lookalikes generated  {parts}"
 
 
-def _get_generate_fn() -> Any:
-    import sys
-
-    for mod_name in ("otacon.interactive", "otacon.cli", "otacon._scanner"):
-        mod = sys.modules.get(mod_name)
-        if mod and hasattr(mod, "permutations") and hasattr(mod.permutations, "generate"):
-            val = mod.permutations.generate
-            if val is not generate:
-                return val
-    mod = sys.modules.get("otacon.permutations")
-    if mod and hasattr(mod, "generate"):
-        val = mod.generate
-        if val is not generate:
-            return val
-    return generate
-
-
 async def run_scan(
     target: str,
     concurrency: int,
@@ -103,8 +85,9 @@ async def run_scan(
     on_progress: Callable[[int, int], None] | None = None,
 ) -> ScanReport:
     """Scans all permutations of target using structured concurrency."""
-    gen_fn = _get_generate_fn()
-    perms = await asyncio.to_thread(gen_fn, target, exclude=exclude)
+    # The module is imported, not the function, so a test that patches
+    # otacon.permutations.generate is seen here without any lookup.
+    perms = await asyncio.to_thread(permutations.generate, target, exclude=exclude)
     if not perms:
         return ScanReport(target=target, total_permutations=0)
 

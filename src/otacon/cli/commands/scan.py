@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -93,17 +93,6 @@ def _load_weights(file: Path | None) -> ScoringWeights:
         raise typer.BadParameter(f"cannot read/parse weights-file: {file}. Error: {exc}") from exc
 
 
-def _get_cli(name: str, fallback: Any) -> Any:
-    import sys
-
-    mod = sys.modules.get("otacon.cli")
-    if mod and hasattr(mod, name):
-        val = getattr(mod, name)
-        if val is not fallback:
-            return val
-    return fallback
-
-
 async def _run_scan(
     target: str,
     concurrency: int,
@@ -116,9 +105,8 @@ async def _run_scan(
     check_ct: bool = True,
     console: Console | None = None,
 ) -> ScanReport:
-    active_console = console or _get_cli("console", Console())
-    run_scan_fn = _get_cli("run_scan", run_scan)
-    res = await run_scan_fn(
+    active_console = console or Console()
+    res = await run_scan(
         target,
         concurrency=concurrency,
         check_http=check_http,
@@ -130,7 +118,7 @@ async def _run_scan(
         check_dnsbl=check_dnsbl,
         check_ct=check_ct,
     )
-    return cast(ScanReport, res)
+    return res
 
 
 def _print_next_steps(
@@ -139,7 +127,7 @@ def _print_next_steps(
     ci_gated: bool,
     console: Console | None = None,
 ) -> None:
-    active_console = console or _get_cli("console", Console())
+    active_console = console or Console()
     domain = escape(next(iter(reports)))
     found = any(r.registered for r in reports.values())
     dangerous = any(
@@ -151,7 +139,7 @@ def _print_next_steps(
             (f"otacon scan {domain} --html report.html", "a report to share with your team")
         )
     if dangerous:
-        tips.append(("otacon", "guided mode: WHOIS, takedown notice, whitelist"))
+        tips.append(("otacon", "triage console: filter, inspect, WHOIS, takedown"))
     if not ci_gated:
         tips.append(
             (f"otacon -q scan {domain} --fail-on high", "automate it in CI or a nightly job")
@@ -215,9 +203,9 @@ def execute_scan(
             + "[/muted]"
         )
 
-        run_scan_fn = _get_cli("_run_scan", _run_scan)
-        run_async_fn = _get_cli("run_async", run_async)
-        reporters_mod = _get_cli("reporters", reporters)
+        run_scan_fn = _run_scan
+        run_async_fn = run_async
+        reporters_mod = reporters
 
         scan_kwargs: dict[str, Any] = {
             "exclude": exclusions,

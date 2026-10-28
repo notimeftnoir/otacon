@@ -118,7 +118,9 @@ def _make_scan_with_result(risk_score: int, risk_level):
 def test_scan_no_fail_on_exits_0_even_with_critical(monkeypatch) -> None:
     from otacon.utils.theme import RiskLevel
 
-    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(90, RiskLevel.CRITICAL))
+    monkeypatch.setattr(
+        "otacon.cli.commands.scan._run_scan", _make_scan_with_result(90, RiskLevel.CRITICAL)
+    )
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "google.com"])
     assert result.exit_code == 0
@@ -127,7 +129,9 @@ def test_scan_no_fail_on_exits_0_even_with_critical(monkeypatch) -> None:
 def test_scan_fail_on_high_exits_2_for_critical(monkeypatch) -> None:
     from otacon.utils.theme import RiskLevel
 
-    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(90, RiskLevel.CRITICAL))
+    monkeypatch.setattr(
+        "otacon.cli.commands.scan._run_scan", _make_scan_with_result(90, RiskLevel.CRITICAL)
+    )
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "google.com", "--fail-on", "high"])
     assert result.exit_code == 2
@@ -136,7 +140,9 @@ def test_scan_fail_on_high_exits_2_for_critical(monkeypatch) -> None:
 def test_scan_fail_on_high_exits_0_for_medium(monkeypatch) -> None:
     from otacon.utils.theme import RiskLevel
 
-    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(40, RiskLevel.MEDIUM))
+    monkeypatch.setattr(
+        "otacon.cli.commands.scan._run_scan", _make_scan_with_result(40, RiskLevel.MEDIUM)
+    )
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "google.com", "--fail-on", "high"])
     assert result.exit_code == 0
@@ -145,7 +151,9 @@ def test_scan_fail_on_high_exits_0_for_medium(monkeypatch) -> None:
 def test_scan_fail_on_critical_exits_0_for_high(monkeypatch) -> None:
     from otacon.utils.theme import RiskLevel
 
-    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(65, RiskLevel.HIGH))
+    monkeypatch.setattr(
+        "otacon.cli.commands.scan._run_scan", _make_scan_with_result(65, RiskLevel.HIGH)
+    )
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "google.com", "--fail-on", "critical"])
     assert result.exit_code == 0
@@ -154,7 +162,9 @@ def test_scan_fail_on_critical_exits_0_for_high(monkeypatch) -> None:
 def test_scan_fail_on_critical_exits_2_for_critical(monkeypatch) -> None:
     from otacon.utils.theme import RiskLevel
 
-    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(90, RiskLevel.CRITICAL))
+    monkeypatch.setattr(
+        "otacon.cli.commands.scan._run_scan", _make_scan_with_result(90, RiskLevel.CRITICAL)
+    )
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "google.com", "--fail-on", "critical"])
     assert result.exit_code == 2
@@ -163,7 +173,9 @@ def test_scan_fail_on_critical_exits_2_for_critical(monkeypatch) -> None:
 def test_scan_fail_on_medium_exits_2_for_high(monkeypatch) -> None:
     from otacon.utils.theme import RiskLevel
 
-    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(65, RiskLevel.HIGH))
+    monkeypatch.setattr(
+        "otacon.cli.commands.scan._run_scan", _make_scan_with_result(65, RiskLevel.HIGH)
+    )
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "google.com", "--fail-on", "medium"])
     assert result.exit_code == 2
@@ -172,7 +184,9 @@ def test_scan_fail_on_medium_exits_2_for_high(monkeypatch) -> None:
 def test_scan_fail_on_low_exits_2_for_low(monkeypatch) -> None:
     from otacon.utils.theme import RiskLevel
 
-    monkeypatch.setattr("otacon.cli._run_scan", _make_scan_with_result(28, RiskLevel.LOW))
+    monkeypatch.setattr(
+        "otacon.cli.commands.scan._run_scan", _make_scan_with_result(28, RiskLevel.LOW)
+    )
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "google.com", "--fail-on", "low"])
     assert result.exit_code == 2
@@ -184,7 +198,7 @@ def test_scan_fail_on_low_exits_0_for_empty_scan(monkeypatch) -> None:
     async def fake_empty(domain, concurrency, check_http, exclude=None, quiet=False, **kwargs):
         return ScanReport(target=domain, total_permutations=10)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_empty)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_empty)
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "google.com", "--fail-on", "low"])
     assert result.exit_code == 0
@@ -271,7 +285,7 @@ def test_scan_writes_all_export_formats(tmp_path, monkeypatch) -> None:
     async def fake_run_scan(domain, concurrency, check_http, exclude=None, quiet=False, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_run_scan)
 
     runner = CliRunner()
     monkeypatch.chdir(tmp_path)
@@ -301,7 +315,7 @@ def test_scan_refuses_unsafe_output_path(tmp_path, monkeypatch) -> None:
     async def fake_run_scan(domain, concurrency, check_http, exclude=None, quiet=False, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_run_scan)
 
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "example.com", "--json", "CON.json"])
@@ -315,7 +329,7 @@ def test_scan_accepts_absolute_output_path(tmp_path, monkeypatch) -> None:
     async def fake_run_scan(domain, concurrency, check_http, exclude=None, quiet=False, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_run_scan)
 
     abs_out = tmp_path / "custom_dir" / "report.json"
     runner = CliRunner()
@@ -350,7 +364,7 @@ def test_scan_keyboard_interrupt_exits_cleanly(monkeypatch) -> None:
     async def _interrupt(*_a, **_kw):
         raise KeyboardInterrupt
 
-    monkeypatch.setattr("otacon.cli._run_scan", _interrupt)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", _interrupt)
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "example.com"])
     assert result.exit_code == 1
@@ -622,7 +636,7 @@ def test_scan_no_whois_flag_passed_to_scan(monkeypatch) -> None:
         called_kwargs["check_whois"] = check_whois
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_run_scan)
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "example.com", "--no-whois"])
     assert result.exit_code == 0
@@ -635,7 +649,7 @@ def test_scan_quiet_mode_emits_json(monkeypatch) -> None:
     async def fake_run_scan(domain, concurrency, check_http, exclude=None, quiet=False, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_run_scan)
     runner = CliRunner()
     result = runner.invoke(app, ["--quiet", "scan", "example.com"])
     assert result.exit_code == 0
@@ -652,7 +666,7 @@ def test_scan_json_write_oserror_is_reported(tmp_path: Path, monkeypatch) -> Non
     async def fake_run_scan(domain, concurrency, check_http, exclude=None, quiet=False, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_run_scan)
     (tmp_path / "r.json").mkdir()  # occupies the target path so write_text() raises OSError
     monkeypatch.chdir(tmp_path)
 
@@ -735,7 +749,7 @@ def test_scan_multiple_positional_args_scans_each(monkeypatch) -> None:
         scanned.append(domain)
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", capturing_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", capturing_scan)
     runner = CliRunner()
     runner.invoke(app, ["scan", "github.com", "example.com"])
     assert "github.com" in scanned
@@ -753,7 +767,7 @@ def test_scan_domains_file_option(monkeypatch, tmp_path: Path) -> None:
         scanned.append(domain)
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", capturing_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", capturing_scan)
     runner = CliRunner()
     runner.invoke(app, ["scan", "--domains-file", str(domains_file)])
     assert scanned == ["alpha.com", "beta.com"]
@@ -768,7 +782,7 @@ def test_scan_invalid_domain_in_list_is_skipped(monkeypatch) -> None:
         scanned.append(domain)
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", capturing_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", capturing_scan)
     runner = CliRunner()
     runner.invoke(app, ["scan", "not_a_domain!", "valid.com"])
     assert "valid.com" in scanned
@@ -793,7 +807,7 @@ def test_scan_fail_on_triggers_if_any_domain_hits_threshold(monkeypatch) -> None
             )
         return report
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_run_scan)
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "clean.com", "evil-twin.com", "--fail-on", "critical"])
     assert result.exit_code == 2
@@ -805,7 +819,7 @@ def test_scan_fail_on_does_not_trigger_when_no_domain_hits_threshold(monkeypatch
     async def fake_run_scan(domain, *args, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_run_scan)
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "clean.com", "also-clean.com", "--fail-on", "critical"])
     assert result.exit_code == 0
@@ -822,7 +836,7 @@ def test_scan_exception_in_one_domain_continues_rest(monkeypatch) -> None:
         scanned.append(domain)
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", flaky_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", flaky_scan)
     runner = CliRunner()
     result = runner.invoke(app, ["scan", "bad.com", "good.com"])
     assert "good.com" in scanned
@@ -842,7 +856,7 @@ def test_scan_all_domains_fail_exits_1(monkeypatch) -> None:
     async def always_fail(domain, *args, **kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("otacon.cli._run_scan", always_fail)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", always_fail)
     result = CliRunner().invoke(app, ["scan", "bad1.com", "bad2.com"])
     assert result.exit_code == 1
 
@@ -855,7 +869,7 @@ def test_scan_quiet_multi_domain_emits_aggregate_json(monkeypatch) -> None:
     async def fake_scan(domain, *args, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_scan)
     result = CliRunner().invoke(app, ["--quiet", "scan", "alpha.com", "beta.com"])
     assert result.exit_code == 0
     payload = json.loads(result.output.strip())
@@ -870,7 +884,7 @@ def test_scan_multi_json_flag_writes_aggregate_format(monkeypatch, tmp_path: Pat
     async def fake_scan(domain, *args, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_scan)
     monkeypatch.chdir(tmp_path)
     CliRunner().invoke(app, ["scan", "a.com", "b.com", "--json", "out.json"])
     payload = json.loads((tmp_path / "out.json").read_text())
@@ -883,7 +897,7 @@ def test_scan_multi_html_flag_writes_aggregate_format(monkeypatch, tmp_path: Pat
     async def fake_scan(domain, *args, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_scan)
     monkeypatch.chdir(tmp_path)
     CliRunner().invoke(app, ["scan", "a.com", "b.com", "--html", "out.html"])
     content = (tmp_path / "out.html").read_text(encoding="utf-8")
@@ -896,7 +910,7 @@ def test_scan_multi_markdown_warns_not_supported(monkeypatch) -> None:
     async def fake_scan(domain, *args, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_scan)
     result = CliRunner().invoke(app, ["scan", "a.com", "b.com", "--markdown", "out.md"])
     assert "not supported" in result.output
 
@@ -907,7 +921,7 @@ def test_scan_multi_csv_warns_not_supported(monkeypatch) -> None:
     async def fake_scan(domain, *args, **kwargs):
         return ScanReport(target=domain, total_permutations=0)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_scan)
     result = CliRunner().invoke(app, ["scan", "a.com", "b.com", "--csv", "out.csv"])
     assert "not supported" in result.output
 
@@ -928,7 +942,7 @@ def test_scan_quiet_emits_single_report_when_only_one_domain_survives(monkeypatc
             raise RuntimeError("boom")
         return ScanReport(target=domain, total_permutations=3)
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_scan)
     result = CliRunner().invoke(app, ["--quiet", "scan", "alpha.com", "beta.com"])
     assert result.exit_code == 0
     payload = json.loads(result.output.strip())

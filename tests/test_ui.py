@@ -174,9 +174,10 @@ def test_next_steps_skip_what_the_user_already_did(monkeypatch) -> None:
     from otacon import cli
 
     console, buf = _console()
-    monkeypatch.setattr(cli, "console", console)
     report = ScanReport(target="example.com", results=[_hit(90, RiskLevel.CRITICAL)])
-    cli._print_next_steps({"example.com": report}, html_written=True, ci_gated=False)
+    cli._print_next_steps(
+        {"example.com": report}, html_written=True, ci_gated=False, console=console
+    )
     out = buf.getvalue()
     assert "--html" not in out
-    assert "guided mode" in out and "--fail-on high" in out
+    assert "triage console" in out and "--fail-on high" in out

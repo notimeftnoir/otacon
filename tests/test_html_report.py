@@ -244,7 +244,7 @@ def test_scan_html_flag_writes_file(tmp_path, monkeypatch):
     empty_report = ScanReport(target="example.com", total_permutations=0)
 
     runner = CliRunner()
-    with patch("otacon.cli._run_scan", new_callable=AsyncMock) as mock_scan:
+    with patch("otacon.cli.commands.scan._run_scan", new_callable=AsyncMock) as mock_scan:
         mock_scan.return_value = empty_report
         result = runner.invoke(app, ["scan", "example.com", "--html", "report.html"])
 
