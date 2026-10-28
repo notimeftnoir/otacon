@@ -182,6 +182,19 @@ def _headline(report: ScanReport) -> tuple[str, str, str]:
     registered = report.registered
     n, target = len(registered), report.target
     plural = "s" if n != 1 else ""
+    if report.degraded:
+        # A broken resolver and a clean brand produce the same empty result, so
+        # this case must never be reported as an all-clear.
+        pct = round(report.dns_failure_ratio * 100)
+        return (
+            "warn",
+            f"⚠ Inconclusive: {pct}% of DNS lookups for {target} failed",
+            (
+                f"{report.dns_failures} of {report.dns_queries} lookups could not be answered, "
+                "so a domain shown as unregistered may simply not have been checked. "
+                "Re-run with --debug to see why, and treat these results as incomplete."
+            ),
+        )
     if not registered:
         return (
             "ok",

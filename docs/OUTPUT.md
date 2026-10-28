@@ -53,3 +53,31 @@ You can pass all export flags at once — every format is rendered from the same
 Every score is fully decomposed — you can always answer *"why did this get 92?"*.
 
 ---
+
+---
+
+## Scan health
+
+Every JSON report carries two counters alongside the results:
+
+| Field | Meaning |
+|---|---|
+| `dns_queries` | A and AAAA lookups attempted during the scan |
+| `dns_failures` | Of those, how many failed rather than answering |
+
+A domain that does not exist is an *answer*, not a failure, so a healthy scan of
+a typical target sits around 5% even though most variants are unregistered.
+
+The distinction matters because "does not resolve" and "could not be checked"
+produce the same empty result. When failures reach 20% of lookups the terminal
+verdict stops reporting an all-clear and says the scan is inconclusive instead.
+In a pipeline, check the ratio yourself before trusting a quiet report:
+
+```bash
+otacon -q scan example.com --json report.json
+python -c "
+import json; r = json.load(open('report.json'))
+assert r['dns_failures'] / max(r['dns_queries'], 1) < 0.2, 'scan degraded'"
+```
+
+Reports written before 2.2.0 carry neither field and read back as zero.

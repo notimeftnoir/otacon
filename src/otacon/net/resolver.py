@@ -13,6 +13,7 @@ import httpx
 
 from ..core.models import DomainResult, Permutation
 from .content import _MAX_BODY_BYTES, _strip_unsafe_chars
+from .dns import is_negative_answer
 from .dns import query_records as _query_dns
 from .dnsbl import check_dnsbl
 from .email_sec import check_email_security
@@ -65,6 +66,11 @@ class Resolver:
         self._whois_cache: dict[str, asyncio.Task[tuple[datetime | None, int | None]]] = {}
         self._wildcard_task: asyncio.Task[frozenset[str]] | None = None
         self._ip_pins: dict[str, str] = {}
+        # Health of the DNS layer itself. Every swallowed lookup error here used
+        # to be indistinguishable from "this domain does not exist", which is how
+        # a library break shipped as a confident all-clear.
+        self.dns_queries = 0
+        self.dns_failures = 0
 
     async def _fetch_target_title(self) -> str | None:
         """Fetches page title and favicon hash of the target domain for cloned-site detection."""
@@ -108,11 +114,14 @@ class Resolver:
         return await fetch_ct_domains(self.target)
 
     async def _query_ips(self, domain: str, rtype: Literal["A", "AAAA"]) -> list[str]:
+        self.dns_queries += 1
         try:
             async with asyncio.timeout(_DNS_TIMEOUT):
                 records = await _query_dns(self._dns, domain, rtype)
             return [r.host for r in records]
         except Exception as exc:
+            if not is_negative_answer(exc):
+                self.dns_failures += 1
             _log.debug("%s lookup failed for %s: %r", rtype, domain, exc)
             return []
 

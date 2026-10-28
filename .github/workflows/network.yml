@@ -1,0 +1,58 @@
+name: Live network tests
+
+# The suite excludes the `network` marker by default (see pyproject addopts), so
+# the tests that resolve against real DNS never run in CI. That is precisely how
+# v2.0.0 shipped detecting nothing: aiodns changed its return type, every lookup
+# failed, the failures were swallowed as graceful degradation, and 567 mocked
+# tests stayed green. Only a live run catches that class of break, so one runs
+# here on a schedule rather than on every push — it depends on the public
+# internet and would otherwise make ordinary CI flaky.
+on:
+  workflow_dispatch:      # run on demand after touching the network layer
+  schedule:
+    - cron: "17 7 * * 3"  # weekly, Wednesday morning UTC
+
+permissions:
+  contents: read
+
+jobs:
+  network:
+    name: pytest -m network
+    runs-on: ubuntu-latest
+    # A third-party outage must not read as a code failure on the Actions tab.
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package + dev extras
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip install -e . --no-deps
+
+      - name: Run live network tests
+        run: pytest -m network -v
+
+      - name: Confirm a real scan still finds registered lookalikes
+        # The end-to-end form of the same guard: an all-clear verdict and a dead
+        # resolver are indistinguishable without asserting that a scan of a
+        # heavily squatted brand comes back non-empty.
+        run: |
+          otacon -q scan github.com --no-whois --no-ct > report.json
+          python - <<'PY'
+          import json, sys
+          report = json.load(open("report.json"))
+          live = sum(1 for r in report["results"] if r["resolves"])
+          failures, queries = report["dns_failures"], report["dns_queries"]
+          print(f"{live} of {report['total_permutations']} resolved; "
+                f"{failures}/{queries} DNS lookups failed")
+          if live < 20:
+              sys.exit(f"only {live} domains resolved — the resolver looks broken")
+          if queries and failures / queries >= 0.2:
+              sys.exit(f"DNS failure ratio {failures / queries:.0%} — scan is degraded")
+          PY

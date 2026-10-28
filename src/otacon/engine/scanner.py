@@ -202,6 +202,9 @@ async def run_scan(
                 tg.create_task(_worker())
 
         hijack_detected = resolver.dns_hijack_detected
+        # getattr: a test double standing in for Resolver need not carry counters.
+        dns_queries = int(getattr(resolver, "dns_queries", 0))
+        dns_failures = int(getattr(resolver, "dns_failures", 0))
 
     results.sort(key=lambda r: (-r.risk_score, r.domain))
     report = ScanReport(
@@ -209,6 +212,8 @@ async def run_scan(
         total_permutations=len(perms),
         results=results,
         dns_hijack_detected=hijack_detected,
+        dns_queries=dns_queries,
+        dns_failures=dns_failures,
     )
 
     if progress is not None:
