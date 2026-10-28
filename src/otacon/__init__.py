@@ -38,7 +38,7 @@ from .scoring.engine import count_fresh, score
 try:
     __version__ = version("otacon")
 except PackageNotFoundError:
-    __version__ = "2.0.0"
+    __version__ = "2.1.0"
 
 __all__ = [
     "ConfigurationError",
