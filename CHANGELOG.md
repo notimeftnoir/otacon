@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The test suite wrote scan history into the developer's own `~/.otacon`. Several tests run the real `execute_scan`, which persists its report, so fixture domains like `evil-twin.com`, `clean.com` and `a.com` accumulated in a real user directory. An autouse fixture in `tests/conftest.py` now points `OTACON_HOME` at a temporary directory for every test, with a test asserting it holds.
+
 ### Removed
 - **Breaking:** deleted the questionary guided mode. The triage console is the default surface and carries every action it had, so the prompts were a second way to do the same thing — and the one that forced 25 `sys.modules` lookups into production code so tests could reach past it. `triage/workflow.py`, `triage/prompts.py`, `interactive.py`, most of `triage/actions.py` and 935 lines of tests are gone, about 1,700 lines in all. Running `otacon` where Textual cannot start now says to use `otacon scan <domain>` instead of failing obscurely.
 - Deleted the last two `sys.modules` searches that let production code discover test doubles: `engine.scanner`'s generator lookup (it now imports the permutations module rather than the function, so patching the module is simply seen) and `cli.commands.scan`'s `_get_cli`. Repointing the tests at the modules that hold the code revealed that one of them had stopped taking effect and was running a real network scan — the suite now finishes in 15 seconds rather than 53.

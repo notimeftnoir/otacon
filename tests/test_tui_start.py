@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 from textual.screen import Screen
@@ -14,13 +13,6 @@ from otacon.core.models import DomainResult, ScanReport
 from otacon.core.types import PermutationType, RiskLevel
 from otacon.tui.app import OtaconTUI
 from otacon.tui.screens import ResultsScreen, StartScreen
-
-
-@pytest.fixture(autouse=True)
-def _isolated_history(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Never touch the operator's real history while testing."""
-    monkeypatch.setenv("OTACON_HOME", str(tmp_path))
-    monkeypatch.delenv("OTACON_NO_HISTORY", raising=False)
 
 
 def _stored(target: str = "example.com") -> ScanReport:
