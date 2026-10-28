@@ -20,6 +20,26 @@ _log = logging.getLogger("otacon.net.dns")
 # here so the call sites keep reading .host and .text.
 _HOST_FIELDS = ("addr", "exchange", "nsdname", "cname", "dname", "target")
 
+# c-ares status codes that are an *answer*, not a malfunction: the name does not
+# exist (ENOTFOUND) or holds no record of that type (ENODATA). Most variants in a
+# scan are unregistered, so these dominate a perfectly healthy run and must not
+# count as failures — otherwise the health signal is noise.
+_NEGATIVE_ANSWER_CODES = frozenset({1, 4})  # ARES_ENODATA, ARES_ENOTFOUND
+
+
+def is_negative_answer(exc: BaseException) -> bool:
+    """True when the resolver said 'no such name' / 'no data' rather than failing.
+
+    Anything else — a timeout, SERVFAIL, a refused connection, or a TypeError
+    because the library changed its return shape — is infrastructure trouble and
+    means the scan cannot tell "not registered" from "could not check".
+    """
+    return (
+        isinstance(exc, aiodns.error.DNSError)
+        and bool(exc.args)
+        and exc.args[0] in _NEGATIVE_ANSWER_CODES
+    )
+
 
 class _Record:
     """Adapts an aiodns>=4 DNSRecord to the pre-4.0 .host / .text / .priority shape."""
@@ -163,5 +183,6 @@ class DNSClient:
 __all__ = [
     "DEFAULT_DNS_TIMEOUT",
     "DNSClient",
+    "is_negative_answer",
     "query_records",
 ]

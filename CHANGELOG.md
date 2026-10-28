@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Scan reports now carry `dns_queries` and `dns_failures`, and the terminal verdict refuses to say "All clear" when failures reach 20% of lookups — it reports the scan as inconclusive instead. A domain that does not exist and a domain that could not be checked produce the same empty result, which is how v2.0.0 shipped a confident all-clear while resolving nothing. A name that does not exist counts as an answer rather than a failure, so a healthy scan sits near 5% even though most variants are unregistered.
+- A scheduled `Live network tests` workflow runs `pytest -m network` weekly and asserts that a real scan of a heavily squatted brand still returns registered lookalikes. The suite excludes that marker by default, so those tests had never run in CI — the guard against the aiodns class of break was dormant.
+
 ## [2.1.0] — 2026-10-28
 
 The last version published to PyPI was 1.0.3, so this release carries both the

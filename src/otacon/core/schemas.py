@@ -80,6 +80,8 @@ class ScanReportSchema(BaseModel):
     total_permutations: int = 0
     results: list[DomainResultSchema] = Field(default_factory=list)
     dns_hijack_detected: bool = False
+    dns_queries: int = 0
+    dns_failures: int = 0
 
 
 class ScoringWeightsSchema(BaseModel):

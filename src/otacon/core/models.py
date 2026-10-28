@@ -14,6 +14,11 @@ from typing import Any, Self
 from .schemas import DomainResultSchema, PermutationSchema, ScanReportSchema
 from .types import PermutationType, RiskLevel
 
+# Share of failed DNS lookups above which a scan's quiet result is not
+# trustworthy. Set well clear of the handful of timeouts a busy scan sees on a
+# normal network, and far below the near-total failure a broken resolver gives.
+DEGRADED_RATIO = 0.2
+
 
 @dataclass(frozen=True, slots=True)
 class Permutation:
@@ -174,6 +179,23 @@ class ScanReport:
     total_permutations: int = 0
     results: list[DomainResult] = field(default_factory=list)
     dns_hijack_detected: bool = False
+    dns_queries: int = 0
+    dns_failures: int = 0
+
+    @property
+    def dns_failure_ratio(self) -> float:
+        """Share of DNS lookups that failed rather than answering."""
+        return self.dns_failures / self.dns_queries if self.dns_queries else 0.0
+
+    @property
+    def degraded(self) -> bool:
+        """True when enough DNS lookups failed that a quiet result is not trustworthy.
+
+        "Does not resolve" and "could not be checked" produce the same empty
+        result, so a scan whose resolver is broken reports an all-clear. Above
+        this share, the verdict says so instead.
+        """
+        return self.dns_queries > 0 and self.dns_failure_ratio >= DEGRADED_RATIO
 
     @property
     def registered(self) -> list[DomainResult]:
