@@ -6,9 +6,9 @@ set down with a digit, read the evidence for the row under the cursor in the
 pane beside it, and act on it in place.
 
 Nothing here re-implements analysis. Rows come from a ScanReport that engine and
-scoring already produced, the evidence pane renders triage.dossier._evidence, the
+scoring already produced, the evidence pane renders triage.dossier.evidence, the
 abuse notice comes from triage.notice.build_takedown_notice, and a re-check goes
-through triage.actions.rescan_result — the same paths the questionary flow uses.
+through triage.actions.rescan_result.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from ...core.types import RiskLevel
 from ...net.whois import fetch_domain_age, format_age
 from ...reporters.json import to_json
 from ...triage.actions import rescan_result
-from ...triage.dossier import _evidence
+from ...triage.dossier import evidence
 from ...triage.notice import build_takedown_notice
 from ...utils.validate import safe_relative_path
 from ..widgets import (
@@ -199,10 +199,10 @@ class ResultsScreen(Screen[None]):
         out.append("\n")
         out.append("─" * 40 + "\n", style="#1c2628")
 
-        evidence = _evidence(r)
-        if evidence:
+        rows = evidence(r)
+        if rows:
             out.append("\nEVIDENCE\n", style="bold #00875f")
-            for label, fact, meaning in evidence:
+            for label, fact, meaning in rows:
                 out.append(f"  {label:<14}", style="bold #afafaf")
                 out.append(f"{fact}\n", style="#ffffff")
                 out.append(f"  {'':<14}{meaning}\n", style="#5a5a5a")

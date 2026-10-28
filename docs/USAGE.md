@@ -5,7 +5,7 @@ _[← back to the README](../README.md)_ · [Usage](USAGE.md) · [Scoring](SCORI
 ---
 
 ```bash
-otacon                                        # interactive mode (guided prompts)
+otacon                                        # the triage console
 otacon scan example.com                       # one-shot scan, all signals
 otacon scan example.com --no-http             # DNS only — faster, fewer signals
 otacon scan example.com --all                 # include unregistered variants
@@ -115,7 +115,7 @@ otacon scan example.com --weights-file weights.json
 
 ## Modes
 
-Otacon has four subcommands plus an interactive guided mode:
+Otacon has four subcommands. Run it with no subcommand for the triage console:
 
 | Mode | Network? | Use when |
 |---|---|---|
@@ -123,7 +123,7 @@ Otacon has four subcommands plus an interactive guided mode:
 | `tui` | yes (or none with `--from`) | **Triage console** — a scan produces a few hundred rows of which a handful matter. Work them from the keyboard. |
 | `generate` | **no** | Offline wordlist generation. Useful for feeding into external tooling (`subfinder`, `nuclei`, etc.) or sanity-checking what Otacon *would* check. |
 | `diff` | **no** | Compare two saved JSON reports to see what changed between scans. |
-| *(no subcommand)* | yes | **Interactive mode** — guided prompts, then a post-scan action loop (open in browser, WHOIS, rescan, allow-list). |
+| *(no subcommand)* | yes | **The triage console** — name a target, the scan runs inside it, then work the findings. Needs an interactive terminal; elsewhere it tells you to use `otacon scan`. |
 
 ---
 
@@ -165,27 +165,28 @@ refused rather than written.
 
 ---
 
-## Interactive mode
+## Scan memory
 
-Run `otacon` with no subcommand for a guided experience. After the scan, you can act on each registered domain individually:
+Every scan is kept on disk, so the console's start screen lists what you looked
+at before and reopens any of it without touching the network.
 
-```text
-Action for githubupdate.com:
-  [*] [o]pen      — preview URL & sandbox link, prompt before opening
-      [w]hois     — show registration info (via RDAP / WHOIS)
-      [t]akedown  — generate abuse / phishing takedown notice
-      [e]xport    — save result as JSON
-      [a]llow     — skip in this session
-      [r]escan    — re-check this domain now
-      [b]ack      — pick a different domain
-      [q]uit      — exit actions
+```
+~/.otacon/<target>/<timestamp>.json
 ```
 
-Designed for triaging a fresh scan without leaving the terminal: safely inspect lookalike sites via urlscan sandbox links, retrieve RDAP/WHOIS details, draft abuse takedown notices with embedded technical evidence, or allow-list defensive domains.
+One JSON report per scan, in the same format `--json` writes. No database and no
+index — a directory you can read, grep, copy and delete.
 
-Picking a domain first shows its **dossier**: every signal Otacon found, each with a one-line explanation of what it means (for example *Mail: mx.lookalike.com, can send email that looks like it is from you*).
+| Variable | Effect |
+|---|---|
+| `OTACON_HOME` | Keep scans here instead |
+| `XDG_DATA_HOME` | Used when `OTACON_HOME` is unset; scans land in `$XDG_DATA_HOME/otacon` |
+| `OTACON_NO_HISTORY=1` | Keep nothing |
 
----
+The 30 most recent scans per target are kept and older ones are dropped, so the
+directory stays a few megabytes without anyone having to think about it. Files
+are written owner-only: a scan reveals which brand you watch and which
+lookalikes are live.
 
 ## Terminal output
 

@@ -1,18 +1,17 @@
-"""Threat intelligence dossier and incident evidence visualizer."""
+"""Structured evidence rows for a single result.
+
+Each row is (label, fact, meaning): what was found, and what it means for
+somebody deciding whether to act. The console renders them; keeping the wording
+here means the explanation does not drift between surfaces.
+"""
 
 from __future__ import annotations
-
-from rich import box
-from rich.console import Group
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
 
 from ..core.models import DomainResult
 from ..net.whois import format_age
 
 
-def _evidence(r: DomainResult) -> list[tuple[str, str, str]]:
+def evidence(r: DomainResult) -> list[tuple[str, str, str]]:
     """Constructs (label, fact, meaning) structured evidence rows."""
     rows: list[tuple[str, str, str]] = []
     if r.resolves:
@@ -72,34 +71,4 @@ def _evidence(r: DomainResult) -> list[tuple[str, str, str]]:
     return rows
 
 
-def _dossier(r: DomainResult) -> Panel:
-    """Renders a comprehensive threat card for a domain result."""
-    grid = Table.grid(padding=(0, 2))
-    grid.add_column(style="field", no_wrap=True)
-    grid.add_column(style="value", overflow="fold")
-    grid.add_column(style="muted")
-    for label, fact, meaning in _evidence(r):
-        grid.add_row(label, Text(fact), meaning)
-
-    head = Text()
-    head.append(f"{r.risk_level.icon} {r.risk_level.value.upper()} ", style=r.risk_level.style)
-    head.append(f"{r.risk_score}/100", style="value")
-    head.append(f"   {r.kind.value}", style="brand.dim")
-    if r.note:
-        head.append(f" · {r.note}", style="muted")
-    parts: list[Text | Table] = [head, Text()]
-    if grid.row_count:
-        parts.append(grid)
-    else:
-        parts.append(Text("No network signals: registered, but nothing is running.", "muted"))
-    return Panel(
-        Group(*parts),
-        title=Text(f" {r.domain} ", style="bold white"),
-        title_align="left",
-        border_style=r.risk_level.style,
-        box=box.SQUARE,
-        padding=(1, 2),
-    )
-
-
-__all__ = ["_dossier", "_evidence"]
+__all__ = ["evidence"]

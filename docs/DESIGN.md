@@ -28,9 +28,9 @@ This document explains *why* Otacon is built the way it is. For *how to use it*,
 ```
         ┌──────────────┬──────────────┬──────────────┐
         │  cli/        │  tui/        │  triage/     │   entry points
-        │  scan·tui·   │  Textual     │  guided      │
-        │  generate·   │  console     │  prompts     │
-        │  diff        │              │              │
+        │  scan·tui·   │  Textual     │  evidence·   │
+        │  generate·   │  console     │  notice·     │
+        │  diff        │  (default)   │  rescan      │
         └──────┬───────┴──────┬───────┴──────┬───────┘
                │              │              │
                ▼              │              │

@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Removed
+- **Breaking:** deleted the questionary guided mode. The triage console is the default surface and carries every action it had, so the prompts were a second way to do the same thing — and the one that forced 25 `sys.modules` lookups into production code so tests could reach past it. `triage/workflow.py`, `triage/prompts.py`, `interactive.py`, most of `triage/actions.py` and 935 lines of tests are gone, about 1,700 lines in all. Running `otacon` where Textual cannot start now says to use `otacon scan <domain>` instead of failing obscurely.
+- Dropped `questionary` and `prompt_toolkit` from the dependencies; nothing imports them any more.
 - Deleted seven re-export shims left over from the 2.0 restructure — `_hashutils`, `_scanner`, `_validate`, `html_report`, `models`, `resolver` and `theme`. They forwarded pre-2.0 import paths that no published release ever used: 2.0.0 was never published and 1.0.x had a different layout entirely. Every importer now names the module that holds the code.
 - Deleted `engine.scanner`'s `sys.modules` search for a patched `Resolver`, and the two remaining lookups in `net/tls.py` and `net/resolver.py` that scanned for overrides on the shim module just deleted — dead branches that could never fire again. Production code no longer inspects the import table to discover test doubles in those paths.
 - Deleted `uv.lock` and `docs/specs/`. The lockfile was a second, unreferenced dependency pin alongside the hash-pinned `requirements*.txt` that CI actually installs, free to drift from it; the spec described a feature that shipped.

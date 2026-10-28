@@ -65,18 +65,29 @@ def test_load_exclusions_raises_for_missing_file() -> None:
         cli._load_exclusions(None, Path("does-not-exist.txt"))
 
 
-def test_bare_invocation_calls_interactive(monkeypatch) -> None:
-    """Running otacon with no subcommand must call interactive.run()."""
+def test_bare_invocation_opens_the_triage_console(monkeypatch) -> None:
+    """Running otacon with no subcommand must open the TUI, not scan or exit."""
     called = {}
 
-    def fake_interactive_run(console):
+    def fake_run_tui(report=None):
         called["ran"] = True
 
-    monkeypatch.setattr("otacon.interactive.run", fake_interactive_run)
+    monkeypatch.setattr("otacon.tui.run_tui", fake_run_tui)
+    monkeypatch.setattr("otacon.cli.main._textual_capable", lambda console: True)
 
     runner = CliRunner()
     runner.invoke(app, [])
     assert called.get("ran") is True
+
+
+def test_bare_invocation_without_a_terminal_says_what_to_run(monkeypatch) -> None:
+    """A pipe or CI shell cannot host the console; it must not fail obscurely."""
+    monkeypatch.setattr("otacon.cli.main._textual_capable", lambda console: False)
+
+    runner = CliRunner()
+    result = runner.invoke(app, [])
+    assert result.exit_code == 1
+    assert "otacon scan" in result.output
 
 
 # ---------------------------------------------------------------------------
