@@ -106,8 +106,9 @@ _BANDS: dict[RiskLevel, tuple[str, str, str]] = {
 def _tones(colours: Mapping[RiskLevel, tuple[str, str]]) -> dict[RiskLevel, RiskTone]:
     """Builds the five tones from (foreground, wash) pairs plus the shared vocabulary."""
     return {
-        level: RiskTone(fg=fg, wash=wash, sigil=_BANDS[level][0], band=_BANDS[level][1],
-                        label=_BANDS[level][2])
+        level: RiskTone(
+            fg=fg, wash=wash, sigil=_BANDS[level][0], band=_BANDS[level][1], label=_BANDS[level][2]
+        )
         for level, (fg, wash) in colours.items()
     }
 
@@ -231,9 +232,7 @@ MONO = Palette(
     gradient=("#ffffff",),
 )
 
-THEMES: Mapping[str, Palette] = {
-    p.name: p for p in (MIDNIGHT, DAYLIGHT, VISION, MONO)
-}
+THEMES: Mapping[str, Palette] = {p.name: p for p in (MIDNIGHT, DAYLIGHT, VISION, MONO)}
 
 DEFAULT_THEME = MIDNIGHT.name
 

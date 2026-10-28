@@ -25,9 +25,19 @@ _HEX = re.compile(r"^#[0-9a-f]{6}$")
 def test_every_theme_defines_every_colour(palette: Palette) -> None:
     """A theme missing a token renders something invisible, not something wrong."""
     for field in (
-        "bg", "surface", "raised", "line", "line_strong",
-        "dim", "muted", "body", "strong",
-        "brand", "brand_dim", "accent", "select",
+        "bg",
+        "surface",
+        "raised",
+        "line",
+        "line_strong",
+        "dim",
+        "muted",
+        "body",
+        "strong",
+        "brand",
+        "brand_dim",
+        "accent",
+        "select",
     ):
         value = getattr(palette, field)
         assert _HEX.match(value), f"{palette.name}.{field} = {value!r}"
@@ -56,8 +66,16 @@ def test_every_theme_emits_to_every_surface(palette: Palette) -> None:
 
 def test_risk_sigils_are_ordered_by_ink() -> None:
     """Severity has to survive with no colour, which is what `mono` relies on."""
-    ramp = [MIDNIGHT.tone(level).sigil for level in
-            (RiskLevel.SAFE, RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.CRITICAL)]
+    ramp = [
+        MIDNIGHT.tone(level).sigil
+        for level in (
+            RiskLevel.SAFE,
+            RiskLevel.LOW,
+            RiskLevel.MEDIUM,
+            RiskLevel.HIGH,
+            RiskLevel.CRITICAL,
+        )
+    ]
     assert ramp == ["○", "░", "▒", "▓", "█"]
 
 

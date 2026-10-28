@@ -388,9 +388,7 @@ async def test_focus_mode_dims_everything_below_the_worst_band(report: ScanRepor
         await pilot.press("f")
         await pilot.pause()
         table = app.screen.query_one("#results", DataTable)
-        styles = [
-            table.get_cell_at(Coordinate(row, 2)).style for row in range(table.row_count)
-        ]
+        styles = [table.get_cell_at(Coordinate(row, 2)).style for row in range(table.row_count)]
     # The critical row keeps its colour; everything under it is dimmed.
     assert MIDNIGHT.dim not in str(styles[0])
     assert all(MIDNIGHT.dim in str(s) for s in styles[1:])

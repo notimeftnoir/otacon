@@ -143,6 +143,7 @@ _CSP = (
     "form-action 'none';"
 )
 
+
 def _level_colors() -> dict[RiskLevel, str]:
     """Chart colours for the active palette, so SVG and table cannot disagree."""
     palette = active_palette()
@@ -152,6 +153,7 @@ def _level_colors() -> dict[RiskLevel, str]:
 def _css() -> str:
     """The stylesheet: palette-derived custom properties, then the layout."""
     return f":root{{{html_vars(active_palette())}}}" + _CSS_BODY
+
 
 _LEVEL_CLASS: dict[RiskLevel, str] = {
     RiskLevel.SAFE: "ok",

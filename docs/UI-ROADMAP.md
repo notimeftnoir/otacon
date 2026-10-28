@@ -154,22 +154,31 @@ src/otacon/ui/
 ```python
 @dataclass(frozen=True)
 class RiskTone:
-    fg: str        # bar, score, gutter sigil
-    wash: str      # subtle row tint for the selected row in this band
-    sigil: str     # unicode marker
-    ascii: str     # fallback marker
-    label: str     # "Act now" / "Review" / "Monitor" / "Noted" / "Harmless"
+    fg: str  # bar, score, gutter sigil
+    wash: str  # subtle row tint for the selected row in this band
+    sigil: str  # unicode marker
+    ascii: str  # fallback marker
+    label: str  # "Act now" / "Review" / "Monitor" / "Noted" / "Harmless"
+
 
 @dataclass(frozen=True)
 class Palette:
     name: str
     dark: bool
     # neutral scale, back to front
-    bg: str; surface: str; raised: str
-    line: str; line_strong: str
-    dim: str; muted: str; body: str; strong: str
+    bg: str
+    surface: str
+    raised: str
+    line: str
+    line_strong: str
+    dim: str
+    muted: str
+    body: str
+    strong: str
     # brand
-    brand: str; brand_dim: str; accent: str
+    brand: str
+    brand_dim: str
+    accent: str
     risk: Mapping[RiskLevel, RiskTone]
 ```
 
