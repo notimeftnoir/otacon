@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-10-28
+
+The last version published to PyPI was 1.0.3, so this release carries both the
+2.0 modular rewrite and everything since. 2.0.0 was committed but never tagged
+or published, so upgrading from 1.0.x lands here directly.
+
+Two changes alter results rather than interfaces. Risk scores are rebalanced,
+so stored baselines will differ and `--fail-on` gates may reach a different
+verdict — both because scoring changed and because DNS detection was broken
+before and now works. Importing `otacon.whois` is no longer possible; the same
+functions live in `otacon.net.whois`.
+
 ### Added
 - Certificate Transparency (CT) log discovery via Certspotter API with graceful crt.sh fallback to discover certificates issued in the wild, with `--no-ct` CLI flag.
 - Deep Email Security inspection: SPF and DMARC policy analysis; identifies active email spoofing / BEC vectors (+15 pts) when MX is present without strict DMARC enforcement (`p=quarantine` or `p=reject`).
