@@ -57,7 +57,7 @@ otacon scan example.com --fail-on high    # CI gate: exit 2 on high or critical
 otacon tui example.com                    # scan, then triage in the console
 otacon tui --from report.json             # reopen a saved report
 otacon generate example.com -o list.txt   # offline wordlist, no network traffic
-otacon                                    # guided interactive mode
+otacon                                    # the triage console (no arguments)
 ```
 
 Global flags (`--quiet`, `--debug`, `--version`) go **before** the subcommand;
@@ -140,9 +140,12 @@ explanation of what it means, then the full scoring breakdown. Arrows or
 abuse notice, and export the selected row. Full key map in
 [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md#triage-console-otacon-tui).
 
-`--from` makes it a reader for anything already on disk, so a nightly
-`otacon -q scan` in CI can be triaged by hand the next morning without
-touching the network again.
+Running `otacon` with no arguments opens it directly: name a target, choose how
+deep to look, and the scan runs inside the console. Every scan is kept, so the
+start screen lists what you looked at before and reopens any of it offline.
+
+`--from` reads a report from anywhere on disk, so a nightly `otacon -q scan` in
+CI can be triaged by hand the next morning without touching the network.
 
 ---
 
@@ -209,8 +212,8 @@ for why that matters when you read a report.
 | Defensive-registration flag | ✓ `»` on redirect-to-original | ✗ |
 | CI/CD exit code gating | ✓ `--fail-on` | ✗ |
 | Self-contained HTML report | ✓ dark theme, zero JS, pure-CSS filters, SVG charts, defanged IOCs | partial (`--format html`) |
-| Interactive post-scan triage | ✓ open (OPSEC safe) / whois / takedown / rescan / allow | ✗ |
-| Keyboard triage console (`otacon tui`) | ✓ filter by risk, search, live dossier pane | ✗ |
+| Keyboard triage console | ✓ the default surface: filter by risk, search, live dossier, open (OPSEC safe) / whois / takedown / rescan / allow | ✗ |
+| Scan memory | ✓ every scan kept on disk, reopened offline | ✗ |
 | Automated abuse takedown notice | ✓ formatted draft with technical evidence | ✗ |
 | Permutation techniques | 12 (with regional combosquatting for `.pl`, `.de`, `.fr`) | 13+ |
 | Visual screenshots of pages | ✗ | ✓ |

@@ -146,6 +146,77 @@ Input:focus {
     display: block;
 }
 
+/* ── start screen ──────────────────────────────────────────────────────── */
+
+#setup {
+    width: 68;
+    height: auto;
+    padding: 2 3;
+    background: #0d1214;
+    border: solid #1c2628;
+}
+
+#setup-brand {
+    text-style: bold;
+    padding-bottom: 1;
+}
+
+#setup-help {
+    color: #8a8a8a;
+    padding-bottom: 1;
+}
+
+#setup #target {
+    border: solid #1c2628;
+    height: 3;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+#setup #target:focus {
+    border: solid #00d7af;
+}
+
+#setup Checkbox {
+    background: #0d1214;
+    border: none;
+    height: 1;
+    padding: 0;
+}
+
+#setup Checkbox:focus {
+    text-style: bold;
+}
+
+#setup-status {
+    height: auto;
+    padding-top: 1;
+}
+
+#setup-progress {
+    padding-top: 1;
+}
+
+#recent-label {
+    color: #00875f;
+    text-style: bold;
+    padding-top: 1;
+}
+
+#recent {
+    height: auto;
+    max-height: 9;
+    background: #0d1214;
+    border: none;
+    padding: 0;
+}
+
+#recent > .option-list--option-highlighted {
+    background: #16302b;
+    color: #ffffff;
+    text-style: bold;
+}
+
 Footer {
     background: #0d1214;
     color: #8a8a8a;

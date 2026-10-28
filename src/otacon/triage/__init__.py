@@ -1,78 +1,9 @@
-"""Interactive triage workflows and post-scan investigation actions."""
+"""Pieces the triage console builds on: evidence, the abuse notice, re-probing."""
 
 from __future__ import annotations
 
-from .actions import (
-    _ACTION_CHOICES,
-    _ACTION_HANDLERS,
-    _ActionContext,
-    _ActionResult,
-    _export_result,
-    _handle_allow,
-    _handle_export,
-    _handle_open,
-    _handle_rescan,
-    _handle_takedown,
-    _handle_whois,
-    _rescan_result,
-    _show_whois,
-    _suggest_defensive_whitelist,
-)
-from .dossier import _dossier, _evidence
-from .prompts import (
-    _POINTER,
-    _QMARK,
-    _STYLE,
-    _STYLE_DOMAIN,
-    _confirm,
-    _make_style,
-    _validate_domain,
-    _validate_limit,
-    _yn_bindings,
-    _YNValidator,
-)
-from .workflow import (
-    _action_loop,
-    _interactive_generate,
-    _interactive_scan,
-    _pick_domain,
-    _run_action_menu,
-    _scan,
-    run,
-)
+from .actions import rescan_result
+from .dossier import evidence
+from .notice import build_takedown_notice
 
-__all__ = [
-    "_ACTION_CHOICES",
-    "_ACTION_HANDLERS",
-    "_POINTER",
-    "_QMARK",
-    "_STYLE",
-    "_STYLE_DOMAIN",
-    "_ActionContext",
-    "_ActionResult",
-    "_YNValidator",
-    "_action_loop",
-    "_confirm",
-    "_dossier",
-    "_evidence",
-    "_export_result",
-    "_handle_allow",
-    "_handle_export",
-    "_handle_open",
-    "_handle_rescan",
-    "_handle_takedown",
-    "_handle_whois",
-    "_interactive_generate",
-    "_interactive_scan",
-    "_make_style",
-    "_pick_domain",
-    "_rescan_result",
-    "_run_action_menu",
-    "_scan",
-    "_show_whois",
-    "_suggest_defensive_whitelist",
-    "_validate_domain",
-    "_validate_limit",
-    "_yn_bindings",
-    "run",
-]
+__all__ = ["build_takedown_notice", "evidence", "rescan_result"]

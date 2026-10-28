@@ -13,7 +13,6 @@ import typer
 from rich.console import Console
 
 from .._splash import play_intro
-from ..triage.workflow import run as _interactive_run
 from ..utils.theme import BANNER, OTACON_THEME
 from .commands.diff import execute_diff
 from .commands.generate import execute_generate
@@ -143,12 +142,34 @@ def _main(
         _banner(animate=ctx.invoked_subcommand is None)
 
     if ctx.invoked_subcommand is None:
-        import sys
-
-        inter_mod = sys.modules.get("otacon.interactive")
-        inter_run = getattr(inter_mod, "run", _interactive_run) if inter_mod else _interactive_run
-        inter_run(console)
+        _launch_default_surface(console)
         raise typer.Exit()
+
+
+def _textual_capable(console: Console) -> bool:
+    """True when the terminal can host a full-screen Textual application.
+
+    Textual asks more of a terminal than the guided prompts do: it takes over
+    the screen, needs cursor addressing and reads keys raw. A pipe, a dumb
+    terminal or a CI shell has none of that.
+    """
+    return bool(console.is_terminal) and not console.is_dumb_terminal
+
+
+def _launch_default_surface(console: Console) -> None:
+    """Opens the triage console, or explains what to run where it cannot."""
+    if not _textual_capable(console):
+        console.print(
+            "[warn]The triage console needs an interactive terminal.[/warn]\n"
+            "[muted]Run [/muted][value]otacon scan <domain>[/value][muted] instead, "
+            "or [/muted][value]otacon --help[/value][muted] for every option.[/muted]"
+        )
+        raise typer.Exit(1)
+
+    # Imported here so `otacon scan` in a CI container never loads Textual.
+    from ..tui import run_tui
+
+    run_tui()
 
 
 @app.command()

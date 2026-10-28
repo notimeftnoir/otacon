@@ -6,11 +6,19 @@ import random
 from io import StringIO
 
 from rich.console import Console
+from rich.text import Text
 
-from otacon import _scanner, _splash, reporters
-from otacon.interactive import _dossier
-from otacon.models import DomainResult, PermutationType, ScanReport
-from otacon.theme import OTACON_THEME, WORDMARK, RiskLevel, gradient, gradient_color
+from otacon import _splash, reporters
+from otacon.core.models import DomainResult, PermutationType, ScanReport
+from otacon.core.types import RiskLevel
+from otacon.engine import scanner as _scanner
+from otacon.triage.dossier import evidence
+from otacon.utils.theme import (
+    OTACON_THEME,
+    WORDMARK,
+    gradient,
+    gradient_color,
+)
 
 
 def _console(**kw: object) -> tuple[Console, StringIO]:
@@ -123,21 +131,40 @@ def test_tally_counts_dangerous_hits() -> None:
 # --- dossier ----------------------------------------------------------------
 
 
-def test_dossier_explains_signals_and_never_parses_hostile_markup() -> None:
+def test_evidence_explains_signals_in_plain_language() -> None:
     r = _hit(
         85,
         RiskLevel.CRITICAL,
         has_mx=True,
         mx_records=["mx.ex85.com"],
         http_status=200,
-        page_title="[/][link=https://evil.example]Login[/link]",
+        page_title="Login",
         ip_addresses=["203.0.113.9"],
     )
+    rows = evidence(r)
+    facts = {label: (fact, meaning) for label, fact, meaning in rows}
+    assert "203.0.113.9" in facts["Online"][0]
+    assert "can send email" in facts["Mail"][1]
+
+
+def test_evidence_never_parses_hostile_markup_from_a_scanned_page() -> None:
+    """A page title is attacker-controlled and must reach the screen verbatim.
+
+    Rich markup in a title (`[link=...]`) would otherwise be interpreted when
+    rendered, letting a scanned site paint its own text into the operator's
+    terminal.
+    """
+    hostile = "[/][link=https://evil.example]Login[/link]"
+    r = _hit(85, RiskLevel.CRITICAL, http_status=200, page_title=hostile)
+    (_label, fact, _meaning) = next(row for row in evidence(r) if row[0] == "Website")
+    assert hostile in fact
+
+    # Text.append takes the string literally, so the markup survives to the screen.
     console, buf = _console()
-    console.print(_dossier(r))
-    out = buf.getvalue()
-    assert "[link=https://evil.example]Login[/link]" in out
-    assert "can send email" in out and "203.0.113.9" in out
+    rendered = Text()
+    rendered.append(fact)
+    console.print(rendered)
+    assert hostile in buf.getvalue()
 
 
 # --- next steps ---------------------------------------------------------------
@@ -147,9 +174,10 @@ def test_next_steps_skip_what_the_user_already_did(monkeypatch) -> None:
     from otacon import cli
 
     console, buf = _console()
-    monkeypatch.setattr(cli, "console", console)
     report = ScanReport(target="example.com", results=[_hit(90, RiskLevel.CRITICAL)])
-    cli._print_next_steps({"example.com": report}, html_written=True, ci_gated=False)
+    cli._print_next_steps(
+        {"example.com": report}, html_written=True, ci_gated=False, console=console
+    )
     out = buf.getvalue()
     assert "--html" not in out
-    assert "guided mode" in out and "--fail-on high" in out
+    assert "triage console" in out and "--fail-on high" in out

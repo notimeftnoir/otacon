@@ -247,15 +247,7 @@ class Resolver:
 
     async def _fetch_whois(self, domain: str) -> tuple[datetime | None, int | None]:
         async with self._whois_sem:
-            import sys
-
-            whois_fn = fetch_domain_age
-            mod = sys.modules.get("otacon.resolver")
-            if mod and hasattr(mod, "fetch_domain_age"):
-                val = mod.fetch_domain_age
-                if val is not fetch_domain_age:
-                    whois_fn = val
-            return await whois_fn(domain)
+            return await fetch_domain_age(domain)
 
     async def _cached_whois(self, domain: str) -> tuple[datetime | None, int | None]:
         if domain not in self._whois_cache:

@@ -6,8 +6,8 @@ import asyncio
 import logging
 import time
 from collections import Counter
+from collections.abc import Callable
 from contextlib import AsyncExitStack
-from typing import Any, cast
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -20,10 +20,10 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
+from .. import permutations
 from ..core.models import DomainResult, Permutation, ScanReport
 from ..core.types import PermutationType
 from ..net.resolver import Resolver
-from ..permutations.generator import generate
 from ..reporters.console import build_live_table
 from ..scoring.config import ScoringWeights
 from ..scoring.engine import score
@@ -71,23 +71,6 @@ def _variant_summary(perms: list[Permutation]) -> str:
     return f"[ok]✓[/ok] [value]{len(perms)}[/value] lookalikes generated  {parts}"
 
 
-def _get_generate_fn() -> Any:
-    import sys
-
-    for mod_name in ("otacon.interactive", "otacon.cli", "otacon._scanner"):
-        mod = sys.modules.get(mod_name)
-        if mod and hasattr(mod, "permutations") and hasattr(mod.permutations, "generate"):
-            val = mod.permutations.generate
-            if val is not generate:
-                return val
-    mod = sys.modules.get("otacon.permutations")
-    if mod and hasattr(mod, "generate"):
-        val = mod.generate
-        if val is not generate:
-            return val
-    return generate
-
-
 async def run_scan(
     target: str,
     concurrency: int,
@@ -99,10 +82,12 @@ async def run_scan(
     check_whois: bool = True,
     check_dnsbl: bool = True,
     check_ct: bool = True,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> ScanReport:
     """Scans all permutations of target using structured concurrency."""
-    gen_fn = _get_generate_fn()
-    perms = await asyncio.to_thread(gen_fn, target, exclude=exclude)
+    # The module is imported, not the function, so a test that patches
+    # otacon.permutations.generate is seen here without any lookup.
+    perms = await asyncio.to_thread(permutations.generate, target, exclude=exclude)
     if not perms:
         return ScanReport(target=target, total_permutations=0)
 
@@ -123,23 +108,7 @@ async def run_scan(
                 Live(progress, console=console, refresh_per_second=4, transient=True)
             )
 
-        def _get_resolver_cls() -> type[Resolver]:
-            import sys
-
-            for mod_name in (
-                "otacon._scanner",
-                "otacon.cli",
-                "otacon.interactive",
-                "otacon.resolver",
-            ):
-                mod = sys.modules.get(mod_name)
-                if mod and hasattr(mod, "Resolver"):
-                    val = mod.Resolver
-                    if val is not Resolver:
-                        return cast(type[Resolver], val)
-            return Resolver
-
-        resolver_cls = _get_resolver_cls()
+        resolver_cls = Resolver
         try:
             resolver = await stack.enter_async_context(
                 resolver_cls(
@@ -198,6 +167,10 @@ async def run_scan(
                             live.update(Group(progress, build_live_table(hits, target, _LIVE_ROWS)))
                     if progress is not None and task_id is not None:
                         progress.update(task_id, advance=1, tally=_tally(hits))
+                    if on_progress is not None:
+                        # Lets a non-Rich front-end (the TUI) show the same
+                        # progress the console reporter draws for itself.
+                        on_progress(len(results), len(perms))
 
                 tg.create_task(_worker())
 
