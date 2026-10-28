@@ -17,7 +17,18 @@ from rich.theme import Theme
 
 from ..core.types import RiskLevel
 from .caps import ColorDepth, gradient_stops
-from .tokens import Palette
+from .tokens import Palette, RiskTone
+
+
+def _by_severity(palette: Palette) -> list[tuple[RiskLevel, RiskTone]]:
+    """The palette's tones, least severe first.
+
+    Emitters want every tone *this palette defines*, so the palette's own
+    mapping is the honest thing to walk rather than the global enum. Sorting
+    by rank keeps the emitted CSS in a fixed order however a theme's literal
+    happens to be written, which keeps two themes' :root blocks diffable.
+    """
+    return sorted(palette.risk.items(), key=lambda item: item[0].rank)
 
 
 def rich_theme(palette: Palette) -> Theme:
@@ -74,8 +85,7 @@ def textual_vars(palette: Palette) -> dict[str, str]:
         "otacon-accent": palette.accent,
         "otacon-select": palette.select,
     }
-    for level in RiskLevel:
-        tone = palette.tone(level)
+    for level, tone in _by_severity(palette):
         out[f"otacon-risk-{level.value}"] = tone.fg
         out[f"otacon-wash-{level.value}"] = tone.wash
     return out
@@ -130,8 +140,8 @@ def html_vars(palette: Palette) -> str:
         f"--crit-fg:{crit_fg}",
         f"--crit-bg:{crit_bg}",
     ]
-    for level in RiskLevel:
-        lines.append(f"--wash-{level.value}:{palette.tone(level).wash}")
+    for level, tone in _by_severity(palette):
+        lines.append(f"--wash-{level.value}:{tone.wash}")
     return ";".join(lines) + ";"
 
 
