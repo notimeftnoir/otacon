@@ -214,18 +214,20 @@ collapses silently.
 
 ## Phase 0 — design tokens
 
+**Status: done.**
+
 **Goal:** one palette, four themes, two capability axes. No visible change on a
 truecolor dark terminal — this phase is judged by the diff, not a screenshot.
 
-- [ ] `ui/tokens.py`, `ui/caps.py`, `ui/emit.py`, `ui/glyphs.py`, `ui/copy.py`
-- [ ] `utils/theme.py` becomes a thin re-export so nothing downstream breaks
-- [ ] `tui/styles.py` loses every hex literal; `OtaconTUI.get_css_variables()`
-- [ ] `reporters/html.py` `:root` generated from `html_vars()`
-- [ ] `--theme` on every command, `OTACON_THEME` env, `NO_COLOR` → `mono`
-- [ ] `--ascii` / `OTACON_ASCII` degrade path, wired to `SAFE_GLYPHS`
-- [ ] Fix `critical`: no background token; emphasis by hue and weight, with the
+- [x] `ui/tokens.py`, `ui/caps.py`, `ui/emit.py`, `ui/glyphs.py`, `ui/copy.py`
+- [x] `utils/theme.py` becomes a thin re-export so nothing downstream breaks
+- [x] `tui/styles.py` loses every hex literal; `OtaconTUI.get_css_variables()`
+- [x] `reporters/html.py` `:root` generated from `html_vars()`
+- [x] `--theme` on every command, `OTACON_THEME` env, `NO_COLOR` → `mono`
+- [x] `--ascii` / `OTACON_ASCII` degrade path, wired to `SAFE_GLYPHS`
+- [x] Fix `critical`: no background token; emphasis by hue and weight, with the
       background reserved for the verdict card where it is deliberate
-- [ ] Tests: every theme is complete; every surface renders from one palette;
+- [x] Tests: every theme is complete; every surface renders from one palette;
       snapshot per theme × colour depth
 
 **Acceptance:** `OTACON_THEME=vision otacon scan example.com` and
@@ -235,6 +237,8 @@ no hex literal exists outside `ui/tokens.py`.
 ---
 
 ## Phase 1 — hierarchy in the triage console
+
+**Status: done.**
 
 **Goal:** a 240-row scan reads as "two things to act on, the rest is noise" in
 one glance.
@@ -295,15 +299,14 @@ rows are findable without reading any number.
 **Goal:** someone who has never run a security tool can open the console, read
 one screen, and know what to do.
 
-- [ ] **`?` help overlay** — bindings grouped by purpose (move / filter /
-      inspect / act), each with a sentence rather than a verb.
-- [ ] **Glossary** — every flag (`SPOOF`, `PARKED`, `DBL`, `FAVICON`, `LOGIN`,
-      `»`) and every technique (`typo`, `homoglyph`, `bitsquat`, `ct-log`) in
-      one plain sentence. Reachable from the help overlay and from `g`.
-- [ ] **Score bands on screen** — the five bands, their ranges, and what each
-      one means for the reader, not for the algorithm.
-- [ ] **Plain-language labels** — `unreg` → `unregistered`, `crit` → `critical`.
-      `ui/copy.py` holds one label per concept so no surface invents its own.
+- [x] **`?` help overlay** — bindings grouped by purpose, each with a sentence
+      rather than a verb. *(landed with Phase 1)*
+- [x] **Glossary** — every flag and every technique in one plain sentence,
+      inside the help overlay. The bare `»` is now `OURS`. *(Phase 1)*
+- [x] **Score bands on screen** — the five bands, their ranges and what each
+      means for the reader. *(Phase 1)*
+- [x] **One label per concept** — `ui/copy.py`, so no surface invents its own
+      spelling. *(Phase 0)* Wiring the console and HTML to it is Phase 5/6.
 - [ ] **Scan presets on the start screen** — *Quick* (DNS only, ~10s),
       *Standard* (default), *Deep* (everything + CT), with the four checkboxes
       behind an *Advanced* disclosure instead of facing a first-time user.
@@ -419,8 +422,8 @@ product.
 
 | Phase | Depends on | Size | Why here |
 |---|---|---|---|
-| 0 — tokens | — | M | Every other phase is cheaper afterwards and more expensive before |
-| 1 — hierarchy | 0 | M | The loudest defect, and it is visible in one screenshot |
+| ~~0 — tokens~~ | — | M | **Done.** Every other phase is cheaper afterwards |
+| ~~1 — hierarchy~~ | 0 | M | **Done.** The loudest defect, visible in one screenshot |
 | 2 — non-specialist | 0, 1 | M | The stated goal of the whole effort |
 | 3 — scan | 0 | S | Self-contained; closes a real CLI/console regression |
 | 5 — console | 0 | S | Mostly deletion once tokens and copy are shared |
