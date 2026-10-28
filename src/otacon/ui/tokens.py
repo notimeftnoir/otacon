@@ -82,8 +82,6 @@ class Palette:
     """Background of the focused row — the one place a strong tint is earned."""
 
     risk: Mapping[RiskLevel, RiskTone]
-    gradient: tuple[str, ...]
-    """Wordmark ramp. ``caps.gradient_stops`` degrades it for poorer terminals."""
 
     def tone(self, level: RiskLevel) -> RiskTone:
         """The tone for *level*."""
@@ -138,7 +136,6 @@ MIDNIGHT = Palette(
             RiskLevel.SAFE: ("#5fd700", "#142611"),
         }
     ),
-    gradient=("#00d7af", "#00c0d0", "#00a8e8", "#5f8fff"),
 )
 
 DAYLIGHT = Palette(
@@ -168,7 +165,6 @@ DAYLIGHT = Palette(
             RiskLevel.SAFE: ("#2a6e00", "#e2f1d8"),
         }
     ),
-    gradient=("#00705a", "#007086", "#00609e", "#2d4fb8"),
 )
 
 VISION = Palette(
@@ -198,7 +194,6 @@ VISION = Palette(
             RiskLevel.SAFE: ("#0072b2", "#0c1b26"),
         }
     ),
-    gradient=("#56b4e9", "#3f9fd4", "#2a8abd", "#0072b2"),
 )
 
 MONO = Palette(
@@ -229,7 +224,6 @@ MONO = Palette(
             RiskLevel.SAFE: ("#585858", "#101010"),
         }
     ),
-    gradient=("#ffffff",),
 )
 
 THEMES: Mapping[str, Palette] = {p.name: p for p in (MIDNIGHT, DAYLIGHT, VISION, MONO)}

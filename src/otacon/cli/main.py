@@ -14,7 +14,9 @@ import typer
 from rich.console import Console
 
 from .._splash import play_intro
+from ..ui.caps import glyph_level
 from ..ui.emit import rich_theme
+from ..ui.glyphs import degrade
 from ..ui.tokens import DEFAULT_THEME, THEMES
 from ..utils.theme import OTACON_THEME, banner, set_palette
 from .commands.diff import execute_diff
@@ -82,8 +84,11 @@ def _banner(animate: bool = False) -> None:
         play_intro(console)
     else:
         console.print(banner(), end="")
+    # Degraded like the mark above it: a lone U+00B7 left behind on an ASCII
+    # terminal is the one character that gives the whole line away.
+    dot = degrade("·", glyph_level())
     console.print(
-        f"  [muted]v{__version__} · find lookalike domains before attackers use them[/muted]\n"
+        f"  [muted]v{__version__} {dot} find lookalike domains before attackers use them[/muted]\n"
     )
 
 

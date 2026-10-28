@@ -16,8 +16,6 @@ import os
 import sys
 from enum import Enum
 
-from .tokens import Palette
-
 
 class ColorDepth(str, Enum):
     """How many colours the stream can carry."""
@@ -83,24 +81,4 @@ def glyph_level(encoding: str | None = None) -> GlyphLevel:
     return GlyphLevel.FULL if enc.startswith(("utf", "ucs")) else GlyphLevel.ASCII
 
 
-def gradient_stops(palette: Palette, depth: ColorDepth) -> tuple[str, ...]:
-    """The wordmark ramp, degraded to what *depth* can actually show.
-
-    A four-stop 24-bit ramp quantises to a single colour on a 16-colour
-    terminal, which is why the logo used to look broken there rather than
-    merely plainer: every letter landed on the same cyan. Below 8-bit we stop
-    pretending and return one stop, so the wordmark reads as a deliberate
-    solid rather than a failed gradient.
-    """
-    if depth is ColorDepth.NONE:
-        return (palette.strong,)
-    if depth is ColorDepth.BASIC:
-        return (palette.brand,)
-    if depth is ColorDepth.EIGHT_BIT:
-        # 256-colour cubes cannot resolve four neighbouring teals; the two
-        # ends stay distinguishable and the ramp still reads as a ramp.
-        return (palette.gradient[0], palette.gradient[-1])
-    return palette.gradient
-
-
-__all__ = ["ColorDepth", "GlyphLevel", "color_depth", "glyph_level", "gradient_stops"]
+__all__ = ["ColorDepth", "GlyphLevel", "color_depth", "glyph_level"]

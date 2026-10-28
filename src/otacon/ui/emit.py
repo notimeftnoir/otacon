@@ -16,7 +16,6 @@ from rich.terminal_theme import TerminalTheme
 from rich.theme import Theme
 
 from ..core.types import RiskLevel
-from .caps import ColorDepth, gradient_stops
 from .tokens import Palette, RiskTone
 
 
@@ -179,27 +178,7 @@ def terminal_theme(palette: Palette) -> TerminalTheme:
     )
 
 
-def gradient_color(t: float, stops: tuple[str, ...]) -> str:
-    """Hex colour at position *t* (0..1) along *stops*, linearly interpolated."""
-    if len(stops) == 1:
-        return stops[0]
-    t = min(max(t, 0.0), 1.0) * (len(stops) - 1)
-    i = min(int(t), len(stops) - 2)
-    a = Color.parse(stops[i]).get_truecolor()
-    b = Color.parse(stops[i + 1]).get_truecolor()
-    f = t - i
-    r, g, bl = (round(x + (y - x) * f) for x, y in zip(a, b, strict=True))
-    return f"#{r:02x}{g:02x}{bl:02x}"
-
-
-def gradient_for(palette: Palette, depth: ColorDepth) -> tuple[str, ...]:
-    """The wordmark ramp for *palette*, degraded to what *depth* can show."""
-    return gradient_stops(palette, depth)
-
-
 __all__ = [
-    "gradient_color",
-    "gradient_for",
     "html_vars",
     "mix",
     "rich_theme",

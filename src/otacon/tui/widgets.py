@@ -54,41 +54,43 @@ def level_color(level: RiskLevel, palette: Palette | None = None) -> str:
 
 
 def wordmark(spoof: bool = True, palette: Palette | None = None) -> Text:
-    """OTACON in the brand gradient, with the Cyrillic homoglyph picked out.
+    """OTACON with the Cyrillic homoglyph picked out by weight.
 
     The wordmark carries the tool's whole idea: the O at SPOOF_INDEX is U+041E,
-    not the Latin letter it reads as. Showing it stained is the one-glance
-    explanation of what the tool looks for.
+    not the Latin letter it reads as. It is marked by brightness rather than by
+    hue, so the mark reads the same under ``mono``, ``NO_COLOR`` and a
+    greyscale screenshot — and does not compete with the severity colours,
+    which are the only thing in this interface that earns a hue.
     """
-    from ..ui.caps import color_depth
-    from ..ui.emit import gradient_color, gradient_for
+    from ..ui.caps import glyph_level
+    from ..ui.glyphs import degrade
     from ..utils.theme import SPOOF_INDEX, WORDMARK
 
     pal = _palette(palette)
-    stops = gradient_for(pal, color_depth())
+    level = glyph_level()
     out = Text()
-    last = len(WORDMARK) - 1
     for i, ch in enumerate(WORDMARK):
-        if spoof and i == SPOOF_INDEX:
-            out.append(ch, style=f"bold {pal.tone(RiskLevel.CRITICAL).fg}")
-        else:
-            out.append(ch, style=f"bold {gradient_color(i / last, stops)}")
+        style = f"bold {pal.strong}" if spoof and i == SPOOF_INDEX else pal.muted
+        out.append(degrade(ch, level), style=style)
     return out
 
 
 def logo(tagline: bool = True, palette: Palette | None = None) -> Text:
-    """The three-line radar wordmark used on the start screen."""
-    from ..utils.theme import LOGO_DOTS_BOT, LOGO_DOTS_TOP, TAGLINE
+    """The three-line brand mark used on the start screen."""
+    from ..ui.caps import glyph_level
+    from ..ui.glyphs import degrade
+    from ..utils.theme import HOMOGLYPH, LOGO_SWEEP, SPOOF_INDEX, TAGLINE
 
     pal = _palette(palette)
+    level = glyph_level()
     out = Text()
-    out.append(f" {LOGO_DOTS_TOP}\n", style=pal.brand)
-    out.append("   ")
+    out.append(f"{degrade(LOGO_SWEEP, level)}\n", style=pal.dim)
     out.append_text(wordmark(palette=pal))
     out.append("\n")
-    out.append(f" {LOGO_DOTS_BOT}", style=pal.brand_dim)
+    pointer = f"{' ' * SPOOF_INDEX}{degrade('↑', level)} {HOMOGLYPH}"
+    out.append(pointer, style=pal.dim)
     if tagline:
-        out.append(f"  {TAGLINE}", style=pal.muted)
+        out.append(f" {degrade('·', level)} {TAGLINE}", style=pal.dim)
     return out
 
 

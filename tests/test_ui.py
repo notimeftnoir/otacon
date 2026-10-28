@@ -13,11 +13,15 @@ from otacon.core.models import DomainResult, PermutationType, ScanReport
 from otacon.core.types import RiskLevel
 from otacon.engine import scanner as _scanner
 from otacon.triage.dossier import evidence
+from otacon.ui.caps import GlyphLevel
 from otacon.utils.theme import (
+    BANNER,
+    LOGO_SWEEP,
     OTACON_THEME,
+    SPOOF_INDEX,
     WORDMARK,
-    gradient,
-    gradient_color,
+    active_palette,
+    banner,
 )
 
 
@@ -40,10 +44,20 @@ def _hit(score: int, level: RiskLevel, **kw: object) -> DomainResult:
 # --- theme ------------------------------------------------------------------
 
 
-def test_gradient_endpoints_match_stops() -> None:
-    assert gradient_color(0.0) == "#00d7af"
-    assert gradient_color(1.0) == "#5f8fff"
-    assert gradient("abc").plain == "abc"
+def test_the_mark_points_at_the_character_it_is_about() -> None:
+    """The arrow has to land under the homoglyph or the mark explains nothing."""
+    lines = Text.from_markup(BANNER).plain.strip("\n").split("\n")
+    sweep, word, pointer = lines
+    assert word[1 + SPOOF_INDEX] == WORDMARK[SPOOF_INDEX]
+    assert pointer[1 + SPOOF_INDEX] == "↑"
+    assert len(sweep.strip()) == len(LOGO_SWEEP)
+
+
+def test_the_mark_survives_a_terminal_that_cannot_draw_it() -> None:
+    """--ascii has to leave a mark that still reads, not a row of gaps."""
+    plain = Text.from_markup(banner(glyphs=GlyphLevel.ASCII)).plain
+    assert plain.isascii()
+    assert "OTACON" in plain
 
 
 # --- splash -----------------------------------------------------------------
@@ -63,8 +77,8 @@ def test_animation_disabled_off_terminal_and_by_env(monkeypatch) -> None:
 
 def test_splash_decodes_to_the_wordmark() -> None:
     rng = random.Random(0)
-    first = _splash._frame(0, rng).plain
-    last = _splash._frame(_splash._FRAMES - 1, rng).plain
+    first = _splash._frame(0, rng, active_palette()).plain
+    last = _splash._frame(_splash._FRAMES - 1, rng, active_palette()).plain
     assert WORDMARK not in first
     assert WORDMARK in last
 

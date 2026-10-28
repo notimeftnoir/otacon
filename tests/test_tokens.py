@@ -12,7 +12,7 @@ import re
 import pytest
 
 from otacon.core.types import PermutationType, RiskLevel
-from otacon.ui.caps import ColorDepth, GlyphLevel, gradient_stops
+from otacon.ui.caps import GlyphLevel
 from otacon.ui.copy import BANDS, FLAGS, TECHNIQUES
 from otacon.ui.emit import html_vars, mix, rich_theme, terminal_theme, textual_vars
 from otacon.ui.glyphs import ASCII_FALLBACK, SAFE, degrade
@@ -94,16 +94,21 @@ def test_unknown_theme_falls_back_rather_than_raising() -> None:
     assert get_theme("  VISION ") is THEMES["vision"]
 
 
-def test_gradient_degrades_instead_of_collapsing() -> None:
-    """Below truecolor a four-stop ramp quantises to one flat colour.
+@pytest.mark.parametrize("palette", THEMES.values(), ids=lambda p: p.name)
+def test_the_brand_mark_carries_no_hue(palette: Palette) -> None:
+    """It used to be a four-stop gradient, which quantised to one flat colour
+    below truecolor and so looked broken rather than merely plainer.
 
-    That is what made the wordmark look broken on a 16-colour terminal rather
-    than merely plainer, so each depth gets a ramp it can actually resolve.
+    The mark is drawn from the neutral scale in every theme now: severity is
+    the only thing in this interface that earns a colour, and the homoglyph is
+    picked out by weight. That also makes the mark identical in `mono`, under
+    NO_COLOR, in a greyscale screenshot and on paper.
     """
-    assert gradient_stops(MIDNIGHT, ColorDepth.TRUECOLOR) == MIDNIGHT.gradient
-    assert len(gradient_stops(MIDNIGHT, ColorDepth.EIGHT_BIT)) == 2
-    assert len(gradient_stops(MIDNIGHT, ColorDepth.BASIC)) == 1
-    assert len(gradient_stops(MIDNIGHT, ColorDepth.NONE)) == 1
+    for neutral in (palette.dim, palette.muted, palette.body, palette.strong):
+        channels = [int(neutral[i : i + 2], 16) for i in (1, 3, 5)]
+        # Not exact equality: daylight's greys are deliberately warm, the way
+        # paper is. The test is that none of them reads as a colour.
+        assert max(channels) - min(channels) <= 16, f"{palette.name}: {neutral} has a hue"
 
 
 def test_every_budgeted_glyph_has_an_ascii_stand_in() -> None:

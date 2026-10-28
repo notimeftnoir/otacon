@@ -13,8 +13,11 @@ from ..scoring.engine import count_fresh, get_age_fresh_days, get_age_new_days
 from ..ui.emit import html_vars
 from ..utils.theme import (
     GLYPH_DEFENSIVE,
-    LOGO_DOTS_BOT,
-    LOGO_DOTS_TOP,
+    HOMOGLYPH,
+    LOGO_SWEEP,
+    SPOOF_INDEX,
+    TAGLINE,
+    WORDMARK,
     active_palette,
 )
 from ..utils.validate import parse_redirect
@@ -36,7 +39,8 @@ a{color:var(--info)}
 .muted{color:var(--muted)}
 .field{color:var(--field)}
 .value{color:var(--value)}
-.logo{color:var(--brand);white-space:pre;font-size:.9em;margin:0}
+.logo{color:var(--muted);white-space:pre;font-size:.9em;margin:0}
+.dim{color:var(--dim)}
 header{border-bottom:1px solid var(--border);padding-bottom:1em;margin-bottom:1.5em}
 .meta{color:var(--muted);font-size:.9em;margin-top:.5em}
 .verdict{font-size:1.05em;margin-bottom:1.5em;padding:.6em 1em;
@@ -162,6 +166,22 @@ _LEVEL_CLASS: dict[RiskLevel, str] = {
     RiskLevel.HIGH: "danger",
     RiskLevel.CRITICAL: "critical",
 }
+
+
+def _logo() -> str:
+    """The brand mark, monochrome, matching what the terminal draws.
+
+    The homoglyph is picked out by weight rather than hue so the mark reads
+    the same in a dark browser, a light one and a printout.
+    """
+    letters = "".join(
+        f'<span class="value">{ch}</span>'
+        if i == SPOOF_INDEX
+        else f'<span class="muted">{ch}</span>'
+        for i, ch in enumerate(WORDMARK)
+    )
+    pointer = f"{'&nbsp;' * (1 + SPOOF_INDEX)}\u2191 {HOMOGLYPH} &middot; {TAGLINE}"
+    return f'<span class="dim">{LOGO_SWEEP}</span>\n{letters}\n<span class="dim">{pointer}</span>'
 
 
 def _h(text: str) -> str:
@@ -408,12 +428,7 @@ def to_html(report: ScanReport) -> str:
     if defensive:
         footer_parts.append(f'<span class="warn">{GLYPH_DEFENSIVE} {defensive} defensive</span>')
 
-    logo = (
-        f" {LOGO_DOTS_TOP}\n"
-        '   OTAC<span class="brand">\u041e</span>N'
-        '  <span class="muted">[0x041E] homoglyph target</span>\n'
-        f' {LOGO_DOTS_BOT}  <span class="muted">domain impersonation detector</span>'
-    )
+    logo = _logo()
     meta_line = (
         f'<span class="field">Target:</span> <span class="value">{target}</span> &nbsp;'
         f'<span class="field">Date:</span> <span class="value">{started}</span> &nbsp;'
@@ -499,13 +514,7 @@ def aggregate_html(reports: dict[str, ScanReport]) -> str:
             f"{_table_html(rows, prefix=f'f-{safe_dom}')}"
         )
 
-    logo = (
-        f" {LOGO_DOTS_TOP}\n"
-        '   OTAC<span class="brand">\u041e</span>N'
-        '  <span class="muted">[0x041E] homoglyph target</span>\n'
-        f" {LOGO_DOTS_BOT}"
-        '  <span class="muted">domain impersonation detector</span>'
-    )
+    logo = _logo()
     meta_line = (
         f'<span class="field">Date:</span> <span class="value">{started}</span>'
         f' &nbsp; <span class="field">Domains:</span>'
