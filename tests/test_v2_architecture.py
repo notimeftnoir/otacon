@@ -343,10 +343,19 @@ def test_tools_scripts_still_import(script: str) -> None:
 
     Nothing else imports them, so a module they depend on can be renamed or
     deleted and the breakage only surfaces the next time somebody regenerates a
-    screenshot. Importing them here is the cheapest possible guard: it caught
+    screenshot. Executing them here is the cheapest possible guard: it caught
     render_demo_svg still reaching for `otacon._scanner` after the shim layer
     went.
-    """
-    import importlib
 
-    importlib.import_module(f"tools.{script}")
+    Loaded by path rather than by name: tools/ is not a package and is not on
+    sys.path under CI's bare `pytest` invocation, only under `python -m pytest`.
+    """
+    import importlib.util
+
+    path = Path(__file__).resolve().parent.parent / "tools" / f"{script}.py"
+    assert path.is_file(), f"missing dev script: {path}"
+    spec = importlib.util.spec_from_file_location(script, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert callable(module.main)
