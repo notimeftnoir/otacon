@@ -6,6 +6,7 @@ import asyncio
 import logging
 import time
 from collections import Counter
+from collections.abc import Callable
 from contextlib import AsyncExitStack
 from typing import Any, cast
 
@@ -99,6 +100,7 @@ async def run_scan(
     check_whois: bool = True,
     check_dnsbl: bool = True,
     check_ct: bool = True,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> ScanReport:
     """Scans all permutations of target using structured concurrency."""
     gen_fn = _get_generate_fn()
@@ -198,6 +200,10 @@ async def run_scan(
                             live.update(Group(progress, build_live_table(hits, target, _LIVE_ROWS)))
                     if progress is not None and task_id is not None:
                         progress.update(task_id, advance=1, tally=_tally(hits))
+                    if on_progress is not None:
+                        # Lets a non-Rich front-end (the TUI) show the same
+                        # progress the console reporter draws for itself.
+                        on_progress(len(results), len(perms))
 
                 tg.create_task(_worker())
 

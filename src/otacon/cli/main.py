@@ -143,12 +143,34 @@ def _main(
         _banner(animate=ctx.invoked_subcommand is None)
 
     if ctx.invoked_subcommand is None:
+        _launch_default_surface(console)
+        raise typer.Exit()
+
+
+def _textual_capable(console: Console) -> bool:
+    """True when the terminal can host a full-screen Textual application.
+
+    Textual asks more of a terminal than the guided prompts do: it takes over
+    the screen, needs cursor addressing and reads keys raw. A pipe, a dumb
+    terminal or a CI shell has none of that.
+    """
+    return bool(console.is_terminal) and not console.is_dumb_terminal
+
+
+def _launch_default_surface(console: Console) -> None:
+    """Opens the triage console, falling back to guided prompts where it cannot run."""
+    if not _textual_capable(console):
         import sys
 
         inter_mod = sys.modules.get("otacon.interactive")
         inter_run = getattr(inter_mod, "run", _interactive_run) if inter_mod else _interactive_run
         inter_run(console)
-        raise typer.Exit()
+        return
+
+    # Imported here so `otacon scan` in a CI container never loads Textual.
+    from ..tui import run_tui
+
+    run_tui()
 
 
 @app.command()

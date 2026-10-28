@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from ... import history
 from ..._asyncutils import run_async
 from ...core.models import ScanReport
 from ...core.types import RiskLevel
@@ -29,6 +30,12 @@ from ...utils.validate import (
     safe_cli_path,
 )
 from ..state import _state
+
+
+def _log_history_failure(console: Console, exc: Exception) -> None:
+    """Reports a failed history write once, without derailing the scan."""
+    console.print(f"[muted]Could not store this scan in history: {escape(str(exc))}[/muted]")
+
 
 _OUT, _NET, _FILTER, _CI = "Reports", "Network", "Filtering", "Scoring & CI"
 
@@ -240,6 +247,12 @@ def execute_scan(
             console.print(f"[warn]⚠ Error scanning {escape(d)}: {escape(str(exc))}[/warn]")
             scan_errors.append(d)
             continue
+
+        try:
+            history.save(report)
+        except Exception as exc:
+            # History is a convenience; never let it cost the operator a scan.
+            _log_history_failure(console, exc)
 
         reporters_mod.render_table(report, console, show_safe=show_all)
         all_reports[d] = report

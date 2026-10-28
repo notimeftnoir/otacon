@@ -106,6 +106,19 @@ def _rescan_result(
     return cast(DomainResult, scoring_mod.score(raw, target, target_title=target_title))
 
 
+async def rescan_result(result: DomainResult, target: str, check_http: bool = True) -> DomainResult:
+    """Re-probes one variant and returns it rescored, without touching a console.
+
+    The async half of :func:`_rescan_result`, so a front-end already running an
+    event loop (the TUI) re-checks a domain through the same path as the
+    questionary flow instead of carrying its own copy.
+    """
+    perm = Permutation(domain=result.domain, kind=result.kind, note=result.note)
+    async with Resolver(check_http=check_http, target=target) as resolver:
+        raw = await resolver.check_one(perm)
+        return scoring.score(raw, target, target_title=resolver.target_title)
+
+
 def _suggest_defensive_whitelist(report: ScanReport, console: Console) -> None:
     """Offers to append detected defensive domains to whitelist.txt."""
     defensive = [r for r in report.registered if r.is_likely_defensive]
@@ -296,4 +309,5 @@ __all__ = [
     "_rescan_result",
     "_show_whois",
     "_suggest_defensive_whitelist",
+    "rescan_result",
 ]
