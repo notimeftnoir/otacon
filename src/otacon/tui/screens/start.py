@@ -46,12 +46,17 @@ class StartScreen(Screen[None]):
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("q", "app.quit", "quit"),
-        Binding("enter", "start", "scan", show=False),
+        # No screen-level Enter binding: it would outrank the focused widget and
+        # swallow the key before the recent-scans list could open a stored run.
+        # The target field starts the scan through its own submit event.
     ]
 
     def __init__(self) -> None:
         super().__init__()
-        self._running = False
+        # Not _running: textual.message_pump.MessagePump already owns that name
+        # on every Screen and sets it True once the screen starts, which silently
+        # made this screen believe a scan was always in progress.
+        self._scanning = False
         self._started = 0.0
 
     def compose(self) -> ComposeResult:
@@ -96,7 +101,7 @@ class StartScreen(Screen[None]):
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Reopens a stored scan. No network traffic at all."""
-        if self._running or event.option.id is None:
+        if self._scanning or event.option.id is None:
             return
         try:
             report = history.load(Path(event.option.id))
@@ -117,7 +122,7 @@ class StartScreen(Screen[None]):
 
     def action_start(self) -> None:
         """Validates the target and launches the scan, once."""
-        if self._running:
+        if self._scanning:
             return
         raw = self.query_one("#target", Input).value.strip()
         target = normalize_domain(raw)
@@ -132,7 +137,7 @@ class StartScreen(Screen[None]):
         options = {
             name: self.query_one(f"#opt-{name}", Checkbox).value for _label, name, _d in _OPTIONS
         }
-        self._running = True
+        self._scanning = True
         self._started = time.monotonic()
         self.query_one("#target", Input).disabled = True
         for _label, name, _d in _OPTIONS:
@@ -179,7 +184,7 @@ class StartScreen(Screen[None]):
 
     def _fail(self, message: str) -> None:
         """Returns the form to an editable state so the operator can retry."""
-        self._running = False
+        self._scanning = False
         self.query_one("#setup-progress", ProgressBar).display = False
         self.query_one("#target", Input).disabled = False
         for _label, name, _d in _OPTIONS:
