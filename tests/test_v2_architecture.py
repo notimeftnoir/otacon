@@ -330,3 +330,23 @@ def test_patching_the_permutation_module_reaches_the_scanner(monkeypatch) -> Non
 
     monkeypatch.setattr(scanner.permutations, "generate", lambda target, exclude=None: [])
     assert scanner.permutations.generate("example.com") == []
+
+
+# ---------------------------------------------------------------------------
+# 11. Developer scripts
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("script", ["render_demo_svg", "render_tui_svg"])
+def test_tools_scripts_still_import(script: str) -> None:
+    """The scripts in tools/ regenerate the README assets and must keep working.
+
+    Nothing else imports them, so a module they depend on can be renamed or
+    deleted and the breakage only surfaces the next time somebody regenerates a
+    screenshot. Importing them here is the cheapest possible guard: it caught
+    render_demo_svg still reaching for `otacon._scanner` after the shim layer
+    went.
+    """
+    import importlib
+
+    importlib.import_module(f"tools.{script}")
