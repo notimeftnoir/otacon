@@ -21,14 +21,29 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Middle, Vertical
 from textual.screen import Screen
-from textual.widgets import Checkbox, Footer, Input, OptionList, ProgressBar, Static
+from textual.widgets import (
+    Checkbox,
+    Collapsible,
+    Footer,
+    Input,
+    OptionList,
+    ProgressBar,
+    RadioButton,
+    RadioSet,
+    Static,
+)
 from textual.widgets.option_list import Option
 
 from ... import history
+from ...core.models import ScanReport
+from ...core.types import RiskLevel
 from ...engine.scanner import run_scan
+from ...triage.verdict import Delta, delta
+from ...ui.tokens import Palette
+from ...utils.theme import active_palette
 from ...utils.validate import is_valid_domain, normalize_domain
 from ..widgets import logo
-from .results import ResultsScreen
+from .overview import OverviewScreen
 
 # Label, option name, default. WHOIS dominates the wall clock on a busy target,
 # so it is the one an impatient operator turns off first — but it is on by
@@ -39,6 +54,32 @@ _OPTIONS: tuple[tuple[str, str, bool], ...] = (
     ("Reputation lists (Spamhaus/SURBL)", "check_dnsbl", True),
     ("Certificate Transparency discovery", "check_ct", True),
 )
+
+# Presets, fastest first. Four checkboxes named after protocols are a fair ask
+# of an operator and an unfair one of everybody else, so the choice is offered
+# as speed — which is what the reader actually cares about — and the switches
+# stay underneath for whoever wants them.
+#
+# Thorough is the default because it is what the tool did before presets
+# existed: a preset must not quietly make a scan miss something.
+_PRESETS: tuple[tuple[str, str, dict[str, bool]], ...] = (
+    (
+        "Quick",
+        "names only, about ten seconds",
+        {"check_http": False, "check_whois": False, "check_dnsbl": False, "check_ct": False},
+    ),
+    (
+        "Standard",
+        "also checks websites and reputation",
+        {"check_http": True, "check_whois": False, "check_dnsbl": True, "check_ct": False},
+    ),
+    (
+        "Thorough",
+        "everything, plus registration dates",
+        {"check_http": True, "check_whois": True, "check_dnsbl": True, "check_ct": True},
+    ),
+)
+_DEFAULT_PRESET = 2
 
 
 class StartScreen(Screen[None]):
@@ -59,6 +100,22 @@ class StartScreen(Screen[None]):
         self._scanning = False
         self._started = 0.0
 
+    @property
+    def palette(self) -> Palette:
+        """The palette this screen draws with."""
+        app_palette = getattr(self.app, "ui_palette", None)
+        return app_palette if isinstance(app_palette, Palette) else active_palette()
+
+    @property
+    def _bad(self) -> str:
+        """Style for a message that stopped the operator getting a scan."""
+        return self.palette.tone(RiskLevel.CRITICAL).fg
+
+    @property
+    def _busy(self) -> str:
+        """Style for progress the operator is waiting on."""
+        return self.palette.brand
+
     def compose(self) -> ComposeResult:
         with Middle(), Center(), Vertical(id="setup"):
             yield Static(self._brand_text(), id="setup-brand")
@@ -68,8 +125,23 @@ class StartScreen(Screen[None]):
                 id="setup-help",
             )
             yield Input(placeholder="example.com", id="target")
-            for label, name, default in _OPTIONS:
-                yield Checkbox(label, value=default, id=f"opt-{name}")
+            yield Static("HOW DEEP", id="preset-label")
+            with RadioSet(id="preset"):
+                for i, (name, blurb, _flags) in enumerate(_PRESETS):
+                    yield RadioButton(
+                        f"{name}  —  {blurb}", value=i == _DEFAULT_PRESET, id=f"preset-{i}"
+                    )
+            # Textual's default chevrons are outside the font budget in
+            # ui.glyphs; these two are in it and read the same way.
+            with Collapsible(
+                title="Advanced",
+                collapsed=True,
+                id="advanced",
+                collapsed_symbol="→",
+                expanded_symbol="↓",
+            ):
+                for label, name, default in _OPTIONS:
+                    yield Checkbox(label, value=default, id=f"opt-{name}")
             yield Static("", id="setup-status")
             yield ProgressBar(total=100, show_eta=False, id="setup-progress")
             yield Static("RECENT SCANS", id="recent-label")
@@ -99,6 +171,19 @@ class StartScreen(Screen[None]):
         for target, record in entries[:8]:
             recent.add_option(Option(f"{target:<28} {record.label}", id=str(record.path)))
 
+    def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
+        """Applies the chosen preset to the switches underneath.
+
+        The switches stay the single source of truth for what runs, so opening
+        Advanced always shows what the preset actually selected rather than a
+        second, possibly disagreeing, record of the choice.
+        """
+        if self._scanning:
+            return
+        _name, _blurb, flags = _PRESETS[event.index]
+        for _label, name, _default in _OPTIONS:
+            self.query_one(f"#opt-{name}", Checkbox).value = flags[name]
+
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Reopens a stored scan. No network traffic at all."""
         if self._scanning or event.option.id is None:
@@ -107,10 +192,12 @@ class StartScreen(Screen[None]):
             report = history.load(Path(event.option.id))
         except Exception as exc:
             self.query_one("#setup-status", Static).update(
-                Text(f"Could not read that scan: {exc}", style="#ff5f5f")
+                Text(f"Could not read that scan: {exc}", style=self._bad)
             )
             return
-        self.app.push_screen(ResultsScreen(report))
+        # No delta: a reopened scan is being read, not compared, and the run
+        # before it is not necessarily the one the reader has in mind.
+        self.app.push_screen(OverviewScreen(report))
 
     def _brand_text(self) -> Text:
         return logo()
@@ -128,10 +215,12 @@ class StartScreen(Screen[None]):
         target = normalize_domain(raw)
         status = self.query_one("#setup-status", Static)
         if not raw:
-            status.update(Text("Type a domain first.", style="#ffd700"))
+            status.update(
+                Text("Type a domain first.", style=self.palette.tone(RiskLevel.MEDIUM).fg)
+            )
             return
         if not is_valid_domain(target):
-            status.update(Text(f"{raw!r} is not a valid domain.", style="#ff5f5f"))
+            status.update(Text(f"{raw!r} is not a valid domain.", style=self._bad))
             return
 
         options = {
@@ -140,10 +229,11 @@ class StartScreen(Screen[None]):
         self._scanning = True
         self._started = time.monotonic()
         self.query_one("#target", Input).disabled = True
+        self.query_one("#preset", RadioSet).disabled = True
         for _label, name, _d in _OPTIONS:
             self.query_one(f"#opt-{name}", Checkbox).disabled = True
         self.query_one("#setup-progress", ProgressBar).display = True
-        status.update(Text(f"Scanning {target}…", style="#00d7af"))
+        status.update(Text(f"Scanning {target}…", style=self._busy))
         self.run_worker(self._scan(target, options), exclusive=True)
 
     def _on_progress(self, done: int, total: int) -> None:
@@ -152,7 +242,7 @@ class StartScreen(Screen[None]):
         bar.update(total=total, progress=done)
         elapsed = time.monotonic() - self._started
         self.query_one("#setup-status", Static).update(
-            Text(f"Checked {done} of {total}  ·  {elapsed:.0f}s", style="#00d7af")
+            Text(f"Checked {done} of {total}  ·  {elapsed:.0f}s", style=self._busy)
         )
 
     async def _scan(self, target: str, options: dict[str, bool]) -> None:
@@ -174,22 +264,36 @@ class StartScreen(Screen[None]):
         if not report.results:
             self._fail(f"No variants could be generated for {target}.")
             return
+        # Read the previous run before storing this one, or the comparison is
+        # against the scan that just finished.
+        change = self._since_last(target, report)
         try:
             history.save(report)
         except Exception as exc:
             # Losing the history entry must never lose the scan the operator
             # just waited for.
             self.notify(f"could not store this scan: {exc}", severity="warning", timeout=5)
-        self.app.push_screen(ResultsScreen(report))
+        self.app.push_screen(OverviewScreen(report, change))
+
+    def _since_last(self, target: str, report: ScanReport) -> Delta | None:
+        """What moved since the previous stored scan of *target*, if there is one."""
+        try:
+            previous = history.latest(target)
+        except Exception:
+            # History is a convenience. A corrupt or unreadable store must not
+            # cost the operator the scan they just waited for.
+            return None
+        return delta(previous, report) if previous is not None else None
 
     def _fail(self, message: str) -> None:
         """Returns the form to an editable state so the operator can retry."""
         self._scanning = False
         self.query_one("#setup-progress", ProgressBar).display = False
         self.query_one("#target", Input).disabled = False
+        self.query_one("#preset", RadioSet).disabled = False
         for _label, name, _d in _OPTIONS:
             self.query_one(f"#opt-{name}", Checkbox).disabled = False
-        self.query_one("#setup-status", Static).update(Text(message, style="#ff5f5f"))
+        self.query_one("#setup-status", Static).update(Text(message, style=self._bad))
 
 
 __all__ = ["StartScreen"]

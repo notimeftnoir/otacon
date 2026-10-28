@@ -87,12 +87,14 @@ class ResultsScreen(Screen[None]):
         Binding("k", "cursor_up", "up", show=False),
     ]
 
-    def __init__(self, report: ScanReport) -> None:
+    def __init__(self, report: ScanReport, show_unregistered: bool = False) -> None:
         super().__init__()
         self._report = report
         self._level: RiskLevel | None = None
         self._query = ""
-        self._show_unregistered = False
+        # A scan where nothing is registered has no rows to show under the
+        # default filter, so opening it filtered would be a dead end.
+        self._show_unregistered = show_unregistered
         self._rows: list[DomainResult] = []
         # Domains the operator has waved through for this session only. Never
         # written anywhere: an allow-list that outlives the session is a

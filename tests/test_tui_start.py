@@ -12,7 +12,7 @@ from otacon import history
 from otacon.core.models import DomainResult, ScanReport
 from otacon.core.types import PermutationType, RiskLevel
 from otacon.tui.app import OtaconTUI
-from otacon.tui.screens import ResultsScreen, StartScreen
+from otacon.tui.screens import OverviewScreen, ResultsScreen, StartScreen
 
 
 def _stored(target: str = "example.com") -> ScanReport:
@@ -76,9 +76,13 @@ async def test_opens_on_the_start_screen_without_a_report() -> None:
 
 
 @pytest.mark.asyncio
-async def test_opens_on_results_when_given_a_report() -> None:
+async def test_opens_on_the_overview_when_given_a_report() -> None:
+    """The verdict comes first; the table is one keypress away."""
     app = OtaconTUI(_stored())
     async with app.run_test() as pilot:
+        await pilot.pause()
+        assert isinstance(app.screen, OverviewScreen)
+        await pilot.press("enter")
         await pilot.pause()
         assert isinstance(app.screen, ResultsScreen)
 
@@ -146,6 +150,10 @@ async def test_a_stored_scan_is_listed_and_reopens_offline() -> None:
         for _ in range(4):
             await pilot.pause()
 
+        # A reopened scan lands on its verdict like a fresh one does.
+        assert isinstance(app.screen, OverviewScreen)
+        await pilot.press("enter")
+        await pilot.pause()
         assert isinstance(app.screen, ResultsScreen)
         assert app.screen.selected is not None
         assert app.screen.selected.domain == "examp1e.com"

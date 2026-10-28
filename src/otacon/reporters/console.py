@@ -14,6 +14,7 @@ from ..core.models import DomainResult, ScanReport
 from ..core.types import RiskLevel
 from ..net.whois import format_age
 from ..scoring.engine import AGE_FRESH_DAYS, AGE_NEW_DAYS, count_fresh, get_age_fresh_days
+from ..triage.verdict import verdict
 from ..utils.theme import GLYPH_DEFENSIVE
 from ..utils.validate import parse_redirect
 
@@ -179,59 +180,14 @@ def _verdict_banner(report: ScanReport) -> Text:
 
 
 def _headline(report: ScanReport) -> tuple[str, str, str]:
-    registered = report.registered
-    n, target = len(registered), report.target
-    plural = "s" if n != 1 else ""
-    if report.degraded:
-        # A broken resolver and a clean brand produce the same empty result, so
-        # this case must never be reported as an all-clear.
-        pct = round(report.dns_failure_ratio * 100)
-        return (
-            "warn",
-            f"⚠ Inconclusive: {pct}% of DNS lookups for {target} failed",
-            (
-                f"{report.dns_failures} of {report.dns_queries} lookups could not be answered, "
-                "so a domain shown as unregistered may simply not have been checked. "
-                "Re-run with --debug to see why, and treat these results as incomplete."
-            ),
-        )
-    if not registered:
-        return (
-            "ok",
-            (
-                f"✓ All clear: none of the {report.total_permutations} lookalikes of "
-                f"{target} are registered"
-            ),
-            (
-                "Nobody has registered a domain that imitates yours. New ones appear every day, "
-                "so run this again from time to time."
-            ),
-        )
-    worst = max(r.risk_level.rank for r in registered)
-    if worst >= RiskLevel.HIGH.rank:
-        k = sum(1 for r in registered if r.risk_level.rank >= RiskLevel.HIGH.rank)
-        return (
-            "danger",
-            (
-                f"⚠ {k} lookalike{'s' if k != 1 else ''} of {target} "
-                f"look{'' if k != 1 else 's'} dangerous"
-            ),
-            (
-                "Registered and set up like a real website or mail server. "
-                "Start with the top rows of the table."
-            ),
-        )
-    if worst >= RiskLevel.LOW.rank:
-        return (
-            "warn",
-            f"● {n} registered lookalike{plural} of {target}, nothing urgent",
-            "They exist, but show few signs of being used for attacks yet. Worth a look.",
-        )
-    return (
-        "ok",
-        f"✓ {n} registered lookalike{plural} of {target}, all look harmless",
-        "Parked pages or redirects back to your own site.",
-    )
+    """The verdict's tone, headline and explanation.
+
+    Thin adapter over triage.verdict, which the overview screen renders too —
+    the console used to own this wording, so the surface most people actually
+    meet had none of it.
+    """
+    v = verdict(report)
+    return v.tone, v.headline, v.explanation
 
 
 def _distribution(registered: list[DomainResult]) -> Group:

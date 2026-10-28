@@ -196,11 +196,13 @@ def tally(report: ScanReport, labelled: bool = True, palette: Palette | None = N
 
 __all__ = [
     "BAR_WIDTH",
+    "DISTRIBUTION_WIDTH",
     "FILTER_KEYS",
     "LEVELS_DESC",
     "LEVEL_COLOR",
     "badges",
     "band_cell",
+    "distribution",
     "gutter",
     "level_color",
     "level_counts",
@@ -210,3 +212,36 @@ __all__ = [
     "tally",
     "wordmark",
 ]
+
+
+DISTRIBUTION_WIDTH = 36
+
+
+def distribution(
+    report: ScanReport, palette: Palette | None = None, width: int = DISTRIBUTION_WIDTH
+) -> Text:
+    """Proportional severity bar plus its legend, for the overview screen.
+
+    The same picture the console reporter's verdict card draws, in the same
+    density glyphs the table's gutter uses, so a reader who learns the ramp
+    once can read it on every surface.
+    """
+    pal = _palette(palette)
+    counts = level_counts(report)
+    total = max(sum(counts.values()), 1)
+    bar, legend = Text(), Text()
+    for level in LEVELS_DESC:
+        if not counts[level]:
+            continue
+        tone = pal.tone(level)
+        bar.append(tone.sigil * max(1, round(counts[level] / total * width)), style=tone.fg)
+        legend.append(f"{tone.sigil} ", style=tone.fg)
+        # "harmless" rather than "safe", matching the console's verdict card:
+        # one vocabulary across surfaces is the whole point of ui/copy.py.
+        label = "harmless" if level is RiskLevel.SAFE else level.value
+        legend.append(f"{counts[level]} {label}   ", style=pal.body)
+    out = Text()
+    out.append_text(bar)
+    out.append("\n")
+    out.append_text(legend)
+    return out
