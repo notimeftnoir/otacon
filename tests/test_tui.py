@@ -8,6 +8,7 @@ calling the action methods directly.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -24,7 +25,8 @@ from otacon.tui.widgets import (
     risk_bar,
     signals,
 )
-from otacon.utils.theme import OTACON_THEME
+from otacon.ui.emit import rich_theme, textual_vars
+from otacon.ui.tokens import MIDNIGHT, THEMES
 
 
 def _screen(app: OtaconTUI) -> ResultsScreen:
@@ -109,14 +111,39 @@ def test_level_counts_ignores_unregistered(report: ScanReport) -> None:
     assert sum(counts.values()) == 4  # nothere.com is unregistered
 
 
-def test_stylesheet_palette_matches_the_rich_theme() -> None:
-    """styles.py repeats the palette as CSS literals; this is the anti-drift check."""
-    for name in ("brand", "ok", "warn", "danger"):
-        colour = OTACON_THEME.styles[name].color
-        assert colour is not None
-        if name == "brand":
-            assert colour.triplet is not None
-            assert colour.triplet.hex.lower() in OTACON_CSS.lower()
+def test_stylesheet_carries_no_colours_of_its_own() -> None:
+    """The stylesheet must hold design tokens, never literals.
+
+    This replaces an older anti-drift check that asserted styles.py repeated
+    the Rich theme's hexes correctly. Repeating them was the defect: the
+    stylesheet now references $otacon-* variables fed in from one palette, so
+    there is no second copy left to drift. A hex literal reappearing here
+    means someone started a third one.
+    """
+    assert not re.findall(r"#[0-9a-fA-F]{3,8}\b", OTACON_CSS)
+
+
+def test_every_token_the_stylesheet_uses_is_supplied() -> None:
+    """A typo in a $otacon-* name is invisible until something renders wrong."""
+    used = set(re.findall(r"\$(otacon-[a-z0-9-]+)", OTACON_CSS))
+    supplied = set(textual_vars(MIDNIGHT))
+    assert used, "the stylesheet stopped using design tokens"
+    assert used <= supplied, f"undefined tokens: {sorted(used - supplied)}"
+
+
+def test_rich_theme_and_textual_tokens_come_from_one_palette() -> None:
+    """The console and the triage console must agree about what 'critical' is."""
+    for palette in THEMES.values():
+        tokens = textual_vars(palette)
+        theme = rich_theme(palette)
+        for level in RiskLevel:
+            assert tokens[f"otacon-risk-{level.value}"] == palette.tone(level).fg
+        brand = theme.styles["brand"].color
+        assert brand is not None and brand.triplet is not None
+        assert brand.triplet.hex.lower() == palette.brand.lower()
+
+
+def test_level_colours_are_real_colours() -> None:
     for level, hex_colour in LEVEL_COLOR.items():
         assert hex_colour.startswith("#"), level
 

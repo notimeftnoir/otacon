@@ -33,6 +33,9 @@ from otacon.utils.theme import BANNER, SAFE_GLYPHS
 # packages of the same name — so the guard was checking files nothing rendered.
 _UI_MODULES = (
     "utils/theme.py",
+    "ui/glyphs.py",
+    "ui/tokens.py",
+    "ui/copy.py",
     "reporters/console.py",
     "cli/main.py",
     "cli/commands/scan.py",

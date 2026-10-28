@@ -1,22 +1,27 @@
-"""Textual CSS for the Otacon TUI.
+"""Textual CSS for the Otacon triage console.
 
 Held as a string rather than a .tcss file so the stylesheet ships with the
 wheel without any package-data plumbing.
 
+Every colour arrives as an ``$otacon-*`` design token from
+:func:`otacon.ui.emit.textual_vars`, fed in through
+``OtaconTUI.get_css_variables``. This file used to repeat the palette as hex
+literals and needed a test to catch the two copies drifting apart; with the
+literals gone there is nothing left to drift, and the console gains every
+theme for free.
+
 Design intent: a dense instrument panel, not a document. Square borders, no
-rounded corners, no gradients behind text, one accent colour used sparingly, and
-risk expressed by hue so a glance at the left rail reads the whole picture. The
-palette is the same semantic set as OTACON_THEME in utils/theme.py — kept in
-these literals because Textual CSS cannot read Python constants, and asserted
-equal by tests/test_tui.py so the two cannot drift.
+rounded corners, no gradients behind text, one accent used sparingly, and risk
+expressed by hue *and* by glyph density so the left rail reads correctly even
+with no colour at all.
 """
 
 from __future__ import annotations
 
 OTACON_CSS = """
 Screen {
-    background: #0a0e0f;
-    color: #d0d0d0;
+    background: $otacon-bg;
+    color: $otacon-body;
     layers: base overlay;
 }
 
@@ -24,8 +29,8 @@ Screen {
 
 #masthead {
     height: 3;
-    background: #0d1214;
-    border-bottom: solid #1c2628;
+    background: $otacon-surface;
+    border-bottom: solid $otacon-line;
     padding: 0 1;
 }
 
@@ -49,7 +54,7 @@ Screen {
 
 #rail {
     width: 2fr;
-    border-left: solid #1c2628;
+    border-left: solid $otacon-line;
 }
 
 /* The rail takes two thirds: its columns are fixed-width, and FLAGS — the
@@ -62,39 +67,49 @@ Screen {
 }
 
 #dossier-empty {
-    color: #5a5a5a;
+    color: $otacon-dim;
     text-align: center;
     padding: 4 0;
 }
 
 DataTable {
     height: 1fr;
-    background: #0a0e0f;
+    background: $otacon-bg;
     scrollbar-size-vertical: 1;
 }
 
 DataTable > .datatable--header {
-    background: #0d1214;
-    color: #8a8a8a;
+    background: $otacon-surface;
+    color: $otacon-muted;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
-    background: #16302b;
-    color: #ffffff;
+    background: $otacon-select;
+    color: $otacon-strong;
     text-style: bold;
 }
 
 DataTable > .datatable--hover {
-    background: #121a1b;
+    background: $otacon-raised;
+}
+
+/* ── status bar: what the transient toasts used to say, but permanently ── */
+
+#statusbar {
+    height: 1;
+    background: $otacon-surface;
+    color: $otacon-muted;
+    border-top: solid $otacon-line;
+    padding: 0 1;
 }
 
 /* ── filter bar ────────────────────────────────────────────────────────── */
 
 #filterbar {
     height: 1;
-    background: #0d1214;
-    border-top: solid #1c2628;
+    background: $otacon-surface;
+    border-top: solid $otacon-line;
     padding: 0 1;
     display: none;
 }
@@ -104,8 +119,8 @@ DataTable > .datatable--hover {
 }
 
 Input {
-    background: #0d1214;
-    color: #ffffff;
+    background: $otacon-surface;
+    color: $otacon-strong;
     border: none;
     height: 1;
     padding: 0;
@@ -120,12 +135,12 @@ Input:focus {
 .verdict {
     height: auto;
     padding: 0 0 1 0;
-    border-bottom: solid #1c2628;
+    border-bottom: solid $otacon-line;
     margin-bottom: 1;
 }
 
 .section-label {
-    color: #00875f;
+    color: $otacon-brand-dim;
     text-style: bold;
     margin-top: 1;
 }
@@ -135,8 +150,8 @@ Input:focus {
     width: 80%;
     height: 80%;
     offset: 10% 10%;
-    background: #0d1214;
-    border: solid #00d7af;
+    background: $otacon-surface;
+    border: solid $otacon-brand;
     padding: 1 2;
     overflow-y: auto;
     display: none;
@@ -146,14 +161,32 @@ Input:focus {
     display: block;
 }
 
+/* ── help overlay ──────────────────────────────────────────────────────── */
+
+#help {
+    layer: overlay;
+    width: 86%;
+    height: 86%;
+    offset: 7% 7%;
+    background: $otacon-surface;
+    border: solid $otacon-accent;
+    padding: 1 2;
+    overflow-y: auto;
+    display: none;
+}
+
+#help.visible {
+    display: block;
+}
+
 /* ── start screen ──────────────────────────────────────────────────────── */
 
 #setup {
     width: 68;
     height: auto;
     padding: 2 3;
-    background: #0d1214;
-    border: solid #1c2628;
+    background: $otacon-surface;
+    border: solid $otacon-line;
 }
 
 #setup-brand {
@@ -162,23 +195,23 @@ Input:focus {
 }
 
 #setup-help {
-    color: #8a8a8a;
+    color: $otacon-muted;
     padding-bottom: 1;
 }
 
 #setup #target {
-    border: solid #1c2628;
+    border: solid $otacon-line;
     height: 3;
     padding: 0 1;
     margin-bottom: 1;
 }
 
 #setup #target:focus {
-    border: solid #00d7af;
+    border: solid $otacon-brand;
 }
 
 #setup Checkbox {
-    background: #0d1214;
+    background: $otacon-surface;
     border: none;
     height: 1;
     padding: 0;
@@ -198,7 +231,7 @@ Input:focus {
 }
 
 #recent-label {
-    color: #00875f;
+    color: $otacon-brand-dim;
     text-style: bold;
     padding-top: 1;
 }
@@ -206,31 +239,31 @@ Input:focus {
 #recent {
     height: auto;
     max-height: 9;
-    background: #0d1214;
+    background: $otacon-surface;
     border: none;
     padding: 0;
 }
 
 #recent > .option-list--option-highlighted {
-    background: #16302b;
-    color: #ffffff;
+    background: $otacon-select;
+    color: $otacon-strong;
     text-style: bold;
 }
 
 Footer {
-    background: #0d1214;
-    color: #8a8a8a;
+    background: $otacon-surface;
+    color: $otacon-muted;
 }
 
 Footer > .footer--key {
-    background: #16302b;
-    color: #00d7af;
+    background: $otacon-select;
+    color: $otacon-brand;
     text-style: bold;
 }
 
 Toast {
-    background: #0d1214;
-    border: solid #00d7af;
+    background: $otacon-surface;
+    border: solid $otacon-brand;
 }
 """
 
