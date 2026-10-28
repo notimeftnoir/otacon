@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import signal as _signal
 import sys
 from enum import Enum
@@ -13,7 +14,9 @@ import typer
 from rich.console import Console
 
 from .._splash import play_intro
-from ..utils.theme import BANNER, OTACON_THEME
+from ..ui.emit import rich_theme
+from ..ui.tokens import DEFAULT_THEME, THEMES
+from ..utils.theme import OTACON_THEME, banner, set_palette
 from .commands.diff import execute_diff
 from .commands.generate import execute_generate
 from .commands.scan import _CI, _FILTER, _NET, _OUT, execute_scan
@@ -78,10 +81,27 @@ def _banner(animate: bool = False) -> None:
     if animate:
         play_intro(console)
     else:
-        console.print(BANNER, end="")
+        console.print(banner(), end="")
     console.print(
         f"  [muted]v{__version__} · find lookalike domains before attackers use them[/muted]\n"
     )
+
+
+def _apply_appearance(theme: str | None, ascii_only: bool) -> None:
+    """Resolves the palette and glyph level before anything renders.
+
+    The console is built at module scope, long before argv is parsed, so the
+    chosen theme is pushed onto it rather than passed to its constructor.
+    ``--ascii`` is exported into the environment because the detection in
+    ``ui.caps`` is what every surface reads, including the ones reached
+    through a library call rather than this callback.
+    """
+    if ascii_only:
+        os.environ["OTACON_ASCII"] = "1"
+    name = theme or os.environ.get("OTACON_THEME")
+    palette = set_palette(name)
+    if palette.name != DEFAULT_THEME:
+        console.push_theme(rich_theme(palette))
 
 
 def _version_callback(value: bool) -> None:
@@ -132,11 +152,26 @@ def _main(
         "-q",
         help="Disable UI, banner, and progress. Outputs JSON to stdout.",
     ),
+    theme: str = typer.Option(
+        None,
+        "--theme",
+        help=(
+            f"Colour theme: {' '.join(THEMES)}. "
+            "'vision' avoids red/green for colour-vision deficiency, "
+            "'mono' drops colour entirely. Also settable with OTACON_THEME."
+        ),
+    ),
+    ascii_only: bool = typer.Option(
+        False,
+        "--ascii",
+        help="Use ASCII stand-ins for the block and arrow glyphs, for limited fonts.",
+    ),
 ) -> None:
     """Shows banner before command execution or enters interactive guided mode when called bare."""
     ctx.obj = _CliState(quiet=quiet)
     console.quiet = quiet
     _configure_logging(debug)
+    _apply_appearance(theme, ascii_only)
 
     if not quiet:
         _banner(animate=ctx.invoked_subcommand is None)

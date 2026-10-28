@@ -10,17 +10,19 @@ from ..core.models import DomainResult, ScanReport
 from ..core.types import RiskLevel
 from ..net.whois import format_age
 from ..scoring.engine import count_fresh, get_age_fresh_days, get_age_new_days
-from ..utils.theme import GLYPH_DEFENSIVE, LOGO_DOTS_BOT, LOGO_DOTS_TOP
+from ..ui.emit import html_vars
+from ..utils.theme import (
+    GLYPH_DEFENSIVE,
+    LOGO_DOTS_BOT,
+    LOGO_DOTS_TOP,
+    active_palette,
+)
 from ..utils.validate import parse_redirect
 
-_CSS = """
-:root {
-    --bg:#0d0d0d; --surface:#151515; --surface2:#1e1e1e;
-    --border:#00875f; --brand:#00d7af;
-    --ok:#5fd700; --info:#5fafff; --warn:#ffd700;
-    --danger:#ff5f5f; --crit-fg:#fff; --crit-bg:#870000;
-    --muted:#8a8a8a; --field:#afafaf; --value:#fff;
-}
+# Everything below the :root block is layout; the colours are generated from
+# the active palette by ui.emit.html_vars, so the report themes with the rest
+# of the tool instead of carrying its own third copy of the palette.
+_CSS_BODY = """
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--value);font-family:'Courier New',monospace;
      margin:0;padding:2em;line-height:1.5}
@@ -141,13 +143,17 @@ _CSP = (
     "form-action 'none';"
 )
 
-_LEVEL_COLOR: dict[RiskLevel, str] = {
-    RiskLevel.SAFE: "#5fd700",
-    RiskLevel.LOW: "#5fafff",
-    RiskLevel.MEDIUM: "#ffd700",
-    RiskLevel.HIGH: "#ff5f5f",
-    RiskLevel.CRITICAL: "#ff0000",
-}
+
+def _level_colors() -> dict[RiskLevel, str]:
+    """Chart colours for the active palette, so SVG and table cannot disagree."""
+    palette = active_palette()
+    return {level: palette.tone(level).fg for level in RiskLevel}
+
+
+def _css() -> str:
+    """The stylesheet: palette-derived custom properties, then the layout."""
+    return f":root{{{html_vars(active_palette())}}}" + _CSS_BODY
+
 
 _LEVEL_CLASS: dict[RiskLevel, str] = {
     RiskLevel.SAFE: "ok",
@@ -194,7 +200,7 @@ def _age_cell(age_days: int | None) -> str:
 
 
 def _risk_cell(score: int, level: RiskLevel) -> str:
-    color = _LEVEL_COLOR[level]
+    color = _level_colors()[level]
     cls = _LEVEL_CLASS[level]
     bar = (
         f'<div style="background:{color};width:{score}%;height:6px;border-radius:3px;'
@@ -265,7 +271,7 @@ def _chart_svg(rows: list[DomainResult]) -> str:
         '<svg viewBox="0 0 600 20" class="risk-chart" role="img" aria-label="Risk Distribution">'
     ]
     x = 0.0
-    for level, color in _LEVEL_COLOR.items():
+    for level, color in _level_colors().items():
         cnt = counts[level]
         if cnt > 0:
             width = (cnt / total) * 600.0
@@ -277,7 +283,7 @@ def _chart_svg(rows: list[DomainResult]) -> str:
     svg_parts.append("</svg>")
 
     legend_items = []
-    for level, color in _LEVEL_COLOR.items():
+    for level, color in _level_colors().items():
         cnt = counts[level]
         if cnt > 0:
             legend_items.append(
@@ -429,7 +435,7 @@ def to_html(report: ScanReport) -> str:
   <meta http-equiv="Content-Security-Policy" content="{_CSP}">
   <meta name="referrer" content="no-referrer">
   <title>Otacon — {target}</title>
-  <style>{_CSS}</style>
+  <style>{_css()}</style>
 </head>
 <body>
   <header>
@@ -520,7 +526,7 @@ def aggregate_html(reports: dict[str, ScanReport]) -> str:
   <meta http-equiv="Content-Security-Policy" content="{_CSP}">
   <meta name="referrer" content="no-referrer">
   <title>Otacon — Multi-domain Scan</title>
-  <style>{_CSS}
+  <style>{_css()}
 h2{{{h2_style}}}</style>
 </head>
 <body>
