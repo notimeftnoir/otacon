@@ -9,17 +9,11 @@ from prompt_toolkit.shortcuts import prompt as _pt_prompt
 
 from . import permutations, reporters, scoring
 from ._asyncutils import run_async
-from ._scanner import run_scan
-from ._validate import (
-    is_valid_domain,
-    normalize_domain,
-    parse_domain_list,
-    safe_relative_path,
-)
-from .models import DomainResult, Permutation, ScanReport
+from .core.models import DomainResult, Permutation, ScanReport
+from .core.types import RiskLevel
+from .engine.scanner import run_scan
+from .net.resolver import DEFAULT_CONCURRENCY, Resolver
 from .net.whois import fetch_domain_age, format_age
-from .resolver import DEFAULT_CONCURRENCY, Resolver
-from .theme import GLYPH_DEFENSIVE, RiskLevel
 from .triage.actions import (
     _ACTION_CHOICES,
     _ACTION_HANDLERS,
@@ -57,6 +51,13 @@ from .triage.workflow import (
     _run_action_menu,
     _scan,
     run,
+)
+from .utils.theme import GLYPH_DEFENSIVE
+from .utils.validate import (
+    is_valid_domain,
+    normalize_domain,
+    parse_domain_list,
+    safe_relative_path,
 )
 
 __all__ = [

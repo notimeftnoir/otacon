@@ -8,7 +8,7 @@ import time
 from collections import Counter
 from collections.abc import Callable
 from contextlib import AsyncExitStack
-from typing import Any, cast
+from typing import Any
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -125,23 +125,7 @@ async def run_scan(
                 Live(progress, console=console, refresh_per_second=4, transient=True)
             )
 
-        def _get_resolver_cls() -> type[Resolver]:
-            import sys
-
-            for mod_name in (
-                "otacon._scanner",
-                "otacon.cli",
-                "otacon.interactive",
-                "otacon.resolver",
-            ):
-                mod = sys.modules.get(mod_name)
-                if mod and hasattr(mod, "Resolver"):
-                    val = mod.Resolver
-                    if val is not Resolver:
-                        return cast(type[Resolver], val)
-            return Resolver
-
-        resolver_cls = _get_resolver_cls()
+        resolver_cls = Resolver
         try:
             resolver = await stack.enter_async_context(
                 resolver_cls(

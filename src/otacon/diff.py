@@ -12,8 +12,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .models import DomainResult, ScanReport
-from .theme import RiskLevel
+from .core.models import DomainResult, ScanReport
+from .core.types import RiskLevel
 
 
 class DomainStatus(str, Enum):

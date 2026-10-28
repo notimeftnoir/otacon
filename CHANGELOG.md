@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- Deleted seven re-export shims left over from the 2.0 restructure — `_hashutils`, `_scanner`, `_validate`, `html_report`, `models`, `resolver` and `theme`. They forwarded pre-2.0 import paths that no published release ever used: 2.0.0 was never published and 1.0.x had a different layout entirely. Every importer now names the module that holds the code.
+- Deleted `engine.scanner`'s `sys.modules` search for a patched `Resolver`, and the two remaining lookups in `net/tls.py` and `net/resolver.py` that scanned for overrides on the shim module just deleted — dead branches that could never fire again. Production code no longer inspects the import table to discover test doubles in those paths.
+- Deleted `uv.lock` and `docs/specs/`. The lockfile was a second, unreferenced dependency pin alongside the hash-pinned `requirements*.txt` that CI actually installs, free to drift from it; the spec described a feature that shipped.
+
 ### Added
 - Scan reports now carry `dns_queries` and `dns_failures`, and the terminal verdict refuses to say "All clear" when failures reach 20% of lookups — it reports the scan as inconclusive instead. A domain that does not exist and a domain that could not be checked produce the same empty result, which is how v2.0.0 shipped a confident all-clear while resolving nothing. A name that does not exist counts as an answer rather than a failure, so a healthy scan sits near 5% even though most variants are unregistered.
 - A scheduled `Live network tests` workflow runs `pytest -m network` weekly and asserts that a real scan of a heavily squatted brand still returns registered lookalikes. The suite excludes that marker by default, so those tests had never run in CI — the guard against the aiodns class of break was dormant.

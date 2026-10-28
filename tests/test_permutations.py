@@ -11,7 +11,7 @@ Focused on the core of the project — the variant generator. We verify:
 from __future__ import annotations
 
 from otacon import permutations
-from otacon.models import PermutationType
+from otacon.core.models import PermutationType
 
 
 def test_generate_excludes_original():
@@ -412,7 +412,7 @@ def test_hyphenation_never_places_a_hyphen_against_a_label_boundary():
 
 def test_all_generated_variants_pass_the_project_domain_validator():
     """Nothing the generator emits should be rejected by our own FQDN validator."""
-    from otacon._validate import is_valid_domain
+    from otacon.utils.validate import is_valid_domain
 
     for target in ("example.com", "foo.example.com", "shop.example.co.uk", "my-corp.com"):
         invalid = [p.domain for p in permutations.generate(target) if not is_valid_domain(p.domain)]

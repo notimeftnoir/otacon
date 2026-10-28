@@ -10,6 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from rich.console import Console
 
+from otacon.core.models import (
+    DomainResult,
+    Permutation,
+    PermutationType,
+    ScanReport,
+)
 from otacon.interactive import (
     _action_loop,
     _confirm,
@@ -25,13 +31,7 @@ from otacon.interactive import (
     _YNValidator,
     run,
 )
-from otacon.models import (
-    DomainResult,
-    Permutation,
-    PermutationType,
-    ScanReport,
-)
-from otacon.theme import RiskLevel
+from otacon.utils.theme import RiskLevel
 
 # ---------------------------------------------------------------------------
 # Shared fixture
@@ -498,7 +498,7 @@ def test_action_loop_takedown_treats_page_title_as_literal_text():
     into Rich markup (e.g. a clickable ``[link=…]``) in the user's terminal."""
     from rich.console import Console
 
-    from otacon.theme import OTACON_THEME
+    from otacon.utils.theme import OTACON_THEME
 
     r = _registered()
     r.http_status = 200
@@ -619,7 +619,7 @@ def _patch_scan_deps(monkeypatch, resolver_cls=_FakeResolver) -> None:
         "otacon.interactive.permutations.generate",
         lambda target, exclude=None: _two_fake_perms(),
     )
-    monkeypatch.setattr("otacon._scanner.Resolver", resolver_cls)
+    monkeypatch.setattr("otacon.engine.scanner.Resolver", resolver_cls)
 
 
 @pytest.mark.asyncio

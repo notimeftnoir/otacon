@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from io import StringIO
 
-from otacon.models import DomainResult, PermutationType, ScanReport
+from otacon.core.models import DomainResult, PermutationType, ScanReport
 from otacon.reporters import (
     _age_cell,
     _check,
@@ -21,7 +21,7 @@ from otacon.reporters import (
     to_json,
     to_markdown,
 )
-from otacon.theme import GLYPH_DEFENSIVE, RiskLevel
+from otacon.utils.theme import GLYPH_DEFENSIVE, RiskLevel
 
 
 def test_to_markdown_no_threats_contains_clear_message() -> None:
@@ -138,7 +138,7 @@ def test_domain_cell_non_defensive_no_flag():
 def _make_console(no_color: bool = True):
     from rich.console import Console
 
-    from otacon.theme import OTACON_THEME
+    from otacon.utils.theme import OTACON_THEME
 
     buf = StringIO()
     return Console(file=buf, no_color=no_color, theme=OTACON_THEME, width=120), buf
@@ -633,8 +633,8 @@ def test_to_csv_neutralizes_formula_in_domain() -> None:
 
 
 def _make_report_with_results(domain: str, results=()) -> ScanReport:
-    from otacon.models import DomainResult, PermutationType, ScanReport
-    from otacon.theme import RiskLevel
+    from otacon.core.models import DomainResult, PermutationType, ScanReport
+    from otacon.utils.theme import RiskLevel
 
     r = ScanReport(target=domain, total_permutations=10)
     for kwargs in results:
@@ -653,7 +653,7 @@ def _make_report_with_results(domain: str, results=()) -> ScanReport:
 def test_aggregate_json_top_level_keys() -> None:
     import json
 
-    from otacon.models import ScanReport
+    from otacon.core.models import ScanReport
     from otacon.reporters import aggregate_json
 
     reports = {"github.com": ScanReport(target="github.com", total_permutations=5)}
@@ -664,7 +664,7 @@ def test_aggregate_json_top_level_keys() -> None:
 def test_aggregate_json_domain_keys_match_input() -> None:
     import json
 
-    from otacon.models import ScanReport
+    from otacon.core.models import ScanReport
     from otacon.reporters import aggregate_json
 
     reports = {
@@ -679,7 +679,7 @@ def test_aggregate_json_summary_counts() -> None:
     import json
 
     from otacon.reporters import aggregate_json
-    from otacon.theme import RiskLevel
+    from otacon.utils.theme import RiskLevel
 
     reports = {
         "a.com": _make_report_with_results(

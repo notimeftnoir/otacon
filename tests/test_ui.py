@@ -7,10 +7,17 @@ from io import StringIO
 
 from rich.console import Console
 
-from otacon import _scanner, _splash, reporters
+from otacon import _splash, reporters
+from otacon.core.models import DomainResult, PermutationType, ScanReport
+from otacon.core.types import RiskLevel
+from otacon.engine import scanner as _scanner
 from otacon.interactive import _dossier
-from otacon.models import DomainResult, PermutationType, ScanReport
-from otacon.theme import OTACON_THEME, WORDMARK, RiskLevel, gradient, gradient_color
+from otacon.utils.theme import (
+    OTACON_THEME,
+    WORDMARK,
+    gradient,
+    gradient_color,
+)
 
 
 def _console(**kw: object) -> tuple[Console, StringIO]:

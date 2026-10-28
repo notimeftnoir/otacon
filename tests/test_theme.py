@@ -2,7 +2,7 @@
 
 The bug these guard against is not a crash: it is the UI rendering "?" or tofu
 because a codepoint is missing from the reader's terminal font. See
-``otacon.theme.SAFE_GLYPHS``.
+``otacon.utils.theme.SAFE_GLYPHS``.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from otacon.theme import BANNER, SAFE_GLYPHS
+from otacon.utils.theme import BANNER, SAFE_GLYPHS
 
 # UI modules: everything these print can land in a terminal. Two modules are
 # deliberately excluded from this tuple:
