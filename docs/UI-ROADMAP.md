@@ -355,24 +355,48 @@ overview screen alone, how many domains need action and what the first one is.
 
 ## Phase 4 — operator features
 
+**Status: partly done.** Working the list landed. The items that need
+somewhere to remember things did not, and are listed below as a group.
+
 **Goal:** the things an analyst asks for on day two.
 
-- [ ] **Column sort** — `s` cycles score / domain / age / technique.
-- [ ] **Multi-select** — `space` marks rows; `A` select-all-visible.
-- [ ] **Bulk actions** — export, takedown notices and allow applied to a
-      selection, with a confirm screen that names the count.
-- [ ] **Persistent allow-list** — `a` currently lasts one session only. Offer to
-      write it to the per-target config so it survives, feeding `--exclude`.
-- [ ] **Compare screen** — `c` diffs against the previous run from history: new
-      registrations, score moves, disappearances. `diff` exists in the CLI and
-      the data is already on disk.
-- [ ] **Watchlist** — mark a target for a nightly rescan; emit the command for
-      cron or a CI job rather than running a daemon.
-- [ ] **Settings screen** — theme, density, glyph level, `fail-on` threshold,
-      default preset. Written to the existing config location.
-- [ ] **Otacon command palette** — a Textual `Provider` so `^p` lists the tool's
-      own commands instead of only the framework's.
-- [ ] **Export the current view** — whatever the filter shows, to JSON/CSV/HTML.
+### Landed
+
+- [x] **Column sort** — `s` cycles risk / name / age / technique. Band labels
+      draw only while sorted by risk; under any other order they would appear
+      to mark runs that are not runs.
+- [x] **Multi-select** — `space` marks a row and moves on; `v` marks everything
+      the filter shows. Marks are held by domain, not by index, because the
+      order changes under a sort. (`v`, not `A`: the rest of the bindings are
+      unshifted and shifted letters are not reliable across terminals.)
+- [x] **Bulk actions** — takedown notices, export and allow applied to the
+      marked rows, falling back to the row under the cursor. An action only
+      touches rows the filter currently shows. The confirm is an armed overlay
+      naming the count rather than a screen: the browser warning already works
+      that way, and a second idea of consent is one too many.
+- [x] **Export the current view** — `x` writes whatever the filter shows, as
+      JSON. CSV and HTML would need the reporters to take a row subset; not
+      asked for yet.
+- [x] **Otacon command palette** — a Textual `Provider`, so ctrl+p lists the
+      tool's own commands instead of only the framework's.
+
+### Still open
+
+These need a place to remember things, which Otacon does not have — scan
+history is a directory of reports, not configuration. They belong together,
+behind one small per-target config:
+
+- [ ] **Persistent allow-list** — `a` lasts one session. Offer to keep it, and
+      feed it to `--exclude`.
+- [ ] **Watchlist** — mark a target for a nightly rescan; emit the cron or CI
+      line rather than running a daemon.
+- [ ] **Settings screen** — theme, density, glyph level, `fail-on`, default
+      preset.
+
+This one needs no new storage and is the obvious next piece:
+
+- [ ] **Compare screen** — `c` diffs against the previous run. `history.latest`
+      and `triage.verdict.delta` already do the work; it needs a screen.
 
 ---
 
@@ -470,8 +494,8 @@ is a report about phishing; it must not phone home.
 | ~~2 — non-specialist~~ | 0, 1 | M | **Done.** The stated goal of the whole effort |
 | ~~3 — scan~~ | 0 | S | **Done.** Closed a real CLI/console regression |
 | ~~5 — console~~ | 0 | S | **Done.** Mostly deletion, as predicted |
+| 4 — operator | 1 | L | **Partly done.** Selection and sort landed; memory open |
 | ~~6 — HTML~~ | — | — | **Not doing.** The terminal is the product |
-| 4 — operator | 1 | L | Largest surface area, lowest urgency |
 | 7 — brand | 1, 2 | S | Screenshots are only worth regenerating once |
 
 Each phase lands as its own pull request with before/after screenshots rendered
