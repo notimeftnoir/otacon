@@ -359,3 +359,56 @@ def test_tools_scripts_still_import(script: str) -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert callable(module.main)
+
+
+def test_cross_module_names_are_declared_in_their_modules_all() -> None:
+    """A name one module imports from another is part of that module's surface.
+
+    Every module here keeps an explicit `__all__`, and a module-level constant
+    left out of it reads as private — to a human, and to CodeQL, which reported
+    `net.dns.NULL_MX` as an unused global because nothing inside `dns.py` reads
+    the constant that `resolver.py` imports. The alert was wrong about the name
+    being dead and right about the omission, so this checks the convention
+    rather than waiting for the next scan to notice.
+    """
+    import ast
+    from collections import defaultdict
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parent.parent / "src" / "otacon"
+    declared: dict[str, tuple[set[str], set[str] | None]] = {}
+    imported: dict[str, set[str]] = defaultdict(set)
+
+    for path in sorted(src.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        rel = str(path.relative_to(src)).removesuffix(".py").replace("/", ".")
+        module = rel.removesuffix(".__init__")
+        names: set[str] = set()
+        exported: set[str] | None = None
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if not isinstance(target, ast.Name):
+                        continue
+                    if target.id == "__all__":
+                        exported = {e.value for e in node.value.elts if isinstance(e, ast.Constant)}
+                    elif not target.id.startswith("_") or target.id.isupper():
+                        names.add(target.id)
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                names.add(node.target.id)
+        declared[module] = (names, exported)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.level:
+                for alias in node.names:
+                    imported[alias.name].add(module)
+
+    undeclared = [
+        f"{module}.{name} is imported by {', '.join(sorted(imported[name] - {module}))}"
+        for module, (names, exported) in sorted(declared.items())
+        if exported is not None
+        for name in sorted(names - exported)
+        if imported.get(name, set()) - {module}
+    ]
+    assert not undeclared, "names used across modules but missing from __all__:\n  " + "\n  ".join(
+        undeclared
+    )

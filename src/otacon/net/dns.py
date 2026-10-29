@@ -183,6 +183,7 @@ class DNSClient:
 
 __all__ = [
     "DEFAULT_DNS_TIMEOUT",
+    "NULL_MX",
     "DNSClient",
     "is_negative_answer",
     "query_records",
