@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Otacon now remembers what the operator decided, not only what a scan found. `a` on a row leaves that domain out of future scans of the target instead of lasting one session, `,` opens the settings, allow-list and watchlist, and `otacon watch` keeps the list of targets worth re-scanning and prints the crontab lines for them. Stored under `<OTACON_HOME>/config/`, owner-only; `OTACON_NO_CONFIG=1` turns it off.
-- `c` in the triage console opens what changed since the previous stored scan of this target: what was registered, what got worse, what was found, and what stopped resolving, each under its own heading. The comparison was only ever shown on the overview of a scan that had just finished, so reopening a saved report or walking back from the table lost it. Nothing is recomputed — scan history and the delta already did the work, there was no screen on them.
-
 ## [3.0.0] — 2026-10-29
 
 A major because the guided prompts are gone: the triage console is the tool
@@ -42,6 +38,8 @@ and are otherwise compatible.
 - `esc` stops a scan and keeps what it found; the report is marked `cancelled` and the verdict says so rather than reading as an all-clear.
 - Marks and bulk actions in the triage console: `space` marks a row and moves on, `v` marks everything the filter shows, and `t`, `e` and `a` act on the marked rows. Bulk writes arm and confirm with the count first. Marks are held by domain, not by index, and an action only ever touches rows the filter currently shows.
 - `s` cycles the table order (risk, name, age, technique) and `x` exports every row the current filter shows.
+- Otacon now remembers what the operator decided, not only what a scan found. `a` on a row leaves that domain out of future scans of the target instead of lasting one session, `,` opens the settings, allow-list and watchlist, and `otacon watch` keeps the list of targets worth re-scanning and prints the crontab lines for them. Stored under `<OTACON_HOME>/config/`, owner-only; `OTACON_NO_CONFIG=1` turns it off.
+- `c` in the triage console opens what changed since the previous stored scan of this target: what was registered, what got worse, what was found, and what stopped resolving, each under its own heading. The comparison was only ever shown on the overview of a scan that had just finished, so reopening a saved report or walking back from the table lost it. Nothing is recomputed — scan history and the delta already did the work, there was no screen on them.
 - `?` opens a glossary: the keys, the score bands, every flag and every technique in one plain sentence each.
 - `f` dims every row below the worst band present, and `b` swaps the severity glyph for the full bar.
 - A persistent status bar carrying the active filter, the row count, the marks and the order — this used to live in a toast that disappeared two seconds after it appeared, while still filtering.
