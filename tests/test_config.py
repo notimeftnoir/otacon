@@ -174,3 +174,12 @@ def test_watch_refuses_a_target_that_is_not_a_domain() -> None:
 def test_watch_will_not_add_and_remove_at_once() -> None:
     result = CliRunner().invoke(cli_app, ["watch", "--add", "a.com", "--remove", "b.com"])
     assert result.exit_code == 1
+
+
+def test_the_printed_schedule_comes_from_one_place() -> None:
+    """The constant and the CLI default were two copies of the same string, so
+    the constant went unused and the reasoning attached to it was orphaned."""
+    from otacon.cli.commands.watch import DEFAULT_SCHEDULE
+
+    result = CliRunner().invoke(cli_app, ["watch", "--add", "example.com"])
+    assert DEFAULT_SCHEDULE in result.output

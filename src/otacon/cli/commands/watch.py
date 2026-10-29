@@ -18,9 +18,13 @@ from rich.markup import escape
 from ... import config
 from ...utils.validate import is_valid_domain, normalize_domain
 
-# A fixed time would put every reader's scan on the same minute of the same
-# hour, which is neither kind to the registries being queried nor useful.
-_SCHEDULE = "17 7 * * *"
+DEFAULT_SCHEDULE = "17 7 * * *"
+"""When the printed crontab lines run.
+
+Not on the hour: every reader taking the default would otherwise queue their
+scans on the same minute, which is neither kind to the registries nor useful.
+Early enough that a nightly result is waiting before the working day.
+"""
 
 
 def _executable() -> str:
@@ -95,4 +99,4 @@ def execute_watch(
     )
 
 
-__all__ = ["execute_watch"]
+__all__ = ["DEFAULT_SCHEDULE", "execute_watch"]
