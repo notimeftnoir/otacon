@@ -210,6 +210,35 @@ Input:focus {
     max-width: 96;
 }
 
+/* ── settings, allow-list and watchlist ────────────────────────────────── */
+
+#settings {
+    width: 1fr;
+    height: 1fr;
+    padding: 1 4;
+}
+
+#settings-note {
+    padding-bottom: 1;
+}
+
+#settings OptionList {
+    background: $otacon-bg;
+    border: none;
+    height: auto;
+    padding: 0;
+}
+
+#settings OptionList:focus {
+    border: none;
+}
+
+#settings OptionList > .option-list--option-highlighted {
+    background: $otacon-select;
+    color: $otacon-strong;
+    text-style: bold;
+}
+
 /* ── start screen ──────────────────────────────────────────────────────── */
 
 #preset-label {

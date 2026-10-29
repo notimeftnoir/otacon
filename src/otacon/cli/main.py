@@ -22,6 +22,7 @@ from .commands.diff import execute_diff
 from .commands.generate import execute_generate
 from .commands.scan import _CI, _FILTER, _NET, _OUT, execute_scan
 from .commands.tui import execute_tui
+from .commands.watch import execute_watch
 from .state import _CliState
 
 
@@ -418,6 +419,20 @@ def tui(
         check_dnsbl=not no_dnsbl,
         check_ct=not no_ct,
     )
+
+
+@app.command()
+def watch(
+    add: str = typer.Option(None, "--add", "-a", help="Put a target on the watchlist."),
+    remove: str = typer.Option(None, "--remove", "-r", help="Take a target off it."),
+    schedule: str = typer.Option(
+        "17 7 * * *",
+        "--schedule",
+        help="Cron schedule for the printed lines.",
+    ),
+) -> None:
+    """Lists the targets worth re-scanning, with crontab lines to automate it."""
+    execute_watch(console=console, add=add, remove=remove, schedule=schedule)
 
 
 if __name__ == "__main__":

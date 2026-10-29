@@ -30,6 +30,7 @@ from textual.events import Resize
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Input, Static
 
+from ... import config
 from ...core.models import DomainResult, ScanReport
 from ...core.types import RiskLevel
 from ...net.whois import fetch_domain_age, format_age
@@ -129,6 +130,7 @@ class ResultsScreen(Screen[None]):
         Binding("4", "filter_level('4')", "low", show=False),
         Binding("5", "filter_level('5')", "safe", show=False),
         Binding("c", "compare", "compare"),
+        Binding("comma", "settings", "settings", show=False),
         Binding("s", "sort", "sort"),
         Binding("space", "toggle_select", "select", show=False),
         Binding("v", "select_visible", "select all", show=False),
@@ -508,6 +510,12 @@ class ResultsScreen(Screen[None]):
 
     # ── view modes ──────────────────────────────────────────────────────
 
+    def action_settings(self) -> None:
+        """Opens the settings, allow-list and watchlist for this target."""
+        from .settings import SettingsScreen
+
+        self.app.push_screen(SettingsScreen(self._report.target))
+
     def action_compare(self) -> None:
         """Opens what moved since the previous stored scan of this target."""
         from .compare import CompareScreen
@@ -658,7 +666,8 @@ class ResultsScreen(Screen[None]):
             ("t", "write abuse notices for the marked rows"),
             ("e", "export the marked rows as JSON"),
             ("r", "re-check the selected row now"),
-            ("a", "hide the marked rows for this session"),
+            ("a", "wave the marked rows through, now and in future scans"),
+            (",", "settings, the allow-list and the watchlist"),
             ("esc", "close this, or clear the filter"),
             ("q", "quit"),
         ):
@@ -728,18 +737,31 @@ class ResultsScreen(Screen[None]):
         return True
 
     def action_allow(self) -> None:
-        """Hides the marked rows, or the row under the cursor, for this session."""
+        """Waves the marked rows through, and remembers the decision.
+
+        Allowing used to last one session, so a defensive registration of your
+        own had to be dismissed again every week — the tool asked you to do
+        the same work repeatedly and then forgot the answer. The decision is
+        stored against this target and future scans skip those domains
+        entirely; `,` lists them and takes them back off.
+        """
         rows = self.targets
         if not rows:
             return
-        self._allowed.update(r.domain for r in rows)
-        self._selected.difference_update(r.domain for r in rows)
+        if self._needs_confirming("a", "Leave out of future scans", len(rows)):
+            return
+        self.query_one("#notice", Static).remove_class("visible")
+        names = [r.domain for r in rows]
+        self._allowed.update(names)
+        self._selected.difference_update(names)
+        kept = config.allow(self._report.target, *names) is not None
         self.refresh_rows()
+        what = names[0] if len(names) == 1 else f"{len(names)} domains"
         self.notify(
-            f"allowed for this session: {rows[0].domain}"
-            if len(rows) == 1
-            else f"allowed for this session: {len(rows)} domains",
-            timeout=4,
+            f"{what}: hidden, and left out of future scans of {self._report.target}"
+            if kept
+            else f"{what}: hidden for this session (config is switched off)",
+            timeout=5,
         )
 
     def action_open_site(self) -> None:

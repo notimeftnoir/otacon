@@ -355,9 +355,7 @@ overview screen alone, how many domains need action and what the first one is.
 
 ## Phase 4 — operator features
 
-**Status: partly done.** Working the list landed, and so did the comparison
-screen. The items that need somewhere to remember things did not, and are
-listed below as a group.
+**Status: done.**
 
 **Goal:** the things an analyst asks for on day two.
 
@@ -381,20 +379,22 @@ listed below as a group.
 - [x] **Otacon command palette** — a Textual `Provider`, so ctrl+p lists the
       tool's own commands instead of only the framework's.
 
-### Still open
+### Memory
 
-These need a place to remember things, which Otacon does not have — scan
-history is a directory of reports, not configuration. They belong together,
-behind one small per-target config:
+These needed a place to remember things; `otacon/config.py` is it, sitting
+beside the history under the same root and falling back rather than raising,
+because a convenience that can refuse to start is not one.
 
-- [ ] **Persistent allow-list** — `a` lasts one session. Offer to keep it, and
-      feed it to `--exclude`.
-- [ ] **Watchlist** — mark a target for a nightly rescan; emit the cron or CI
-      line rather than running a daemon.
-- [ ] **Settings screen** — theme, density, glyph level, `fail-on`, default
-      preset.
+- [x] **Persistent allow-list** — `a` leaves the domain out of future scans of
+      that target, rather than lasting one session. Both scan paths honour it;
+      the settings screen lists them and takes them back off.
+- [x] **Watchlist** — `otacon watch` keeps the list and prints crontab lines
+      for it. Otacon does not become a daemon to run on a schedule; the
+      machine already has one.
+- [x] **Settings screen** — `,` opens theme, glyph level, default preset,
+      `fail-on`, this target's watch state and its allow-list.
 
-Landed since, needing no new storage:
+Landed, needing no new storage:
 
 - [x] **Compare screen** — `c` diffs against the previous stored run, grouped
       by what kind of change each one is. `triage.verdict.baseline` picks the
@@ -498,7 +498,7 @@ is a report about phishing; it must not phone home.
 | ~~2 — non-specialist~~ | 0, 1 | M | **Done.** The stated goal of the whole effort |
 | ~~3 — scan~~ | 0 | S | **Done.** Closed a real CLI/console regression |
 | ~~5 — console~~ | 0 | S | **Done.** Mostly deletion, as predicted |
-| 4 — operator | 1 | L | **Partly done.** Selection, sort and compare landed; memory open |
+| ~~4 — operator~~ | 1 | L | **Done.** Selection, sort, compare, and the things it remembers |
 | ~~6 — HTML~~ | — | — | **Not doing.** The terminal is the product |
 | 7 — brand | 1, 2 | S | Screenshots are only worth regenerating once |
 

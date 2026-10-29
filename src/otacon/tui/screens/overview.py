@@ -51,6 +51,7 @@ class OverviewScreen(Screen[None]):
         # font budget in ui.glyphs and shows as tofu in Courier New.
         Binding("enter", "open_table", "all findings", key_display="enter"),
         Binding("c", "compare", "compare"),
+        Binding("comma", "settings", "settings", show=False),
         Binding("q", "app.quit", "quit"),
     ]
 
@@ -155,6 +156,12 @@ class OverviewScreen(Screen[None]):
         else:
             t.append(" to see everything that was checked.", style=pal.muted)
         return t
+
+    def action_settings(self) -> None:
+        """Opens the settings, allow-list and watchlist for this target."""
+        from .settings import SettingsScreen
+
+        self.app.push_screen(SettingsScreen(self._report.target))
 
     def action_compare(self) -> None:
         """Opens the full comparison against the previous stored scan."""

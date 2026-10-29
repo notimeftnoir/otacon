@@ -14,13 +14,19 @@ from pathlib import Path
 
 import pytest
 from textual.coordinate import Coordinate
-from textual.widgets import Checkbox, DataTable, RadioButton, Static
+from textual.widgets import Checkbox, DataTable, OptionList, RadioButton, Static
 
+from otacon import config
 from otacon.core.models import DomainResult, ScanReport
 from otacon.core.types import PermutationType, RiskLevel
 from otacon.triage.verdict import delta, verdict, worst_first
 from otacon.tui.app import OtaconTUI
-from otacon.tui.screens import CompareScreen, OverviewScreen, ResultsScreen
+from otacon.tui.screens import (
+    CompareScreen,
+    OverviewScreen,
+    ResultsScreen,
+    SettingsScreen,
+)
 from otacon.tui.screens.results import SortMode, column
 from otacon.tui.styles import OTACON_CSS
 from otacon.tui.widgets import (
@@ -907,3 +913,103 @@ async def test_c_opens_the_comparison_and_escape_returns(report: ScanReport) -> 
         await pilot.press("escape")
         await pilot.pause()
         assert isinstance(app.screen, ResultsScreen)
+
+
+# ── settings, the allow-list and the watchlist ──────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_allowing_a_row_keeps_it_out_of_future_scans(report: ScanReport) -> None:
+    """It used to last one session, so a defensive registration of your own
+    had to be dismissed again every week."""
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(150, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("a")
+        await pilot.pause()
+    assert "exampl3.com" in config.target("example.com").allowed
+
+
+@pytest.mark.asyncio
+async def test_allowing_many_rows_is_confirmed_first(report: ScanReport) -> None:
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(150, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("v")
+        await pilot.press("a")
+        await pilot.pause()
+        assert app.screen.query_one("#notice", Static).has_class("visible")
+        assert config.target("example.com").allowed == []
+        await pilot.press("a")
+        await pilot.pause()
+    assert len(config.target("example.com").allowed) == 4
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_lists_and_forgets_an_allowed_domain(
+    report: ScanReport,
+) -> None:
+    config.allow("example.com", "shop.example.com")
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("comma")
+        await pilot.pause()
+        assert isinstance(app.screen, SettingsScreen)
+        assert "shop.example.com" in _screen_text(app)
+
+        allow_list = app.screen.query_one("#allow-list", OptionList)
+        allow_list.focus()
+        allow_list.highlighted = 0
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+    assert config.target("example.com").allowed == []
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_toggles_the_watchlist(report: ScanReport) -> None:
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("comma")
+        await pilot.pause()
+        options = app.screen.query_one("#settings-list", OptionList)
+        options.focus()
+        options.highlighted = 4  # "Watch example.com"
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+    assert config.watched() == ["example.com"]
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_cycles_a_preference_and_stores_it(
+    report: ScanReport,
+) -> None:
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("comma")
+        await pilot.pause()
+        options = app.screen.query_one("#settings-list", OptionList)
+        options.focus()
+        options.highlighted = 0  # theme
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+    assert config.settings().theme != "midnight"
+
+
+@pytest.mark.asyncio
+async def test_settings_screen_says_so_when_nothing_can_be_kept(
+    report: ScanReport, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A screen that silently discards every change is worse than no screen."""
+    monkeypatch.setenv("OTACON_NO_CONFIG", "1")
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("comma")
+        await pilot.pause()
+        assert "OTACON_NO_CONFIG" in _screen_text(app)

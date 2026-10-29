@@ -34,7 +34,7 @@ from textual.widgets import (
 )
 from textual.widgets.option_list import Option
 
-from ... import history
+from ... import config, history
 from ...core.models import DomainResult, ScanReport
 from ...core.types import RiskLevel, ScanPhase
 from ...engine.progress import ScanProgress
@@ -305,6 +305,7 @@ class StartScreen(Screen[None]):
         try:
             report = await run_scan(
                 target=target,
+                exclude=set(config.target(target).allowed),
                 concurrency=50,
                 console=Console(quiet=True),
                 show_progress=False,

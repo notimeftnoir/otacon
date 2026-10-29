@@ -15,8 +15,10 @@ import stat
 import sys
 
 import pytest
+from typer.testing import CliRunner
 
 from otacon import config
+from otacon.cli import app as cli_app
 
 
 def test_defaults_when_nothing_has_been_stored() -> None:
@@ -117,3 +119,58 @@ def test_opting_out_stores_nothing_and_reads_defaults(monkeypatch: pytest.Monkey
     assert config.settings() == config.Settings()
     assert config.target("example.com") == config.TargetConfig()
     assert config.watched() == []
+
+
+# ── the surfaces on top of it ───────────────────────────────────────────
+
+
+def test_a_stored_allow_list_keeps_those_domains_out_of_a_scan(monkeypatch) -> None:
+    """The point of remembering: a domain waved through is not re-checked."""
+    from otacon.cli.commands import scan as scan_cmd
+
+    config.allow("example.com", "shop.example.com")
+    seen: dict[str, object] = {}
+
+    async def fake_scan(target, concurrency, check_http, **kwargs):  # type: ignore[no-untyped-def]
+        seen["exclude"] = kwargs.get("exclude")
+        from otacon.core.models import ScanReport
+
+        return ScanReport(target=target, total_permutations=1)
+
+    monkeypatch.setattr(scan_cmd, "_run_scan", fake_scan)
+    runner = CliRunner()
+    runner.invoke(cli_app, ["-q", "scan", "example.com"])
+    assert seen["exclude"] is not None
+    assert "shop.example.com" in seen["exclude"]  # type: ignore[operator]
+
+
+def test_watch_lists_nothing_before_anything_is_added() -> None:
+    result = CliRunner().invoke(cli_app, ["watch"])
+    assert result.exit_code == 0
+    assert "Nothing on the watchlist" in result.output
+
+
+def test_watch_adds_removes_and_prints_a_cron_line() -> None:
+    runner = CliRunner()
+    added = runner.invoke(cli_app, ["watch", "--add", "example.com"])
+    assert added.exit_code == 0
+    assert "now watched" in added.output
+    assert "crontab" in added.output
+    # The line has to be pasteable, which means one line per target.
+    cron = [ln for ln in added.output.splitlines() if "scan example.com" in ln]
+    assert len(cron) == 1
+
+    removed = runner.invoke(cli_app, ["watch", "--remove", "example.com"])
+    assert "no longer watched" in removed.output
+    assert config.watched() == []
+
+
+def test_watch_refuses_a_target_that_is_not_a_domain() -> None:
+    result = CliRunner().invoke(cli_app, ["watch", "--add", "../etc/passwd"])
+    assert result.exit_code == 1
+    assert "invalid domain" in result.output
+
+
+def test_watch_will_not_add_and_remove_at_once() -> None:
+    result = CliRunner().invoke(cli_app, ["watch", "--add", "a.com", "--remove", "b.com"])
+    assert result.exit_code == 1

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Otacon now remembers what the operator decided, not only what a scan found. `a` on a row leaves that domain out of future scans of the target instead of lasting one session, `,` opens the settings, allow-list and watchlist, and `otacon watch` keeps the list of targets worth re-scanning and prints the crontab lines for them. Stored under `<OTACON_HOME>/config/`, owner-only; `OTACON_NO_CONFIG=1` turns it off.
 - `c` in the triage console opens what changed since the previous stored scan of this target: what was registered, what got worse, what was found, and what stopped resolving, each under its own heading. The comparison was only ever shown on the overview of a scan that had just finished, so reopening a saved report or walking back from the table lost it. Nothing is recomputed — scan history and the delta already did the work, there was no screen on them.
 
 ## [3.0.0] — 2026-10-29

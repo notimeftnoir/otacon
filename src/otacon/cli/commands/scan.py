@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from ... import history
+from ... import config, history
 from ..._asyncutils import run_async
 from ...core.models import ScanReport
 from ...core.types import RiskLevel
@@ -193,6 +193,10 @@ def execute_scan(
             scan_errors.append(d)
             continue
 
+        # A domain the operator waved through is one they have already decided
+        # about; re-checking it every week is work they did not ask for.
+        remembered = set(config.target(d).allowed)
+        per_target = exclusions | remembered
         console.print(f"\n[brand]►[/brand] Scanning [bold white]{escape(d)}[/bold white]")
         console.print(
             f"  [muted]{'DNS only' if no_http else 'DNS + HTTP/SSL'}"
@@ -200,7 +204,8 @@ def execute_scan(
             + (" · DNSBL off" if no_dnsbl else " · DNSBL")
             + (" · CT off" if no_ct else " · CT")
             + f" · {concurrency} parallel checks"
-            + (f" · whitelist: {len(exclusions)}" if exclusions else "")
+            + (f" · whitelist: {len(per_target)}" if per_target else "")
+            + (f" ({len(remembered)} remembered)" if remembered else "")
             + "[/muted]"
         )
 
@@ -209,7 +214,7 @@ def execute_scan(
         reporters_mod = reporters
 
         scan_kwargs: dict[str, Any] = {
-            "exclude": exclusions,
+            "exclude": per_target,
             "quiet": quiet,
             "weights": weights,
             "check_whois": not no_whois,
