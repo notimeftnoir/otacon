@@ -30,8 +30,9 @@ from ...core.models import ScanReport
 from ...core.types import RiskLevel
 from ...net.whois import format_age
 from ...triage.verdict import Delta, reasons, verdict, worst_first
+from ...ui.glyphs import degrade
 from ...ui.tokens import Palette
-from ...utils.theme import active_palette
+from ...utils.theme import active_glyphs, active_palette
 from ..widgets import distribution, wordmark
 from .results import ResultsScreen
 
@@ -95,8 +96,9 @@ class OverviewScreen(Screen[None]):
         v = verdict(self._report)
         tone = pal.tone(_TONE_LEVEL[v.tone])
 
+        marker = degrade(v.marker, active_glyphs())
         parts: list[RenderableType] = [
-            Text(v.headline, style=f"bold {tone.fg}"),
+            Text(f"{marker} {v.headline}", style=f"bold {tone.fg}"),
             Text(v.explanation, style=pal.muted),
         ]
 

@@ -15,6 +15,8 @@ from rich.text import Text
 from ..core.models import DomainResult, ScanReport
 from ..core.types import RiskLevel
 from ..ui.copy import FLAGS
+from ..ui.copy import flags as flag_names
+from ..ui.copy import signals as _signals
 from ..ui.tokens import MIDNIGHT, Palette
 from ..utils.theme import active_palette
 
@@ -146,36 +148,14 @@ def band_cell(level: RiskLevel, first_of_band: bool, palette: Palette | None = N
 
 def badges(r: DomainResult) -> str:
     """Compact marker string for the flags that change how a row is treated."""
-    marks: list[str] = []
-    if r.dnsbl_listed:
-        marks.append(FLAGS["dnsbl"].short)
-    if r.favicon_matches_target:
-        marks.append(FLAGS["favicon"].short)
-    if r.has_login_form:
-        marks.append(FLAGS["login"].short)
-    if r.has_mx and r.is_mail_spoofable:
-        marks.append(FLAGS["spoof"].short)
-    if r.is_sinkhole:
-        marks.append(FLAGS["sinkhole"].short)
-    elif r.is_parked:
-        marks.append(FLAGS["parked"].short)
-    if r.is_likely_defensive:
-        # Was a bare "»", the one marker in this column with no way to find out
-        # what it meant.
-        marks.append(FLAGS["defensive"].short)
-    return " ".join(marks)
+    return " ".join(FLAGS[name].short for name in flag_names(r))
 
 
 def signals(r: DomainResult) -> str:
-    """DNS / MX / SSL / HTTP presence, as a fixed-order checklist."""
-    parts = [
-        ("DNS", r.resolves),
-        ("MX", r.has_mx),
-        ("SSL", r.has_ssl),
-    ]
-    out = [name if ok else "·" * len(name) for name, ok in parts]
-    out.append(str(r.http_status) if r.http_status is not None else "···")
-    return " ".join(out)
+    """The presence checklist, degraded to what this terminal can draw."""
+    from ..utils.theme import active_glyphs
+
+    return _signals(r, active_glyphs())
 
 
 def level_counts(report: ScanReport) -> dict[RiskLevel, int]:

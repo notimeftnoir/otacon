@@ -52,7 +52,10 @@ def test_dangerous_scan_counts_only_the_dangerous_ones() -> None:
         )
     )
     assert v.tone == "danger"
-    assert v.headline.startswith("⚠ 2 lookalikes")
+    assert v.headline.startswith("2 lookalikes")
+    # The glyph is the renderer's job: a headline carrying a literal U+26A0
+    # cannot be shown on a terminal that has no such character.
+    assert v.marker == "⚠"
 
 
 def test_one_dangerous_lookalike_reads_as_singular() -> None:

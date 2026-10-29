@@ -21,6 +21,7 @@ from .validate import (
     normalize_domain,
     parse_domain_list,
     parse_redirect,
+    redirect_host,
     safe_cli_path,
     safe_relative_path,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "normalize_domain",
     "parse_domain_list",
     "parse_redirect",
+    "redirect_host",
     "safe_cli_path",
     "safe_relative_path",
     "wordmark_markup",

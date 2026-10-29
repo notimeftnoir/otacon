@@ -20,7 +20,7 @@ from ..utils.theme import (
     WORDMARK,
     active_palette,
 )
-from ..utils.validate import parse_redirect
+from ..utils.validate import redirect_host
 
 # Everything below the :root block is layout; the colours are generated from
 # the active palette by ui.emit.html_vars, so the report themes with the rest
@@ -265,8 +265,7 @@ def _domain_cell(r: DomainResult) -> str:
         f'<br><span class="technique">{_h(r.kind.value)}</span>',
     ]
     if r.is_likely_defensive and r.redirects_to:
-        parsed = parse_redirect(r.redirects_to)
-        host = (parsed[0] if parsed else "") or r.redirects_to
+        host = redirect_host(r.redirects_to)
         parts.append(f'<span class="defensive"> {GLYPH_DEFENSIVE} {_h(host)}</span>')
     if r.page_title:
         parts.append(f'<br><span class="page-title">"{_h(r.page_title)}"</span>')

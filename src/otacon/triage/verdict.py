@@ -37,6 +37,16 @@ class Verdict:
     headline: str
     explanation: str
 
+    @property
+    def marker(self) -> str:
+        """The glyph a surface should put in front of the headline.
+
+        Kept out of the headline itself so each surface can degrade it: a
+        verdict carrying a literal U+26A0 cannot be rendered on a terminal
+        that has no such character, and the sentence is the part that matters.
+        """
+        return {"danger": "⚠", "warn": "●", "ok": "✓"}[self.tone]
+
     degraded: bool
     """True when the result is not a complete picture, for any reason.
 
@@ -86,7 +96,7 @@ def verdict(report: ScanReport) -> Verdict:
                 default=RiskLevel.SAFE,
             ),
             headline=(
-                f"● Stopped early: {checked} of {report.total_permutations} "
+                f"Stopped early: {checked} of {report.total_permutations} "
                 f"lookalikes of {target} were checked"
             ),
             explanation=(
@@ -104,7 +114,7 @@ def verdict(report: ScanReport) -> Verdict:
         return Verdict(
             tone="warn",
             level=RiskLevel.SAFE,
-            headline=f"⚠ Inconclusive: {pct}% of DNS lookups for {target} failed",
+            headline=f"Inconclusive: {pct}% of DNS lookups for {target} failed",
             explanation=(
                 f"{report.dns_failures} of {report.dns_queries} lookups could not be answered, "
                 "so a domain shown as unregistered may simply not have been checked. "
@@ -118,7 +128,7 @@ def verdict(report: ScanReport) -> Verdict:
             tone="ok",
             level=RiskLevel.SAFE,
             headline=(
-                f"✓ All clear: none of the {report.total_permutations} lookalikes of "
+                f"All clear: none of the {report.total_permutations} lookalikes of "
                 f"{target} are registered"
             ),
             explanation=(
@@ -135,7 +145,7 @@ def verdict(report: ScanReport) -> Verdict:
             tone="danger",
             level=worst,
             headline=(
-                f"⚠ {k} lookalike{'s' if k != 1 else ''} of {target} "
+                f"{k} lookalike{'s' if k != 1 else ''} of {target} "
                 f"look{'' if k != 1 else 's'} dangerous"
             ),
             explanation=(
@@ -149,7 +159,7 @@ def verdict(report: ScanReport) -> Verdict:
         return Verdict(
             tone="warn",
             level=worst,
-            headline=f"● {n} registered lookalike{plural} of {target}, nothing urgent",
+            headline=f"{n} registered lookalike{plural} of {target}, nothing urgent",
             explanation=(
                 "They exist, but show few signs of being used for attacks yet. Worth a look."
             ),
@@ -159,7 +169,7 @@ def verdict(report: ScanReport) -> Verdict:
     return Verdict(
         tone="ok",
         level=worst,
-        headline=f"✓ {n} registered lookalike{plural} of {target}, all look harmless",
+        headline=f"{n} registered lookalike{plural} of {target}, all look harmless",
         explanation="Parked pages or redirects back to your own site.",
         degraded=False,
     )

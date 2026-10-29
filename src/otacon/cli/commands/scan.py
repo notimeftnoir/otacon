@@ -168,6 +168,7 @@ def execute_scan(
     no_ct: bool,
     concurrency: int,
     show_all: bool,
+    top: int,
     exclude: str | None,
     exclude_file: Path | None,
     fail_on: str | None,
@@ -242,7 +243,7 @@ def execute_scan(
             # History is a convenience; never let it cost the operator a scan.
             _log_history_failure(console, exc)
 
-        reporters_mod.render_table(report, console, show_safe=show_all)
+        reporters_mod.render_table(report, console, show_safe=show_all, top=top)
         all_reports[d] = report
 
     if not all_reports:

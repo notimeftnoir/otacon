@@ -280,6 +280,14 @@ def scan(
     show_all: bool = typer.Option(
         False, "--all", help="Show unregistered variants too.", rich_help_panel=_FILTER
     ),
+    top: int = typer.Option(
+        0,
+        "--top",
+        "-n",
+        min=0,
+        help="Show only the N riskiest rows in the table (0 = all).",
+        rich_help_panel=_FILTER,
+    ),
     exclude: str = typer.Option(
         None,
         "--exclude",
@@ -326,6 +334,7 @@ def scan(
         no_ct=no_ct,
         concurrency=concurrency,
         show_all=show_all,
+        top=top,
         exclude=exclude,
         exclude_file=exclude_file,
         fail_on=fail_on.value if fail_on is not None else None,
