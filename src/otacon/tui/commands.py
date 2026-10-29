@@ -20,6 +20,7 @@ from textual.command import DiscoveryHit, Hit, Hits, Provider
 # overlay, because two names for one action is how an interface stops being
 # learnable.
 _COMMANDS: tuple[tuple[str, str, str], ...] = (
+    ("What changed", "since the last scan of this target", "compare"),
     ("Sort rows", "risk, name, age or technique", "sort"),
     ("Mark row", "mark the current row and move on", "toggle_select"),
     ("Mark everything shown", "or clear the marks", "select_visible"),

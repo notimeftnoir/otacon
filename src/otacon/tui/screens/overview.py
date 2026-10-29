@@ -50,6 +50,7 @@ class OverviewScreen(Screen[None]):
         # key_display: Textual renders "enter" as U+23CE, which is outside the
         # font budget in ui.glyphs and shows as tofu in Courier New.
         Binding("enter", "open_table", "all findings", key_display="enter"),
+        Binding("c", "compare", "compare"),
         Binding("q", "app.quit", "quit"),
     ]
 
@@ -154,6 +155,12 @@ class OverviewScreen(Screen[None]):
         else:
             t.append(" to see everything that was checked.", style=pal.muted)
         return t
+
+    def action_compare(self) -> None:
+        """Opens the full comparison against the previous stored scan."""
+        from .compare import CompareScreen
+
+        self.app.push_screen(CompareScreen(self._report))
 
     def action_open_table(self) -> None:
         """Opens the full findings table.

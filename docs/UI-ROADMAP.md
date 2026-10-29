@@ -355,8 +355,9 @@ overview screen alone, how many domains need action and what the first one is.
 
 ## Phase 4 — operator features
 
-**Status: partly done.** Working the list landed. The items that need
-somewhere to remember things did not, and are listed below as a group.
+**Status: partly done.** Working the list landed, and so did the comparison
+screen. The items that need somewhere to remember things did not, and are
+listed below as a group.
 
 **Goal:** the things an analyst asks for on day two.
 
@@ -393,10 +394,13 @@ behind one small per-target config:
 - [ ] **Settings screen** — theme, density, glyph level, `fail-on`, default
       preset.
 
-This one needs no new storage and is the obvious next piece:
+Landed since, needing no new storage:
 
-- [ ] **Compare screen** — `c` diffs against the previous run. `history.latest`
-      and `triage.verdict.delta` already do the work; it needs a screen.
+- [x] **Compare screen** — `c` diffs against the previous stored run, grouped
+      by what kind of change each one is. `triage.verdict.baseline` picks the
+      run to compare against, skipping the report already on screen: a scan is
+      stored the moment it finishes, so the newest record is usually the one
+      the operator is looking at.
 
 ---
 
@@ -494,7 +498,7 @@ is a report about phishing; it must not phone home.
 | ~~2 — non-specialist~~ | 0, 1 | M | **Done.** The stated goal of the whole effort |
 | ~~3 — scan~~ | 0 | S | **Done.** Closed a real CLI/console regression |
 | ~~5 — console~~ | 0 | S | **Done.** Mostly deletion, as predicted |
-| 4 — operator | 1 | L | **Partly done.** Selection and sort landed; memory open |
+| 4 — operator | 1 | L | **Partly done.** Selection, sort and compare landed; memory open |
 | ~~6 — HTML~~ | — | — | **Not doing.** The terminal is the product |
 | 7 — brand | 1, 2 | S | Screenshots are only worth regenerating once |
 

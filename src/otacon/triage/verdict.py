@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 
 from ..core.models import DomainResult, ScanReport
 from ..core.types import RiskLevel
@@ -37,6 +38,14 @@ class Verdict:
     headline: str
     explanation: str
 
+    degraded: bool
+    """True when the result is not a complete picture, for any reason.
+
+    A scan the operator stopped and a scan whose resolver failed both leave a
+    short result list that reads exactly like a quiet one, so neither may be
+    reported as an all-clear.
+    """
+
     @property
     def marker(self) -> str:
         """The glyph a surface should put in front of the headline.
@@ -47,13 +56,19 @@ class Verdict:
         """
         return {"danger": "⚠", "warn": "●", "ok": "✓"}[self.tone]
 
-    degraded: bool
-    """True when the result is not a complete picture, for any reason.
 
-    A scan the operator stopped and a scan whose resolver failed both leave a
-    short result list that reads exactly like a quiet one, so neither may be
-    reported as an all-clear.
+class ChangeKind(str, Enum):
+    """What sort of movement a change is.
+
+    Carried alongside the sentence rather than inferred from it: a screen that
+    groups these by matching on prose breaks the first time the wording is
+    improved.
     """
+
+    REGISTERED = "newly registered"
+    ESCALATED = "risk rose"
+    FOUND = "found since last time"
+    GONE = "no longer registered"
 
 
 @dataclass(frozen=True)
@@ -62,6 +77,7 @@ class Change:
 
     domain: str
     detail: str
+    kind: ChangeKind = ChangeKind.REGISTERED
 
 
 @dataclass(frozen=True)
@@ -226,22 +242,57 @@ def delta(previous: ScanReport, current: ScanReport) -> Delta:
         was = before.get(r.domain)
         if was is None:
             if r.is_registered:
-                changes.append(Change(r.domain, "found since last time"))
+                changes.append(Change(r.domain, "found since last time", ChangeKind.FOUND))
             continue
         if r.is_registered and not was.is_registered:
-            changes.append(Change(r.domain, "newly registered"))
+            changes.append(Change(r.domain, "newly registered", ChangeKind.REGISTERED))
         elif r.is_registered and r.risk_level.rank > was.risk_level.rank:
             changes.append(
-                Change(r.domain, f"risk rose {was.risk_level.value} to {r.risk_level.value}")
+                Change(
+                    r.domain,
+                    f"risk rose {was.risk_level.value} to {r.risk_level.value}",
+                    ChangeKind.ESCALATED,
+                )
             )
 
     now = {r.domain for r in current.results if r.is_registered}
     for domain, was in before.items():
         if was.is_registered and domain not in now:
-            changes.append(Change(domain, "no longer registered"))
+            changes.append(Change(domain, "no longer registered", ChangeKind.GONE))
 
     changes.sort(key=lambda c: c.domain)
     return Delta(since=previous.started_at, changes=changes)
 
 
-__all__ = ["Change", "Delta", "Verdict", "delta", "reasons", "verdict", "worst_first"]
+def baseline(report: ScanReport) -> ScanReport | None:
+    """The stored scan to compare *report* against, or None if it is the first.
+
+    Skips any stored run that is this one. A scan is written to history the
+    moment it finishes, so the newest record is usually the report already on
+    screen, and comparing it with itself would report that nothing ever
+    changes.
+    """
+    from .. import history
+
+    try:
+        for record in history.scans(report.target):
+            if record.started_at != report.started_at:
+                return history.load(record.path)
+    except Exception:
+        # History is a convenience; an unreadable store must not cost the
+        # operator the screen they asked for.
+        return None
+    return None
+
+
+__all__ = [
+    "Change",
+    "ChangeKind",
+    "Delta",
+    "Verdict",
+    "baseline",
+    "delta",
+    "reasons",
+    "verdict",
+    "worst_first",
+]

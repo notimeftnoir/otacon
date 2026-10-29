@@ -20,7 +20,7 @@ from otacon.core.models import DomainResult, ScanReport
 from otacon.core.types import PermutationType, RiskLevel
 from otacon.triage.verdict import delta, verdict, worst_first
 from otacon.tui.app import OtaconTUI
-from otacon.tui.screens import OverviewScreen, ResultsScreen
+from otacon.tui.screens import CompareScreen, OverviewScreen, ResultsScreen
 from otacon.tui.screens.results import SortMode, column
 from otacon.tui.styles import OTACON_CSS
 from otacon.tui.widgets import (
@@ -846,3 +846,64 @@ async def test_a_refresh_keeps_the_row_under_the_cursor(report: ScanReport) -> N
         await pilot.pause()
         assert screen.selected is not None
         assert screen.selected.domain == here.domain
+
+
+# ── what changed since last time ────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_compare_groups_changes_under_their_own_headings(report: ScanReport) -> None:
+    """Three questions — what is new, what got worse, what went away — should
+    be three headings rather than one list to read through."""
+    earlier = report.model_copy(
+        update={
+            "started_at": report.started_at - timedelta(days=4),
+            "results": [DomainResult(domain=r.domain, kind=r.kind) for r in report.results],
+        }
+    )
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await app.push_screen(CompareScreen(report, earlier))
+        await pilot.pause()
+        shown = _screen_text(app)
+    assert "NEWLY REGISTERED" in shown
+    assert "exampl3.com" in shown
+    assert "compared with 4d ago" in shown
+
+
+@pytest.mark.asyncio
+async def test_compare_says_so_when_nothing_moved(report: ScanReport) -> None:
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await app.push_screen(CompareScreen(report, report))
+        await pilot.pause()
+        shown = _screen_text(app)
+    assert "Nothing moved" in shown
+    assert "NEWLY REGISTERED" not in shown
+
+
+@pytest.mark.asyncio
+async def test_compare_explains_itself_on_a_first_scan(report: ScanReport) -> None:
+    """An empty screen would read as a failure rather than as a first run."""
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await app.push_screen(CompareScreen(report, None))
+        await pilot.pause()
+        shown = _screen_text(app)
+    assert "first scan of this target" in shown
+
+
+@pytest.mark.asyncio
+async def test_c_opens_the_comparison_and_escape_returns(report: ScanReport) -> None:
+    app = OtaconTUI(report, landing="results")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        assert isinstance(app.screen, CompareScreen)
+        await pilot.press("escape")
+        await pilot.pause()
+        assert isinstance(app.screen, ResultsScreen)

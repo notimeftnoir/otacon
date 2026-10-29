@@ -15,7 +15,14 @@ import pytest
 from otacon.core.models import DomainResult, ScanReport
 from otacon.core.types import PermutationType, RiskLevel
 from otacon.reporters import console as reporters
-from otacon.triage.verdict import delta, reasons, verdict, worst_first
+from otacon.triage.verdict import (
+    ChangeKind,
+    baseline,
+    delta,
+    reasons,
+    verdict,
+    worst_first,
+)
 
 
 def _r(domain: str, score: int, level: RiskLevel, **kw: object) -> DomainResult:
@@ -158,3 +165,45 @@ def test_delta_ignores_churn_that_is_not_about_risk(field: str) -> None:
     changed = {"ip_addresses": ["9.9.9.9"], "server_header": "other"}[field]
     after = _report(_r("a.com", 50, RiskLevel.MEDIUM, **{field: changed}))  # type: ignore[arg-type]
     assert delta(before, after).quiet
+
+
+# ── which stored scan to compare against ────────────────────────────────
+
+
+def test_baseline_skips_the_report_already_on_screen() -> None:
+    """A scan is stored the moment it finishes, so the newest record is
+    usually the report the operator is looking at. Comparing it with itself
+    would report that nothing ever changes.
+
+    conftest's autouse fixture already points OTACON_HOME at a temporary
+    directory, so this writes nowhere near a real one.
+    """
+    from otacon import history
+
+    older = ScanReport(
+        target="example.com",
+        started_at=datetime.now(UTC) - timedelta(days=3),
+        total_permutations=200,
+        results=[_r("a.com", 50, RiskLevel.MEDIUM)],
+    )
+    current = _report(_r("a.com", 90, RiskLevel.CRITICAL))
+    history.save(older)
+    history.save(current)
+
+    picked = baseline(current)
+    assert picked is not None
+    assert picked.started_at == older.started_at
+
+
+def test_baseline_is_none_on_a_first_scan() -> None:
+    assert baseline(_report(_r("a.com", 50, RiskLevel.MEDIUM))) is None
+
+
+def test_changes_carry_their_kind_rather_than_only_prose() -> None:
+    """Grouping by matching on sentences breaks the first time the wording
+    is improved."""
+    before, after = _two_reports()
+    kinds = {c.domain: c.kind for c in delta(before, after).changes}
+    assert kinds["fresh.com"] is ChangeKind.REGISTERED
+    assert kinds["worse.com"] is ChangeKind.ESCALATED
+    assert kinds["gone.com"] is ChangeKind.GONE

@@ -197,6 +197,19 @@ Input:focus {
     max-width: 96;
 }
 
+/* ── compare: what moved since last time ───────────────────────────────── */
+
+#compare {
+    width: 1fr;
+    height: 1fr;
+    padding: 1 4;
+}
+
+#compare-body {
+    height: auto;
+    max-width: 96;
+}
+
 /* ── start screen ──────────────────────────────────────────────────────── */
 
 #preset-label {

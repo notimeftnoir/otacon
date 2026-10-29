@@ -128,6 +128,7 @@ class ResultsScreen(Screen[None]):
         Binding("3", "filter_level('3')", "med", show=False),
         Binding("4", "filter_level('4')", "low", show=False),
         Binding("5", "filter_level('5')", "safe", show=False),
+        Binding("c", "compare", "compare"),
         Binding("s", "sort", "sort"),
         Binding("space", "toggle_select", "select", show=False),
         Binding("v", "select_visible", "select all", show=False),
@@ -507,6 +508,12 @@ class ResultsScreen(Screen[None]):
 
     # ── view modes ──────────────────────────────────────────────────────
 
+    def action_compare(self) -> None:
+        """Opens what moved since the previous stored scan of this target."""
+        from .compare import CompareScreen
+
+        self.app.push_screen(CompareScreen(self._report))
+
     def action_sort(self) -> None:
         """Cycles the table order."""
         nxt = (_SORT_ORDER.index(self._sort) + 1) % len(_SORT_ORDER)
@@ -636,6 +643,7 @@ class ResultsScreen(Screen[None]):
         for key, what in (
             ("↑ ↓  j k", "move between rows"),
             ("1 … 5", "show only one severity, press again to lift it"),
+            ("c", "what changed since the last scan of this target"),
             ("s", "change the order: risk, name, age, technique"),
             ("space", "mark this row and move on"),
             ("v", "mark everything the filter shows, or clear the marks"),
