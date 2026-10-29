@@ -55,6 +55,9 @@ _SCREEN_OWN_ATTRS = {
         "_focus_mode",
         "_bars",
         "_labelled_tally",
+        "_sort",
+        "_selected",
+        "_armed",
     },
     OverviewScreen: {"_report", "_delta"},
 }

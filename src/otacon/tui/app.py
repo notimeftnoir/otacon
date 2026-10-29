@@ -18,6 +18,7 @@ from ..core.models import ScanReport
 from ..ui.emit import textual_vars
 from ..ui.tokens import Palette
 from ..utils.theme import active_glyphs, active_palette
+from .commands import OtaconCommands
 from .screens import OverviewScreen, ResultsScreen, StartScreen
 from .styles import OTACON_CSS
 
@@ -32,6 +33,7 @@ class OtaconTUI(App[None]):
 
     CSS = OTACON_CSS
     TITLE = "OTACON"
+    COMMANDS = App.COMMANDS | {OtaconCommands}
 
     def __init__(
         self,
