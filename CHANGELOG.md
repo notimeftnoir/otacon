@@ -7,10 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- The test suite wrote scan history into the developer's own `~/.otacon`. Several tests run the real `execute_scan`, which persists its report, so fixture domains like `evil-twin.com`, `clean.com` and `a.com` accumulated in a real user directory. An autouse fixture in `tests/conftest.py` now points `OTACON_HOME` at a temporary directory for every test, with a test asserting it holds.
+## [3.0.0] — 2026-10-29
+
+A major because the guided prompts are gone: the triage console is the tool
+now, and `otacon` with no arguments opens it rather than a questionnaire.
+
+The rest of the release is the interface. Otacon drew the same report through
+four renderers, each carrying its own hard-coded copy of the palette, so every
+visual change cost three edits and drifted anyway. One palette now feeds all of
+them, which is what made the rest possible: four themes, a colour-blind-safe
+ramp, a monochrome mark, and an ASCII mode that actually reaches every glyph
+rather than only the logo.
+
+Both consoles were rebuilt around the same question. A scan of a real brand
+returns a few hundred permutations of which a handful matter, and both
+surfaces made you find them yourself. `otacon scan` gave each row up to six
+wrapped lines; the triage console dropped you into the table with no verdict
+at all, even though it is the surface plain `otacon` opens. Both now lead with
+what the scan amounts to, in the same words, and both show one row per finding.
+
+Scores and detection are unchanged. Stored reports gain a `cancelled` field
+and are otherwise compatible.
+
+### Added
+- A design-token layer (`otacon/ui/`) as the single source of visual truth, with four themes: `midnight` (the existing dark palette), `daylight` for light terminals and printed HTML, `vision` for colour-vision deficiency — red/green is the commonest form and it was exactly the critical/safe pair — and `mono`, which carries severity by glyph density and weight alone. `--theme`, `OTACON_THEME`, and `NO_COLOR` resolving to `mono`.
+- `--ascii` and `OTACON_ASCII`, degrading every block, arrow and box-drawing character, Rich's own frames included. `SAFE_GLYPHS` had documented a font budget that nothing could actually degrade to.
+- An overview screen: a finished scan opens on its verdict, the severity spread, what moved since the last scan of this target, and the three rows worth opening first with their reasons in words. `enter` goes on to the table.
+- Scan presets on the start screen — Quick, Standard, Thorough — with the four protocol-named switches behind an *Advanced* disclosure. Thorough is selected on open, so a preset can never quietly make a scan less thorough than it was before presets existed.
+- A live scan view: the stage it is in, the running tally, and findings appearing as they are scored. Certificate Transparency is one slow call before the counter can move, and it used to report nothing at all, so a scan with CT enabled sat on a motionless bar and looked hung.
+- `esc` stops a scan and keeps what it found; the report is marked `cancelled` and the verdict says so rather than reading as an all-clear.
+- Marks and bulk actions in the triage console: `space` marks a row and moves on, `v` marks everything the filter shows, and `t`, `e` and `a` act on the marked rows. Bulk writes arm and confirm with the count first. Marks are held by domain, not by index, and an action only ever touches rows the filter currently shows.
+- `s` cycles the table order (risk, name, age, technique) and `x` exports every row the current filter shows.
+- `?` opens a glossary: the keys, the score bands, every flag and every technique in one plain sentence each.
+- `f` dims every row below the worst band present, and `b` swaps the severity glyph for the full bar.
+- A persistent status bar carrying the active filter, the row count, the marks and the order — this used to live in a toast that disappeared two seconds after it appeared, while still filtering.
+- `--top N` on `otacon scan`, capping the table at the riskiest rows and saying how many it hid.
+- ctrl+p lists the tool's own commands instead of only Textual's.
+- Scan reports now carry `dns_queries` and `dns_failures`, and the terminal verdict refuses to say "All clear" when failures reach 20% of lookups — it reports the scan as inconclusive instead. A domain that does not exist and a domain that could not be checked produce the same empty result, which is how v2.0.0 shipped a confident all-clear while resolving nothing. A name that does not exist counts as an answer rather than a failure, so a healthy scan sits near 5% even though most variants are unregistered.
+- A scheduled `Live network tests` workflow runs `pytest -m network` weekly and asserts that a real scan of a heavily squatted brand still returns registered lookalikes. The suite excludes that marker by default, so those tests had never run in CI — the guard against the aiodns class of break was dormant.
+
+### Changed
+- The brand mark is monochrome. The gradient was the only thing competing with severity for the reader's eye, and below truecolor its four stops quantised to one flat colour, so the wordmark looked broken rather than plainer on a 16-colour terminal. The Cyrillic homoglyph is now picked out by weight, which survives `mono`, `NO_COLOR`, greyscale and paper. Two rows of dots became one travelling pulse in the density ramp the rest of the interface uses.
+- `otacon scan` prints one line per finding. Badges, technique, reasons and the page title all lived inside a column two dozen characters wide and wrapped across three lines each, so twelve findings filled a screen and a half. Reasons moved below the table, where prose has the width of the terminal.
+- The triage console's risk column is one density glyph rather than an eight-cell bar. Stacked down a real scan, whose scores inside a band rarely differ by enough to change a bar's length, it painted one uniform block and separated nothing while costing the width `FLAGS` needed.
+- Both tables name each severity run where it starts, so where "act now" ends is visible rather than inferred.
+- One spelling per finding across every surface. The same flag was `[cloned-favicon]` in the scan output, `FAVICON` in the triage console and `cloned favicon` in the HTML report.
+- The masthead tally is labelled. It was five bare glyphs and five numbers with no legend anywhere on screen.
+- The HTML report follows the active theme, including its chart colours, which were a fifth copy of the palette.
 
 ### Removed
+- The gradient machinery — `Palette.gradient`, `caps.gradient_stops`, `emit.gradient_color`, `GRADIENT` and `gradient()`. With the mark monochrome it drew nothing.
+- **Breaking:** `otacon.utils` no longer re-exports `GRADIENT`, `gradient`, `gradient_color`, `LOGO_DOTS_TOP` or `LOGO_DOTS_BOT`.
+- The `»` defensive marker. It rode in the domain cell beside the redirect host, wrapped the column, and needed a footnote to explain a glyph that said less than the word `OURS` now in the flags column.
+- `_redirect_host`, which turned out to be duplicated inline in the HTML reporter; both reporters now call one helper in `utils.validate`.
 - **Breaking:** deleted the questionary guided mode. The triage console is the default surface and carries every action it had, so the prompts were a second way to do the same thing — and the one that forced 25 `sys.modules` lookups into production code so tests could reach past it. `triage/workflow.py`, `triage/prompts.py`, `interactive.py`, most of `triage/actions.py` and 935 lines of tests are gone, about 1,700 lines in all. Running `otacon` where Textual cannot start now says to use `otacon scan <domain>` instead of failing obscurely.
 - Deleted the last two `sys.modules` searches that let production code discover test doubles: `engine.scanner`'s generator lookup (it now imports the permutations module rather than the function, so patching the module is simply seen) and `cli.commands.scan`'s `_get_cli`. Repointing the tests at the modules that hold the code revealed that one of them had stopped taking effect and was running a real network scan — the suite now finishes in 15 seconds rather than 53.
 - Dropped `questionary` and `prompt_toolkit` from the dependencies; nothing imports them any more.
@@ -18,9 +67,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deleted `engine.scanner`'s `sys.modules` search for a patched `Resolver`, and the two remaining lookups in `net/tls.py` and `net/resolver.py` that scanned for overrides on the shim module just deleted — dead branches that could never fire again. Production code no longer inspects the import table to discover test doubles in those paths.
 - Deleted `uv.lock` and `docs/specs/`. The lockfile was a second, unreferenced dependency pin alongside the hash-pinned `requirements*.txt` that CI actually installs, free to drift from it; the spec described a feature that shipped.
 
-### Added
-- Scan reports now carry `dns_queries` and `dns_failures`, and the terminal verdict refuses to say "All clear" when failures reach 20% of lookups — it reports the scan as inconclusive instead. A domain that does not exist and a domain that could not be checked produce the same empty result, which is how v2.0.0 shipped a confident all-clear while resolving nothing. A name that does not exist counts as an answer rather than a failure, so a healthy scan sits near 5% even though most variants are unregistered.
-- A scheduled `Live network tests` workflow runs `pytest -m network` weekly and asserts that a real scan of a heavily squatted brand still returns registered lookalikes. The suite excludes that marker by default, so those tests had never run in CI — the guard against the aiodns class of break was dormant.
+### Fixed
+- `critical` was the only style with a background, so an age cell or a badge rendered as a red block inside the table and read as a rendering fault rather than as emphasis.
+- Rebuilding the findings table sent the cursor back to row one, throwing an operator to the top every time a WHOIS answer or a re-check landed.
+- The dossier lost its label/value alignment on long values — IP lists, redirect URLs — wrapping them back to column zero on exactly the rows carrying the most evidence.
+- Glyph support was probed from `sys.stdout` at render time, which Textual replaces when it starts, so the interface answered one way before running and another way once running. It is resolved once, from the real terminal.
+- The brand mark degraded its sweep and its arrow for `--ascii` but not its letters, showing a replacement character inside the mark itself.
+- `#statusbar` and `#filterbar` had a border on a one-row box, leaving nowhere to draw their text.
+- The test suite wrote scan history into the developer's own `~/.otacon`. Several tests run the real `execute_scan`, which persists its report, so fixture domains like `evil-twin.com`, `clean.com` and `a.com` accumulated in a real user directory. An autouse fixture in `tests/conftest.py` now points `OTACON_HOME` at a temporary directory for every test, with a test asserting it holds.
 
 ## [2.1.0] — 2026-10-28
 
