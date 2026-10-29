@@ -1,13 +1,13 @@
 """What the terminal in front of us can actually render.
 
-Two axes, resolved independently because terminals mix them freely: a modern
-emulator over SSH may carry 24-bit colour on a latin-1 stream, and a Windows
-console may be fully UTF-8 at sixteen colours.
+One axis: whether the stream can carry the designed glyph set. Colour is left
+to Rich and to Textual, which both detect it well and honour ``NO_COLOR``;
+``ui.tokens.get_theme`` turns that variable into the ``mono`` palette so the
+HTML report and the triage console honour it too.
 
 Nothing here raises. A terminal that answers nothing gets the conservative
-answer, because the failure mode we are avoiding — a wordmark collapsing into
-one flat colour, a risk bar rendering as a row of '?' — is silent, and a
-silent visual failure is the one nobody reports.
+answer, because the failure mode we are avoiding — a risk bar rendering as a
+row of '?' — is silent, and a silent visual failure is the one nobody reports.
 """
 
 from __future__ import annotations
@@ -15,15 +15,6 @@ from __future__ import annotations
 import os
 import sys
 from enum import Enum
-
-
-class ColorDepth(str, Enum):
-    """How many colours the stream can carry."""
-
-    TRUECOLOR = "truecolor"
-    EIGHT_BIT = "256"
-    BASIC = "16"
-    NONE = "none"
 
 
 class GlyphLevel(str, Enum):
@@ -38,32 +29,6 @@ class GlyphLevel(str, Enum):
 
 def _env(name: str) -> str:
     return (os.environ.get(name) or "").strip().lower()
-
-
-def color_depth(stream_is_tty: bool = True) -> ColorDepth:
-    """Best guess at the stream's colour depth.
-
-    ``NO_COLOR`` wins over everything — it is a user instruction, not a
-    capability — and a stream that is not a terminal is treated as colourless
-    so redirected output stays diffable.
-    """
-    if _env("NO_COLOR"):
-        return ColorDepth.NONE
-    if not stream_is_tty:
-        return ColorDepth.NONE
-
-    forced = _env("OTACON_COLOR")
-    if forced in {d.value for d in ColorDepth}:
-        return ColorDepth(forced)
-
-    term = _env("TERM")
-    if term in {"dumb", ""} and not _env("COLORTERM"):
-        return ColorDepth.NONE
-    if _env("COLORTERM") in {"truecolor", "24bit"}:
-        return ColorDepth.TRUECOLOR
-    if "256" in term or "truecolor" in term:
-        return ColorDepth.EIGHT_BIT
-    return ColorDepth.BASIC
 
 
 def glyph_level(encoding: str | None = None) -> GlyphLevel:
@@ -81,4 +46,4 @@ def glyph_level(encoding: str | None = None) -> GlyphLevel:
     return GlyphLevel.FULL if enc.startswith(("utf", "ucs")) else GlyphLevel.ASCII
 
 
-__all__ = ["ColorDepth", "GlyphLevel", "color_depth", "glyph_level"]
+__all__ = ["GlyphLevel", "glyph_level"]

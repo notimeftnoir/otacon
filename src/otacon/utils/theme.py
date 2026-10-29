@@ -20,7 +20,7 @@ from __future__ import annotations
 from rich.theme import Theme
 
 from ..core.types import RiskLevel
-from ..ui.caps import ColorDepth, GlyphLevel, color_depth, glyph_level
+from ..ui.caps import GlyphLevel, glyph_level
 from ..ui.emit import rich_theme
 from ..ui.glyphs import SAFE as SAFE_GLYPHS
 from ..ui.glyphs import degrade
@@ -65,6 +65,23 @@ def set_glyphs(level: GlyphLevel | None = None) -> GlyphLevel:
     global _glyphs
     _glyphs = level if level is not None else glyph_level()
     return _glyphs
+
+
+def glyph(text: str) -> str:
+    """*text*, degraded to what the active terminal can draw.
+
+    Short for ``degrade(text, active_glyphs())``, which is the only way
+    ``degrade`` was ever called. Takes a whole string rather than one
+    character, so a line of chrome is wrapped once instead of per symbol.
+
+    **Chrome goes through here; findings never do.** A lookalike's Cyrillic
+    letters are the thing the tool exists to show, so a domain, a page title
+    or a certificate issuer is printed as it really is even when the terminal
+    will render it badly — that is the point. Separators, arrows, ticks and
+    warning signs are decoration, and decoration that cannot be drawn is just
+    a replacement character where a reader expected meaning.
+    """
+    return degrade(text, active_glyphs())
 
 
 OTACON_THEME: Theme = rich_theme(MIDNIGHT)
@@ -133,15 +150,14 @@ __all__ = [
     "SPOOF_INDEX",
     "TAGLINE",
     "WORDMARK",
-    "ColorDepth",
     "GlyphLevel",
     "Palette",
     "RiskLevel",
     "active_glyphs",
     "active_palette",
     "banner",
-    "color_depth",
     "degrade",
+    "glyph",
     "glyph_level",
     "set_glyphs",
     "set_palette",

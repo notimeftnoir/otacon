@@ -30,7 +30,7 @@ Screen {
 #masthead {
     height: 3;
     background: $otacon-surface;
-    border-bottom: solid $otacon-line;
+    border-bottom: $otacon-border $otacon-line;
     padding: 0 1;
 }
 
@@ -54,7 +54,7 @@ Screen {
 
 #rail {
     width: 2fr;
-    border-left: solid $otacon-line;
+    border-left: $otacon-border $otacon-line;
 }
 
 /* The rail takes two thirds: its columns are fixed-width, and FLAGS — the
@@ -102,7 +102,7 @@ DataTable > .datatable--hover {
     height: 2;
     background: $otacon-surface;
     color: $otacon-muted;
-    border-top: solid $otacon-line;
+    border-top: $otacon-border $otacon-line;
     padding: 0 1;
 }
 
@@ -111,7 +111,7 @@ DataTable > .datatable--hover {
 #filterbar {
     height: 2;
     background: $otacon-surface;
-    border-top: solid $otacon-line;
+    border-top: $otacon-border $otacon-line;
     padding: 0 1;
     display: none;
 }
@@ -137,7 +137,7 @@ Input:focus {
 .verdict {
     height: auto;
     padding: 0 0 1 0;
-    border-bottom: solid $otacon-line;
+    border-bottom: $otacon-border $otacon-line;
     margin-bottom: 1;
 }
 
@@ -153,7 +153,7 @@ Input:focus {
     height: 80%;
     offset: 10% 10%;
     background: $otacon-surface;
-    border: solid $otacon-brand;
+    border: $otacon-border $otacon-brand;
     padding: 1 2;
     overflow-y: auto;
     display: none;
@@ -171,7 +171,7 @@ Input:focus {
     height: 86%;
     offset: 7% 7%;
     background: $otacon-surface;
-    border: solid $otacon-accent;
+    border: $otacon-border $otacon-accent;
     padding: 1 2;
     overflow-y: auto;
     display: none;
@@ -285,7 +285,7 @@ Input:focus {
     height: auto;
     padding: 2 3;
     background: $otacon-surface;
-    border: solid $otacon-line;
+    border: $otacon-border $otacon-line;
 }
 
 #setup-brand {
@@ -299,14 +299,14 @@ Input:focus {
 }
 
 #setup #target {
-    border: solid $otacon-line;
+    border: $otacon-border $otacon-line;
     height: 3;
     padding: 0 1;
     margin-bottom: 1;
 }
 
 #setup #target:focus {
-    border: solid $otacon-brand;
+    border: $otacon-border $otacon-brand;
 }
 
 #setup Checkbox {
@@ -362,7 +362,7 @@ Footer > .footer--key {
 
 Toast {
     background: $otacon-surface;
-    border: solid $otacon-brand;
+    border: $otacon-border $otacon-brand;
 }
 """
 

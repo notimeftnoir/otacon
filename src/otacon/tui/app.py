@@ -57,7 +57,10 @@ class OtaconTUI(App[None]):
 
     def get_css_variables(self) -> dict[str, str]:
         """Adds the Otacon design tokens to Textual's own CSS variables."""
-        return {**super().get_css_variables(), **textual_vars(self.ui_palette)}
+        return {
+            **super().get_css_variables(),
+            **textual_vars(self.ui_palette, self.ui_glyphs),
+        }
 
     def on_mount(self) -> None:
         """Opens on the overview when a report was supplied, otherwise on the form."""

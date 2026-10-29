@@ -209,15 +209,15 @@ Textual reads design tokens through `App.get_css_variables()`, so
 replaced by a stronger one: every surface is generated from the same `Palette`,
 so they *cannot* drift, and the test asserts each theme defines every token.
 
-**Capability detection** (`caps.py`) resolves two independent axes:
+**Capability detection** (`caps.py`) resolves one axis: glyphs,
+`full | ascii`, from the stream encoding and `OTACON_ASCII`.
 
-- colour: `truecolor | 256 | 16 | none` from `COLORTERM`, `TERM`, `NO_COLOR`
-  and Rich's own `color_system`;
-- glyphs: `full | safe | ascii` from stream encoding and `OTACON_ASCII`.
-
-The brand gradient takes the colour depth as an argument and degrades to a
-256-palette ramp, then to a single brand colour — so the wordmark never
-collapses silently.
+The colour axis was dropped. It existed so the brand gradient could degrade to
+a 256-colour ramp and then to a single brand colour, and the mark has carried
+no hue at all since 3.0.0 — severity is the only thing in the interface that
+earns colour. Rich and Textual both detect depth well and honour `NO_COLOR`
+themselves; `ui.tokens.get_theme` turns that variable into the `mono` palette
+so the HTML report and the triage console honour it too.
 
 ---
 

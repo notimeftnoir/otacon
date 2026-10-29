@@ -238,3 +238,63 @@ async def test_a_real_listing_still_reports_listed() -> None:
         "Spamhaus DBL (phishing)",
         False,
     )
+
+
+# ---------------------------------------------------------------------------
+# a reassuring verdict must say what the scan did not look at
+# ---------------------------------------------------------------------------
+
+
+def _clear(options: ScanOptions) -> str:
+    from otacon.triage.verdict import verdict
+
+    return verdict(
+        ScanReport(target="example.com", total_permutations=240, options=options)
+    ).explanation
+
+
+def test_a_full_scans_all_clear_carries_no_caveat() -> None:
+    assert "partial picture" not in _clear(ScanOptions())
+
+
+def test_a_dns_only_all_clear_says_so() -> None:
+    """--no-http drops the website, favicon and login-form points entirely.
+
+    The README offers `--no-http` as "roughly 3x faster" next to `--fail-on high`
+    as a CI gate, so the two get combined — and "all clear" then meant "nothing
+    turned up in the quarter of the checks that ran".
+    """
+    note = _clear(ScanOptions(http=False))
+    assert "partial picture" in note
+    assert "websites, certificates, favicons and login forms" in note
+    assert "registration dates" not in note, "it must name only what was skipped"
+
+
+def test_the_caveat_lists_every_skipped_probe() -> None:
+    note = _clear(ScanOptions(http=False, whois=False, dnsbl=False, ct=False))
+    for what in ("websites", "registration dates", "reputation lists", "Certificate Transparency"):
+        assert what in note
+
+
+def test_a_dangerous_verdict_needs_no_caveat() -> None:
+    """It is already telling the reader not to relax; a caveat would soften it."""
+    from otacon.core.types import RiskLevel
+    from otacon.triage.verdict import verdict
+
+    row = DomainResult(
+        domain="examp1e.com",
+        kind=PermutationType.HOMOGLYPH,
+        resolves=True,
+        risk_score=90,
+        risk_level=RiskLevel.CRITICAL,
+    )
+    v = verdict(
+        ScanReport(
+            target="example.com",
+            total_permutations=240,
+            results=[row],
+            options=ScanOptions(http=False),
+        )
+    )
+    assert v.tone == "danger"
+    assert "partial picture" not in v.explanation

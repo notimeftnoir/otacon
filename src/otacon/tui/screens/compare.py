@@ -29,7 +29,7 @@ from ...core.models import DomainResult, ScanReport
 from ...net.whois import format_age
 from ...triage.verdict import Change, ChangeKind, baseline, delta
 from ...ui.tokens import Palette
-from ...utils.theme import active_palette
+from ...utils.theme import active_palette, glyph
 from ..widgets import badges, sigil, wordmark
 
 # Worst news first. "Gone" is last because a lookalike that stopped resolving
@@ -73,7 +73,7 @@ class CompareScreen(Screen[None]):
         pal = self.palette
         t = Text(" ")
         t.append_text(wordmark(palette=pal))
-        t.append(" › ", style=pal.line_strong)  # noqa: RUF001  — UI separator, not ">"
+        t.append(glyph(" › "), style=pal.line_strong)  # noqa: RUF001  — separator, not ">"
         t.append(self._report.target, style=f"bold {pal.strong}")
         return t
 

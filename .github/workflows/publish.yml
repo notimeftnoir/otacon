@@ -52,6 +52,23 @@ jobs:
         # re-installing it here would be an unpinned dependency.
         run: python -m build
 
+      - name: Smoke-test the wheel before signing it
+        # Everything above runs against an editable install of the source tree,
+        # so nothing here had ever executed the artefact being published: a
+        # broken `[project.scripts]` entry or a package missed by
+        # `packages.find` would be signed, attached to the release and pushed to
+        # PyPI, failing for the first person to run `pipx install otacon`.
+        # ci.yml checks this too, but it does not gate a tag push.
+        run: |
+          python -m venv /tmp/release-smoke
+          /tmp/release-smoke/bin/pip install --quiet dist/*.whl
+          got=$(/tmp/release-smoke/bin/otacon --version | tr -d '\r' | awk '{print $NF}')
+          test "$got" = "${GITHUB_REF_NAME#v}" || {
+            echo "::error::wheel reports $got, tag says ${GITHUB_REF_NAME#v}"; exit 1; }
+          /tmp/release-smoke/bin/otacon generate example.com --limit 3
+          /tmp/release-smoke/bin/otacon --help > /dev/null
+          echo "wheel installs and runs: $got"
+
       - name: Sign distribution with Sigstore (keyless OIDC)
         # Pinned to a SHA so a malicious repoint can't substitute the action.
         uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9  # v3.5.0

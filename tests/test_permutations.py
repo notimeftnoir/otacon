@@ -417,3 +417,31 @@ def test_all_generated_variants_pass_the_project_domain_validator():
     for target in ("example.com", "foo.example.com", "shop.example.co.uk", "my-corp.com"):
         invalid = [p.domain for p in permutations.generate(target) if not is_valid_domain(p.domain)]
         assert invalid == [], f"{target} produced unregistrable variants: {invalid[:5]}"
+
+
+def test_generate_refuses_anything_that_is_not_a_domain() -> None:
+    """It is public API, and a bare label produced strings with no TLD at all.
+
+    `otacon.generate("localhost")` used to return 271 variants of which 271
+    were not domains ("1ocalhost", "l0calhost"), because a single-label target
+    leaves `split_domain` with an empty TLD. Both CLI callers validate first,
+    so this was only ever reachable through the library.
+    """
+    from otacon import permutations
+
+    for bad in ("", ".", "..", "localhost", "a", "-", "1.2.3.4", "has space.com"):
+        assert permutations.generate(bad) == [], bad
+
+
+def test_generate_only_emits_valid_domains() -> None:
+    """Rules compose, and a composed rule can produce something unqueryable."""
+    from otacon import permutations
+    from otacon.utils.validate import is_valid_domain
+
+    for target in ("example.com", "my-bank.co.uk", "sub.domain.example.com", "bücher.de"):
+        domains = [p.domain for p in permutations.generate(target)]
+        assert domains, target
+        invalid = [d for d in domains if not is_valid_domain(d)]
+        assert not invalid, f"{target} produced unqueryable variants: {invalid[:5]}"
+        assert len(domains) == len(set(domains)), f"{target} produced duplicates"
+        assert target not in domains, f"{target} permuted into itself"

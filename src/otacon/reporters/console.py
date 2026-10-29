@@ -20,7 +20,7 @@ from ..ui.copy import FLAGS
 from ..ui.copy import flags as flag_names
 from ..ui.copy import signals as signal_checklist
 from ..ui.glyphs import degrade
-from ..utils.theme import active_glyphs, active_palette
+from ..utils.theme import active_glyphs, active_palette, glyph
 
 _BAR_STYLE: dict[RiskLevel, str] = {
     RiskLevel.SAFE: "ok",
@@ -70,7 +70,7 @@ def _signals(result: DomainResult) -> str:
         signals.append("SSL")
     if result.http_status is not None:
         signals.append(f"HTTP {result.http_status}")
-    return ", ".join(signals) or "—"
+    return ", ".join(signals) or glyph("—")
 
 
 def _risk_bar(score: int, style: str) -> Text:
@@ -97,7 +97,7 @@ def _check(value: bool) -> Text:
 def _http_cell(status: int | None) -> Text:
     """HTTP status code coloured by range."""
     if status is None:
-        return Text("—", style="muted")
+        return Text(glyph("—"), style="muted")
     if 200 <= status < 300:
         style = "ok"
     elif 300 <= status < 400:
@@ -129,7 +129,7 @@ def _why(result: DomainResult, limit: int = 2) -> str:
         if m and not reason.startswith("technique"):
             scored.append((int(m.group(1)), reason[: m.start()]))
     scored.sort(key=lambda p: p[0], reverse=True)
-    return " · ".join(text for _, text in scored[:limit])
+    return glyph(" · ").join(text for _, text in scored[:limit])
 
 
 def _domain_cell(result: DomainResult) -> Text:
@@ -160,7 +160,10 @@ def _why_section(rows: list[DomainResult]) -> Table | None:
     for r in sorted(worrying, key=lambda x: x.risk_score, reverse=True):
         why = _why(r)
         if r.page_title:
-            why = f'{why} · "{r.page_title}"' if why else f'"{r.page_title}"'
+            # The page title is a finding, so it is never degraded; only the
+            # separator in front of it is chrome.
+            quoted = f'"{r.page_title}"'
+            why = f"{why}{glyph(' · ')}{quoted}" if why else quoted
         grid.add_row(
             Text(""),
             Text(r.domain, style="bold white"),
@@ -191,9 +194,9 @@ def _verdict_banner(report: ScanReport) -> Text:
 
     if not registered:
         t = Text()
-        t.append(f"{degrade('✓', active_glyphs())} clean", style="ok")
+        t.append(f"{glyph('✓')} clean", style="ok")
         t.append(
-            f" — {report.total_permutations} permutations checked, none registered",
+            glyph(f" — {report.total_permutations} permutations checked, none registered"),
             style="muted",
         )
         return t
@@ -251,7 +254,7 @@ def _distribution(registered: list[DomainResult]) -> Group:
 def _verdict_card(report: ScanReport) -> Panel:
     decision = verdict(report)
     style, headline, explanation = decision.tone, decision.headline, decision.explanation
-    headline = f"{degrade(decision.marker, active_glyphs())} {headline}"
+    headline = f"{glyph(decision.marker)} {headline}"
     stats = Text(
         f"{report.total_permutations} checked {degrade('·', active_glyphs())} ", style="muted"
     )
@@ -318,7 +321,7 @@ def build_live_table(hits: list[DomainResult], domain: str, limit: int = 0) -> T
     if limit <= 0 or len(rows) <= limit:
         return _results_table(domain, rows)
     table = _results_table(domain, rows[:limit])
-    table.caption = f"+{len(rows) - limit} more · full table when the scan ends"
+    table.caption = glyph(f"+{len(rows) - limit} more · full table when the scan ends")
     return table
 
 
@@ -396,15 +399,15 @@ def render_aggregate_summary(
 
     t = Text()
     t.append("\nScan complete", style="brand")
-    t.append(" · ", style="muted")
+    t.append(glyph(" · "), style="muted")
     t.append(f"{len(reports) + len(errors)} domain(s)", style="value")
-    t.append(" · ", style="muted")
+    t.append(glyph(" · "), style="muted")
     t.append(f"{total_registered} registered", style="value")
-    t.append(" · ", style="muted")
+    t.append(glyph(" · "), style="muted")
     t.append(f"crit: {total_crit}", style="critical" if total_crit else "muted")
-    t.append(" · ", style="muted")
+    t.append(glyph(" · "), style="muted")
     t.append(f"high: {total_high}", style="danger" if total_high else "muted")
-    t.append(" · ", style="muted")
+    t.append(glyph(" · "), style="muted")
     t.append(f"med: {total_med}", style="warn" if total_med else "muted")
     console.print(t)
 

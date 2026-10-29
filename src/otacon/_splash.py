@@ -66,16 +66,20 @@ def _frame(step: int, rng: random.Random, palette: Palette) -> Text:
     sweep = degrade(LOGO_SWEEP[offset:] + LOGO_SWEEP[:offset], level)
 
     locked = round(progress * len(WORDMARK))
+    # The locked letters degrade like the static banner's do. Without this the
+    # animation put U+041E on screen while the banner it resolves into showed
+    # a plain "O", so an --ascii terminal watched the brand mark decode into a
+    # replacement character.
     word = "".join(
         f"[{palette.dim}]{rng.choice(_LOOKALIKES.get(ch, '0'))}[/]"
         if i >= locked
-        else f"[bold {palette.strong}]{ch}[/]"
+        else f"[bold {palette.strong}]{degrade(ch, level)}[/]"
         if i == SPOOF_INDEX
-        else f"[{palette.muted}]{ch}[/]"
+        else f"[{palette.muted}]{degrade(ch, level)}[/]"
         for i, ch in enumerate(WORDMARK)
     )
 
-    tail = f"{HOMOGLYPH} {degrade('·', level)} {TAGLINE}"
+    tail = degrade(f"{HOMOGLYPH} · {TAGLINE}", level)
     typed = tail[: round(progress * len(tail))]
     pointer = f"{' ' * SPOOF_INDEX}{degrade('↑', level)} {typed}"
     return Text.from_markup(

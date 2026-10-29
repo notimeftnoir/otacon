@@ -25,7 +25,7 @@ from textual.widgets.option_list import Option
 from ... import config
 from ...core.types import RiskLevel
 from ...ui.tokens import THEMES, Palette
-from ...utils.theme import active_palette
+from ...utils.theme import active_palette, glyph
 from ..widgets import wordmark
 
 # Setting key, label, and the values it cycles through. `None` means "not set",
@@ -89,7 +89,7 @@ class SettingsScreen(Screen[None]):
         pal = self.palette
         t = Text(" ")
         t.append_text(wordmark(palette=pal))
-        t.append(" › ", style=pal.line_strong)  # noqa: RUF001  — UI separator, not ">"
+        t.append(glyph(" › "), style=pal.line_strong)  # noqa: RUF001  — separator, not ">"
         t.append(self._target, style=f"bold {pal.strong}")
         return t
 
@@ -191,7 +191,7 @@ class SettingsScreen(Screen[None]):
             return
         config.save_settings(s)
         self._redraw()
-        self.notify("saved — themes and glyphs apply next run", timeout=3)
+        self.notify(glyph("saved — themes and glyphs apply next run"), timeout=3)
 
     def action_forget(self) -> None:
         """Takes the highlighted domain back off the allow-list."""

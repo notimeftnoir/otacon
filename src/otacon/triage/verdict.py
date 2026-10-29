@@ -93,6 +93,30 @@ class Delta:
         return not self.changes
 
 
+_SKIPPED = (
+    ("http", "websites, certificates, favicons and login forms"),
+    ("whois", "registration dates"),
+    ("dnsbl", "reputation lists"),
+    ("ct", "Certificate Transparency discovery"),
+)
+
+
+def _shallow_note(report: ScanReport) -> str:
+    """A sentence naming what this scan did not look at, or "" when it looked at everything.
+
+    A reassuring verdict means "nothing turned up in what was checked", and a
+    scan run with --no-http scores every finding without its website, age,
+    favicon or login-form points — so "nothing urgent" came out of a scan that
+    had not looked at most of what makes a lookalike urgent. The reader has to
+    be told which, or the sentence is not true in the sense they will read it.
+    """
+    missing = [what for flag, what in _SKIPPED if not getattr(report.options, flag)]
+    if not missing:
+        return ""
+    listed = missing[0] if len(missing) == 1 else ", ".join(missing[:-1]) + " and " + missing[-1]
+    return f" This scan did not check {listed}, so it is a partial picture."
+
+
 def verdict(report: ScanReport) -> Verdict:
     """The scan's headline, explanation and tone."""
     registered = report.registered
@@ -160,7 +184,8 @@ def verdict(report: ScanReport) -> Verdict:
             explanation=(
                 "Nobody has registered a domain that imitates yours. New ones appear every day, "
                 "so run this again from time to time."
-            ),
+            )
+            + _shallow_note(report),
             degraded=False,
         )
 
@@ -188,7 +213,8 @@ def verdict(report: ScanReport) -> Verdict:
             headline=f"{n} registered lookalike{plural} of {target}, nothing urgent",
             explanation=(
                 "They exist, but show few signs of being used for attacks yet. Worth a look."
-            ),
+            )
+            + _shallow_note(report),
             degraded=False,
         )
 
@@ -196,7 +222,7 @@ def verdict(report: ScanReport) -> Verdict:
         tone="ok",
         level=worst,
         headline=f"{n} registered lookalike{plural} of {target}, all look harmless",
-        explanation="Parked pages or redirects back to your own site.",
+        explanation="Parked pages or redirects back to your own site." + _shallow_note(report),
         degraded=False,
     )
 

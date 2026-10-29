@@ -13,40 +13,14 @@ from __future__ import annotations
 import sys
 
 from rich.console import Console
-from rich.terminal_theme import TerminalTheme
 
 from otacon._asyncutils import run_async
 from otacon.engine.scanner import run_scan
 from otacon.reporters import console as reporters
-from otacon.utils.theme import BANNER, OTACON_THEME
+from otacon.ui.emit import terminal_theme
+from otacon.utils.theme import BANNER, OTACON_THEME, active_palette
 
 _ROWS = 10
-
-# Matches the banner SVG and the terminal palette in utils/theme.py.
-OTACON_TERMINAL = TerminalTheme(
-    (10, 10, 12),
-    (242, 242, 242),
-    [
-        (58, 58, 62),
-        (255, 95, 95),
-        (95, 215, 0),
-        (255, 215, 0),
-        (95, 175, 255),
-        (175, 135, 255),
-        (0, 215, 175),
-        (242, 242, 242),
-    ],
-    [
-        (138, 138, 144),
-        (255, 135, 135),
-        (135, 255, 95),
-        (255, 235, 135),
-        (135, 195, 255),
-        (215, 175, 255),
-        (95, 235, 215),
-        (255, 255, 255),
-    ],
-)
 
 
 def main() -> int:
@@ -65,7 +39,11 @@ def main() -> int:
     if len(report.registered) > _ROWS:
         table.caption = f"+{len(report.registered) - _ROWS} more in the full report"
     console.print(table)
-    console.save_svg(out, title=f"otacon scan {target}", theme=OTACON_TERMINAL)
+    # The live palette, not a copy of it: this file used to carry its own
+    # TerminalTheme under a comment promising it matched, and by 3.0.0 it had
+    # drifted in eleven of eighteen slots — the README screenshots were painted
+    # in colours the tool no longer used.
+    console.save_svg(out, title=f"otacon scan {target}", theme=terminal_theme(active_palette()))
     print(f"wrote {out}: {len(report.registered)} registered of {report.total_permutations}")
     return 0
 

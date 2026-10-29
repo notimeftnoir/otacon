@@ -27,22 +27,32 @@ from ..net.resolver import Resolver
 from ..reporters.console import build_live_table
 from ..scoring.config import ScoringWeights
 from ..scoring.engine import score
+from ..utils.theme import glyph
 from .pool import ResourceLimiter
 from .progress import ScanProgress
 
 _log = logging.getLogger("otacon.engine.scanner")
 
-_HIJACK_WARNING = (
-    "[warn]⚠  Your DNS resolver answers nonexistent domains (NXDOMAIN hijacking)."
-    " Hijacked answers were discarded; consider scanning with a clean resolver"
-    " (e.g. 1.1.1.1).[/warn]"
-)
 
-_DNSBL_WARNING = (
-    "[warn]⚠  A reputation list declined to answer, so DNSBL findings are"
-    " incomplete. Large public resolvers are refused by Spamhaus; scan from a"
-    " resolver of your own.[/warn]"
-)
+# Built at render time, not at import: the glyph level is resolved from the
+# real stream after argv is parsed, which is later than this module loads.
+def _hijack_warning() -> str:
+    """The NXDOMAIN-hijack notice, degraded for this terminal."""
+    return glyph(
+        "[warn]⚠  Your DNS resolver answers nonexistent domains (NXDOMAIN hijacking)."
+        " Hijacked answers were discarded; consider scanning with a clean resolver"
+        " (e.g. 1.1.1.1).[/warn]"
+    )
+
+
+def _dnsbl_warning() -> str:
+    """The refused-reputation-list notice, degraded for this terminal."""
+    return glyph(
+        "[warn]⚠  A reputation list declined to answer, so DNSBL findings are"
+        " incomplete. Large public resolvers are refused by Spamhaus; scan from a"
+        " resolver of your own.[/warn]"
+    )
+
 
 _LIVE_ROWS = 8
 
@@ -68,14 +78,15 @@ def _tally(hits: list[DomainResult]) -> str:
         return "[muted]nothing registered yet[/muted]"
     danger = sum(1 for h in hits if h.risk_level.rank >= 3)
     out = f"[warn]{len(hits)} registered[/warn]"
-    return out + (f" [muted]·[/muted] [danger]{danger} dangerous[/danger]" if danger else "")
+    tail = f" [muted]·[/muted] [danger]{danger} dangerous[/danger]" if danger else ""
+    return glyph(out + tail)
 
 
 def _variant_summary(perms: list[Permutation]) -> str:
     """Breakdown of generated permutation techniques."""
     kinds = Counter(p.kind.value for p in perms).most_common(5)
     parts = " [muted]·[/muted] ".join(f"[muted]{k}[/muted] {n}" for k, n in kinds)
-    return f"[ok]✓[/ok] [value]{len(perms)}[/value] lookalikes generated  {parts}"
+    return glyph(f"[ok]✓[/ok] [value]{len(perms)}[/value] lookalikes generated  {parts}")
 
 
 async def run_scan(
@@ -235,13 +246,16 @@ async def run_scan(
 
     if progress is not None:
         console.print(
-            f"[ok]✓[/ok] [value]{len(perms)}[/value] checked in "
-            f"[value]{time.monotonic() - started:.1f}s[/value]  [muted]·[/muted] {_tally(hits)}"
+            glyph(
+                f"[ok]✓[/ok] [value]{len(perms)}[/value] checked in "
+                f"[value]{time.monotonic() - started:.1f}s[/value]  [muted]·[/muted] "
+            )
+            + _tally(hits)
         )
     if report.dns_hijack_detected:
-        console.print(_HIJACK_WARNING)
+        console.print(_hijack_warning())
     if dnsbl_refused:
-        console.print(_DNSBL_WARNING)
+        console.print(_dnsbl_warning())
     return report
 
 

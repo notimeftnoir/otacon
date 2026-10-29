@@ -16,6 +16,7 @@ from rich.terminal_theme import TerminalTheme
 from rich.theme import Theme
 
 from ..core.types import RiskLevel
+from .caps import GlyphLevel
 from .tokens import Palette, RiskTone
 
 
@@ -61,7 +62,7 @@ def rich_theme(palette: Palette) -> Theme:
     )
 
 
-def textual_vars(palette: Palette) -> dict[str, str]:
+def textual_vars(palette: Palette, glyphs: GlyphLevel = GlyphLevel.FULL) -> dict[str, str]:
     """Design tokens for ``App.get_css_variables()``.
 
     Textual CSS cannot read Python constants, which is why ``tui/styles.py``
@@ -70,6 +71,11 @@ def textual_vars(palette: Palette) -> dict[str, str]:
     there is nothing left to drift.
     """
     out = {
+        # Textual draws its own frames, which `degrade()` cannot reach — they
+        # are painted by the framework, not by a string we wrote. Feeding the
+        # border type in as a token is how --ascii gets to them: "ascii" uses
+        # +-| instead of the box-drawing set.
+        "otacon-border": "solid" if glyphs is GlyphLevel.FULL else "ascii",
         "otacon-bg": palette.bg,
         "otacon-surface": palette.surface,
         "otacon-raised": palette.raised,

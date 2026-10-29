@@ -30,7 +30,6 @@ from otacon.tui.screens import (
 from otacon.tui.screens.results import SortMode, column
 from otacon.tui.styles import OTACON_CSS
 from otacon.tui.widgets import (
-    LEVEL_COLOR,
     LEVELS_DESC,
     badges,
     band_cell,
@@ -175,11 +174,6 @@ def test_rich_theme_and_textual_tokens_come_from_one_palette() -> None:
         brand = theme.styles["brand"].color
         assert brand is not None and brand.triplet is not None
         assert brand.triplet.hex.lower() == palette.brand.lower()
-
-
-def test_level_colours_are_real_colours() -> None:
-    for level, hex_colour in LEVEL_COLOR.items():
-        assert hex_colour.startswith("#"), level
 
 
 # ── driven through the UI ───────────────────────────────────────────────

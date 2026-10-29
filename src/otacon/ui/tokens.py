@@ -23,6 +23,7 @@ Themes exist for reasons, not variety:
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -231,16 +232,32 @@ THEMES: Mapping[str, Palette] = {p.name: p for p in (MIDNIGHT, DAYLIGHT, VISION,
 DEFAULT_THEME = MIDNIGHT.name
 
 
+def no_color() -> bool:
+    """Whether the reader has asked for no colour at all, per no-color.org."""
+    return bool(os.environ.get("NO_COLOR", "").strip())
+
+
 def get_theme(name: str | None) -> Palette:
     """The palette called *name*, falling back to the default for anything unknown.
 
-    Unknown names fall back rather than raising: a theme is chrome, and an
-    environment variable left over from another tool must never be the reason
-    a scan refuses to run.
+    Selection order: an explicit *name*, then ``NO_COLOR``, then the default.
+
+    ``NO_COLOR`` resolves to ``mono`` rather than merely being left to Rich,
+    which strips colour at output time: that covers the terminal and nothing
+    else, so the HTML report and the triage console were still rendering the
+    dark palette's hues at full strength for a reader who had asked for none.
+    An explicit ``--theme`` still wins, because naming a theme is a clearer
+    instruction than an environment variable.
+
+    Unknown names fall back rather than raising: a theme is chrome, and a
+    variable left over from another tool must never be the reason a scan
+    refuses to run.
     """
-    if not name:
-        return THEMES[DEFAULT_THEME]
-    return THEMES.get(name.strip().lower(), THEMES[DEFAULT_THEME])
+    if name:
+        return THEMES.get(name.strip().lower(), THEMES[DEFAULT_THEME])
+    if no_color():
+        return MONO
+    return THEMES[DEFAULT_THEME]
 
 
 __all__ = [
@@ -253,4 +270,5 @@ __all__ = [
     "Palette",
     "RiskTone",
     "get_theme",
+    "no_color",
 ]

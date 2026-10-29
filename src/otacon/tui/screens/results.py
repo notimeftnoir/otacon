@@ -40,7 +40,7 @@ from ...triage.dossier import evidence
 from ...triage.notice import build_takedown_notice
 from ...ui.copy import BANDS, FLAGS, TECHNIQUES
 from ...ui.tokens import Palette
-from ...utils.theme import active_palette
+from ...utils.theme import active_palette, glyph
 from ...utils.validate import safe_relative_path
 from ..widgets import (
     BAR_WIDTH,
@@ -191,7 +191,7 @@ class ResultsScreen(Screen[None]):
             yield VerticalScroll(Static("", id="dossier-body"), id="dossier")
             with Vertical(id="rail"):
                 yield DataTable(id="results", cursor_type="row", zebra_stripes=False)
-                yield Input(placeholder="filter domains…", id="filterbar")
+                yield Input(placeholder=glyph("filter domains…"), id="filterbar")
         yield Static("", id="statusbar")
         yield Static("", id="notice")
         yield Static("", id="help")
@@ -245,7 +245,7 @@ class ResultsScreen(Screen[None]):
         pal = self.palette
         t = Text(" ")
         t.append_text(wordmark(palette=pal))
-        t.append(" › ", style=pal.line_strong)  # noqa: RUF001  — UI separator, not ">"
+        t.append(glyph(" › "), style=pal.line_strong)  # noqa: RUF001  — separator, not ">"
         t.append(self._report.target, style=f"bold {pal.strong}")
         return t
 
@@ -384,27 +384,27 @@ class ResultsScreen(Screen[None]):
             t.append(f"{band} only", style=f"bold {level_color(self._level, pal)}")
         else:
             t.append("all levels", style=pal.muted)
-        t.append("  ·  ", style=pal.line_strong)
+        t.append(glyph("  ·  "), style=pal.line_strong)
         t.append(f"{shown} of {total} registered", style=pal.muted)
         if self._show_unregistered:
             t.append(" + unregistered", style=pal.muted)
         if self._query:
-            t.append("  ·  ", style=pal.line_strong)
+            t.append(glyph("  ·  "), style=pal.line_strong)
             t.append(f"matching {self._query!r}", style=pal.accent)
         if self._selected:
-            t.append("  ·  ", style=pal.line_strong)
+            t.append(glyph("  ·  "), style=pal.line_strong)
             t.append(f"{len(self.marked)} marked", style=f"bold {pal.brand}")
-        t.append("  ·  ", style=pal.line_strong)
+        t.append(glyph("  ·  "), style=pal.line_strong)
         t.append(f"by {self._sort.value}", style=pal.muted)
         if self._focus_mode:
             floor = self._focus_floor()
-            t.append("  ·  ", style=pal.line_strong)
+            t.append(glyph("  ·  "), style=pal.line_strong)
             t.append(
                 f"focus: {pal.tone(floor).band}" if floor else "focus",
                 style=f"bold {pal.brand}",
             )
         if self._allowed:
-            t.append("  ·  ", style=pal.line_strong)
+            t.append(glyph("  ·  "), style=pal.line_strong)
             t.append(f"{len(self._allowed)} allowed", style=pal.muted)
         t.append("   ? for help", style=pal.dim)
         self.query_one("#statusbar", Static).update(t)
@@ -444,9 +444,9 @@ class ResultsScreen(Screen[None]):
         head.append(f"  {tone.label}", style=pal.muted)
         head.append(f"\n{TECHNIQUES[r.kind].long}", style=pal.brand_dim)
         if r.note:
-            head.append(f" · {r.note}", style=pal.muted)
+            head.append(glyph(" · ") + r.note, style=pal.muted)
         head.append("\n")
-        head.append("─" * 40, style=pal.line)
+        head.append(glyph("─") * 40, style=pal.line)
 
         parts: list[RenderableType] = [head]
 
@@ -465,7 +465,9 @@ class ResultsScreen(Screen[None]):
             parts.append(Text("\nSCORING", style=f"bold {pal.brand_dim}"))
             reasons = self._kv_grid()
             for reason in r.risk_reasons:
-                reasons.add_row(Text("·", style=pal.line_strong), Text(reason, style=pal.muted))
+                reasons.add_row(
+                    Text(glyph("·"), style=pal.line_strong), Text(reason, style=pal.muted)
+                )
             parts.append(reasons)
 
         # The pane's lower half used to be dead space on a short evidence list.
@@ -488,7 +490,7 @@ class ResultsScreen(Screen[None]):
         out.append(("r", "check it again right now"))
         out.append(("e", "export this one row as JSON"))
         if r.is_likely_defensive:
-            out.append(("a", "it is yours — hide it for this session"))
+            out.append(("a", glyph("it is yours — hide it for this session")))
         return out
 
     def on_data_table_row_highlighted(self, _event: DataTable.RowHighlighted) -> None:
@@ -637,7 +639,7 @@ class ResultsScreen(Screen[None]):
         """
         pal = self.palette
         parts: list[RenderableType] = [
-            Text("OTACON — triage console\n", style=f"bold {pal.brand}"),
+            Text(glyph("OTACON — triage console\n"), style=f"bold {pal.brand}"),
             Text(
                 "Each row is a domain that looks like yours and is registered to "
                 "someone. The score says how much it behaves like a real attack.\n"
@@ -649,8 +651,8 @@ class ResultsScreen(Screen[None]):
         ]
         keys = self._kv_grid()
         for key, what in (
-            ("↑ ↓  j k", "move between rows"),
-            ("1 … 5", "show only one severity, press again to lift it"),
+            (glyph("↑ ↓  j k"), "move between rows"),
+            (glyph("1 … 5"), "show only one severity, press again to lift it"),
             ("c", "what changed since the last scan of this target"),
             ("s", "change the order: risk, name, age, technique"),
             ("space", "mark this row and move on"),
@@ -662,7 +664,7 @@ class ResultsScreen(Screen[None]):
             ("u", "also show variants nobody registered"),
             ("/", "filter by part of a domain name"),
             ("w", "look up when the domain was registered"),
-            ("o", "open the site — warns before it does"),
+            ("o", glyph("open the site — warns before it does")),
             ("t", "write abuse notices for the marked rows"),
             ("e", "export the marked rows as JSON"),
             ("r", "re-check the selected row now"),
@@ -696,7 +698,8 @@ class ResultsScreen(Screen[None]):
         techs = self._kv_grid()
         for term in TECHNIQUES.values():
             techs.add_row(
-                Text(term.short, style=f"bold {pal.body}"), Text(term.meaning, style=pal.muted)
+                Text(term.short, style=f"bold {pal.body}"),
+                Text(glyph(term.meaning), style=pal.muted),
             )
         parts.append(techs)
         parts.append(Text("\nPress ? or Esc to close.", style=pal.dim))
@@ -786,7 +789,7 @@ class ResultsScreen(Screen[None]):
         self._open_armed = r.domain
         defanged = r.domain.replace(".", "[.]")
         warning = Text()
-        warning.append("⚠  OPSEC warning\n\n", style=f"bold {pal.tone(RiskLevel.MEDIUM).fg}")
+        warning.append(glyph("⚠  OPSEC warning\n\n"), style=f"bold {pal.tone(RiskLevel.MEDIUM).fg}")
         warning.append(f"{r.domain} is rated {r.risk_level.value}. ", style=pal.body)
         warning.append(
             "Opening it in your own browser exposes your address and fingerprint "
@@ -895,7 +898,7 @@ class ResultsScreen(Screen[None]):
         if r.age_days is not None:
             self.notify(f"{r.domain}: registered {format_age(r.age_days)} ago", timeout=4)
             return
-        self.notify(f"querying WHOIS for {r.domain}…", timeout=2)
+        self.notify(f"querying WHOIS for {r.domain}" + glyph("…"), timeout=2)
         self.run_worker(self._do_whois(r.domain), exclusive=False)
 
     async def _do_whois(self, domain: str) -> None:
@@ -911,7 +914,7 @@ class ResultsScreen(Screen[None]):
         r = self.selected
         if r is None:
             return
-        self.notify(f"rescanning {r.domain}…", timeout=2)
+        self.notify(f"rescanning {r.domain}" + glyph("…"), timeout=2)
         self.run_worker(self._do_rescan(r), exclusive=False)
 
     async def _do_rescan(self, result: DomainResult) -> None:

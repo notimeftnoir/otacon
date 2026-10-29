@@ -219,3 +219,53 @@ def test_the_suffix_does_not_break_newest_first_ordering(tmp_path) -> None:
     history.save(late, root=tmp_path)
 
     assert history.scans("example.com", root=tmp_path)[0].started_at == late.started_at
+
+
+# ---------------------------------------------------------------------------
+# containment: the target name comes off a scanned report
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not hasattr(Path, "symlink_to"), reason="platform cannot create symlinks")
+def test_a_symlinked_target_directory_is_refused(tmp_path) -> None:
+    """The containment check is the only thing that can catch this.
+
+    `is_valid_domain` runs first and sees nothing wrong — "example.com" is a
+    perfectly ordinary domain. But if something has placed a symlink at
+    <history>/example.com pointing out of the history root, resolving it lands
+    the report somewhere else entirely: on a shared host that is a write
+    anywhere the symlink points, which is the same threat the owner-only
+    permissions here address.
+    """
+    root = tmp_path / "home"
+    outside = tmp_path / "elsewhere"
+    root.mkdir()
+    outside.mkdir()
+    try:
+        (root / "example.com").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("this platform does not allow creating symlinks here")
+
+    with pytest.raises(ValueError, match="refusing to store history outside"):
+        history.save(ScanReport(target="example.com"), root=root)
+
+    assert not list(outside.iterdir()), "a report was written outside the history root"
+
+
+def test_a_symlinked_target_config_is_refused(tmp_path) -> None:
+    """The same guard, in the other store that takes a name off a report."""
+    from otacon import config
+
+    root = tmp_path / "home"
+    outside = tmp_path / "elsewhere"
+    (root / "config" / "targets").mkdir(parents=True)
+    outside.mkdir()
+    try:
+        (root / "config" / "targets" / "example.com.json").symlink_to(outside / "stolen.json")
+    except (OSError, NotImplementedError):
+        pytest.skip("this platform does not allow creating symlinks here")
+
+    # save_target swallows the refusal by design — configuration must never cost
+    # somebody a scan — so assert the file, not the exception.
+    config.save_target("example.com", config.TargetConfig(allowed=["x.com"]), root=root)
+    assert not (outside / "stolen.json").exists(), "config was written outside its root"

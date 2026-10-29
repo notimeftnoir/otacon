@@ -30,9 +30,8 @@ from ...core.models import ScanReport
 from ...core.types import RiskLevel
 from ...net.whois import format_age
 from ...triage.verdict import Delta, reasons, verdict, worst_first
-from ...ui.glyphs import degrade
 from ...ui.tokens import Palette
-from ...utils.theme import active_glyphs, active_palette
+from ...utils.theme import active_palette, glyph
 from ..widgets import distribution, wordmark
 from .results import ResultsScreen
 
@@ -77,7 +76,7 @@ class OverviewScreen(Screen[None]):
         pal = self.palette
         t = Text(" ")
         t.append_text(wordmark(palette=pal))
-        t.append(" › ", style=pal.line_strong)  # noqa: RUF001  — UI separator, not ">"
+        t.append(glyph(" › "), style=pal.line_strong)  # noqa: RUF001  — separator, not ">"
         t.append(self._report.target, style=f"bold {pal.strong}")
         return t
 
@@ -98,7 +97,7 @@ class OverviewScreen(Screen[None]):
         v = verdict(self._report)
         tone = pal.tone(_TONE_LEVEL[v.tone])
 
-        marker = degrade(v.marker, active_glyphs())
+        marker = glyph(v.marker)
         parts: list[RenderableType] = [
             Text(f"{marker} {v.headline}", style=f"bold {tone.fg}"),
             Text(v.explanation, style=pal.muted),
@@ -110,7 +109,9 @@ class OverviewScreen(Screen[None]):
         if self._delta is not None and not self._delta.quiet:
             days = max((self._report.started_at - self._delta.since).days, 0)
             when = "earlier today" if days < 1 else f"{format_age(days)} ago"
-            parts.append(Text(f"\nSINCE YOUR LAST SCAN · {when}", style=f"bold {pal.brand_dim}"))
+            parts.append(
+                Text(glyph(f"\nSINCE YOUR LAST SCAN · {when}"), style=f"bold {pal.brand_dim}")
+            )
             changed = self._grid()
             for change in self._delta.changes[:6]:
                 changed.add_row(

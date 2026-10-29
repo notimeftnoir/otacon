@@ -31,6 +31,12 @@ from otacon.utils.theme import BANNER, SAFE_GLYPHS
 # a terminal; until the v2.0 cleanup this tuple named the legacy shim files
 # `reporters.py` and `cli.py`, which were unreachable dead code shadowed by the
 # packages of the same name — so the guard was checking files nothing rendered.
+#
+# A hand-kept list drifts, and this one had: the three triage-console screens
+# added in 3.0.0, the verdict, the notice and `otacon watch` all print to a
+# terminal and none of them were here. `test_list_covers_every_rendering_module`
+# below now fails when a new one appears, so the next addition is caught rather
+# than silently unguarded.
 _UI_MODULES = (
     "utils/theme.py",
     "ui/glyphs.py",
@@ -46,9 +52,19 @@ _UI_MODULES = (
     "tui/widgets.py",
     "tui/screens/start.py",
     "tui/screens/results.py",
+    "tui/screens/overview.py",
+    "tui/screens/settings.py",
+    "tui/screens/compare.py",
     "cli/commands/tui.py",
+    "cli/commands/watch.py",
     "triage/dossier.py",
     "triage/actions.py",
+    "triage/verdict.py",
+    "triage/notice.py",
+    "reporters/markdown.py",
+    "diff.py",
+    "tui/commands.py",
+    "ui/emit.py",
     "_splash.py",
 )
 
@@ -125,3 +141,36 @@ def test_banner_encodes_on_a_legacy_windows_codepage() -> None:
         with pytest.raises(UnicodeEncodeError):
             BANNER.encode(codepage, errors="strict")
         BANNER.encode(codepage, errors="replace")
+
+
+def test_the_module_list_covers_everything_that_renders() -> None:
+    """A hand-kept list of rendering modules drifts; this is what notices.
+
+    Any module importing a renderer (Rich, Textual, or our own glyph helpers)
+    puts characters on a terminal and belongs in _UI_MODULES. The two documented
+    exclusions stay out: the permutation rules carry homoglyph *data* that must
+    print literally, and the HTML reporter targets a browser, which substitutes
+    fonts per glyph instead of showing tofu.
+    """
+    excluded = {
+        "permutations/rules.py",
+        "permutations/idn.py",
+        "permutations/generator.py",
+        "permutations/__init__.py",
+        "reporters/html.py",
+    }
+    renders = re.compile(
+        r"^from (rich|textual)[. ]|^import (rich|textual)\b|\bglyph\(|degrade\(", re.M
+    )
+    unguarded = sorted(
+        str(path.relative_to(_SRC))
+        for path in _SRC.rglob("*.py")
+        if renders.search(path.read_text(encoding="utf-8"))
+        and str(path.relative_to(_SRC)) not in _UI_MODULES
+        and str(path.relative_to(_SRC)) not in excluded
+    )
+    assert not unguarded, (
+        "these modules render to a terminal but are not in _UI_MODULES:\n  "
+        + "\n  ".join(unguarded)
+        + "\nAdd them, or add a documented reason to `excluded` here."
+    )

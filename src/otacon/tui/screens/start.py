@@ -43,9 +43,9 @@ from ...triage.verdict import Delta, delta
 from ...ui.copy import PHASES
 from ...ui.glyphs import degrade
 from ...ui.tokens import Palette
-from ...utils.theme import active_glyphs, active_palette
+from ...utils.theme import active_glyphs, active_palette, glyph
 from ...utils.validate import is_valid_domain, normalize_domain
-from ..widgets import live_hits, logo, scan_tally
+from ..widgets import ascii_toggle, live_hits, logo, scan_tally
 from .overview import OverviewScreen
 
 # Label, option name, default. WHOIS dominates the wall clock on a busy target,
@@ -134,8 +134,12 @@ class StartScreen(Screen[None]):
             yield Static("HOW DEEP", id="preset-label")
             with RadioSet(id="preset"):
                 for i, (name, blurb, _flags) in enumerate(_PRESETS):
-                    yield RadioButton(
-                        f"{name}  —  {blurb}", value=i == _DEFAULT_PRESET, id=f"preset-{i}"
+                    yield ascii_toggle(
+                        RadioButton(
+                            glyph(f"{name}  —  {blurb}"),
+                            value=i == _DEFAULT_PRESET,
+                            id=f"preset-{i}",
+                        )
                     )
             # Textual's default chevrons are outside the font budget in
             # ui.glyphs; these two are in it and read the same way.
@@ -143,11 +147,11 @@ class StartScreen(Screen[None]):
                 title="Advanced",
                 collapsed=True,
                 id="advanced",
-                collapsed_symbol="→",
-                expanded_symbol="↓",
+                collapsed_symbol=glyph("→"),
+                expanded_symbol=glyph("↓"),
             ):
                 for label, name, default in _OPTIONS:
-                    yield Checkbox(label, value=default, id=f"opt-{name}")
+                    yield ascii_toggle(Checkbox(label, value=default, id=f"opt-{name}"))
             yield Static("", id="setup-status")
             yield ProgressBar(total=100, show_eta=False, id="setup-progress")
             yield Static("", id="scan-feed")
@@ -166,7 +170,7 @@ class StartScreen(Screen[None]):
             return
         self._stop = True
         self.query_one("#setup-status", Static).update(
-            Text("Stopping — finishing the checks already in flight…", style=self._busy)
+            Text(glyph("Stopping — finishing the checks already in flight…"), style=self._busy)
         )
 
     def _should_stop(self) -> bool:
@@ -262,7 +266,7 @@ class StartScreen(Screen[None]):
         # that replaces it needs the room.
         self.query_one("#recent", OptionList).display = False
         self.query_one("#recent-label", Static).display = False
-        status.update(Text(f"Scanning {target}…", style=self._busy))
+        status.update(Text(f"Scanning {target}" + glyph("…"), style=self._busy))
         self.run_worker(self._scan(target, options), exclusive=True)
 
     def _on_progress(self, progress: ScanProgress) -> None:
@@ -276,7 +280,7 @@ class StartScreen(Screen[None]):
 
         dot = f"  {degrade('·', active_glyphs())}  "
         line = Text()
-        line.append(f"{PHASES[progress.phase]}…", style=self._busy)
+        line.append(PHASES[progress.phase] + glyph("…"), style=self._busy)
         if progress.phase is ScanPhase.CHECKING and progress.total:
             line.append(f"\n{progress.done} of {progress.total}", style=pal.muted)
             # The clock is only meaningful once action_start has set it; the

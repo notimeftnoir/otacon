@@ -11,18 +11,15 @@ from __future__ import annotations
 
 from rich.table import Table
 from rich.text import Text
+from textual.widgets._toggle_button import ToggleButton
 
 from ..core.models import DomainResult, ScanReport
 from ..core.types import RiskLevel
 from ..ui.copy import FLAGS
 from ..ui.copy import flags as flag_names
 from ..ui.copy import signals as _signals
-from ..ui.tokens import MIDNIGHT, Palette
-from ..utils.theme import active_palette
-
-# Kept as a module constant for the callers that want the default palette
-# without threading one through. Runtime rendering uses level_color().
-LEVEL_COLOR: dict[RiskLevel, str] = {level: MIDNIGHT.tone(level).fg for level in RiskLevel}
+from ..ui.tokens import Palette
+from ..utils.theme import active_palette, glyph
 
 # Digit -> level, for the 1..5 filter keys. Ordered worst-first so the key that
 # is easiest to reach gives the most urgent view.
@@ -146,6 +143,25 @@ def band_cell(level: RiskLevel, first_of_band: bool, palette: Palette | None = N
     return Text(tone.band, style=f"bold {tone.fg}")
 
 
+def ascii_toggle(button: ToggleButton) -> ToggleButton:
+    """Returns *button* with Textual's own marks degraded for this terminal.
+
+    Textual paints a toggle as BUTTON_LEFT + BUTTON_INNER + BUTTON_RIGHT, each
+    read per instance when it renders, so they can be degraded without touching
+    the framework class. The brackets are half-block glyphs with no stand-in in
+    the degrade table — dropping them would leave the mark with no container at
+    all — so ASCII mode gets the conventional parentheses instead.
+    """
+    from ..ui.caps import GlyphLevel
+    from ..utils.theme import active_glyphs
+
+    if active_glyphs() is GlyphLevel.FULL:
+        return button
+    button.BUTTON_LEFT, button.BUTTON_RIGHT = "(", ")"
+    button.BUTTON_INNER = glyph(button.BUTTON_INNER) or "*"
+    return button
+
+
 def badges(r: DomainResult) -> str:
     """Compact marker string for the flags that change how a row is treated."""
     return " ".join(FLAGS[name].short for name in flag_names(r))
@@ -160,7 +176,7 @@ def signals(r: DomainResult) -> str:
 
 def level_counts(report: ScanReport) -> dict[RiskLevel, int]:
     """Counts registered results per risk level, for the masthead tally."""
-    counts = dict.fromkeys(LEVEL_COLOR, 0)
+    counts = dict.fromkeys(RiskLevel, 0)
     for r in report.results:
         if r.is_registered:
             counts[r.risk_level] += 1
@@ -187,33 +203,14 @@ def tally(report: ScanReport, labelled: bool = True, palette: Palette | None = N
         t.append(f"{counts[level]:<4}", style="bold " + pal.strong)
     t.append(f"  {report.total_permutations} checked ", style=pal.muted)
     if report.degraded:
-        pct = round(report.dns_failure_ratio * 100)
-        t.append(f" ⚠ {pct}% DNS failed ", style=f"bold {pal.tone(RiskLevel.MEDIUM).fg}")
+        # Name the layer that actually failed: degraded covers probe errors too,
+        # so reporting a DNS percentage here could print " 0% DNS failed ".
+        if report.probe_failures and report.probe_failure_ratio >= report.dns_failure_ratio:
+            note = f"{round(report.probe_failure_ratio * 100)}% of checks failed"
+        else:
+            note = f"{round(report.dns_failure_ratio * 100)}% DNS failed"
+        t.append(glyph(f" ⚠ {note} "), style=f"bold {pal.tone(RiskLevel.MEDIUM).fg}")
     return t
-
-
-__all__ = [
-    "BAR_WIDTH",
-    "DISTRIBUTION_WIDTH",
-    "FILTER_KEYS",
-    "LEVELS_DESC",
-    "LEVEL_COLOR",
-    "LIVE_ROWS",
-    "badges",
-    "band_cell",
-    "distribution",
-    "gutter",
-    "level_color",
-    "level_counts",
-    "live_hits",
-    "logo",
-    "risk_bar",
-    "scan_tally",
-    "sigil",
-    "signals",
-    "tally",
-    "wordmark",
-]
 
 
 DISTRIBUTION_WIDTH = 36
@@ -291,3 +288,27 @@ def scan_tally(hits: int, dangerous: int, palette: Palette | None = None) -> Tex
         t.append("  ", style=pal.dim)
         t.append(f"{dangerous} dangerous", style=f"bold {pal.tone(RiskLevel.HIGH).fg}")
     return t
+
+
+__all__ = [
+    "BAR_WIDTH",
+    "DISTRIBUTION_WIDTH",
+    "FILTER_KEYS",
+    "LEVELS_DESC",
+    "LIVE_ROWS",
+    "ascii_toggle",
+    "badges",
+    "band_cell",
+    "distribution",
+    "gutter",
+    "level_color",
+    "level_counts",
+    "live_hits",
+    "logo",
+    "risk_bar",
+    "scan_tally",
+    "sigil",
+    "signals",
+    "tally",
+    "wordmark",
+]
