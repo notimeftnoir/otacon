@@ -260,7 +260,7 @@ def test_every_surface_that_degrades_the_verdict_marker_actually_does() -> None:
             if "glyph(" in line or "degrade(" in line:
                 continue
             if True:
-                raw.append(f"{path.relative_to(src)}: {line.strip()}")
+                raw.append(f"{path.relative_to(src).as_posix()}: {line.strip()}")
     assert not raw, "Verdict.marker rendered without degrading it:\n" + "\n".join(raw)
 
 

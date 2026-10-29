@@ -381,7 +381,7 @@ def test_cross_module_names_are_declared_in_their_modules_all() -> None:
 
     for path in sorted(src.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        rel = str(path.relative_to(src)).removesuffix(".py").replace("/", ".")
+        rel = path.relative_to(src).as_posix().removesuffix(".py").replace("/", ".")
         module = rel.removesuffix(".__init__")
         names: set[str] = set()
         exported: set[str] | None = None

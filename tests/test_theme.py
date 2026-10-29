@@ -162,12 +162,15 @@ def test_the_module_list_covers_everything_that_renders() -> None:
     renders = re.compile(
         r"^from (rich|textual)[. ]|^import (rich|textual)\b|\bglyph\(|degrade\(", re.M
     )
+    # as_posix(): _UI_MODULES and `excluded` are written with forward slashes,
+    # and str() of a relative path gives backslashes on Windows — so every
+    # module looked unguarded there while the suite passed everywhere else.
     unguarded = sorted(
-        str(path.relative_to(_SRC))
+        path.relative_to(_SRC).as_posix()
         for path in _SRC.rglob("*.py")
         if renders.search(path.read_text(encoding="utf-8"))
-        and str(path.relative_to(_SRC)) not in _UI_MODULES
-        and str(path.relative_to(_SRC)) not in excluded
+        and path.relative_to(_SRC).as_posix() not in _UI_MODULES
+        and path.relative_to(_SRC).as_posix() not in excluded
     )
     assert not unguarded, (
         "these modules render to a terminal but are not in _UI_MODULES:\n  "
