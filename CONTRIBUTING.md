@@ -8,8 +8,16 @@ cd otacon
 python3 -m venv .venv
 source .venv/bin/activate        # Linux / macOS
 .venv\Scripts\activate           # Windows (PowerShell)
-pip install -e ".[dev]"
+pip install -e ".[dev,tooling]"
 ```
+
+`dev` is the test and lint toolchain; `tooling` adds the local conveniences —
+`pre-commit` and `textual-dev` — which are deliberately outside the pinned set
+CI installs, since CI runs neither and they bring about thirty-five further
+packages with them.
+
+With [`just`](https://github.com/casey/just) on your path, `just install` does
+that and installs the hooks, and `just` on its own lists everything else.
 
 To get the exact, hash-verified versions CI runs against instead:
 
@@ -38,14 +46,14 @@ Install them once and the same gates CI enforces run on every commit, in
 seconds, instead of failing a 12-job matrix ten minutes after you push:
 
 ```bash
-pip install pre-commit
 pre-commit install
 pre-commit run --all-files     # first run, or after changing the config
 ```
 
 ## Linting
 
-`pre-commit` covers all of these; run them directly if you prefer:
+`just check` runs every gate CI runs, in CI's order, and `pre-commit` covers
+the same ground on each commit. Run them directly if you prefer:
 
 ```bash
 ruff check .                   # lint
