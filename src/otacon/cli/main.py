@@ -14,11 +14,10 @@ import typer
 from rich.console import Console
 
 from .._splash import play_intro
-from ..ui.caps import glyph_level
 from ..ui.emit import rich_theme
 from ..ui.glyphs import degrade
 from ..ui.tokens import DEFAULT_THEME, THEMES
-from ..utils.theme import OTACON_THEME, banner, set_palette
+from ..utils.theme import OTACON_THEME, active_glyphs, banner, set_glyphs, set_palette
 from .commands.diff import execute_diff
 from .commands.generate import execute_generate
 from .commands.scan import _CI, _FILTER, _NET, _OUT, execute_scan
@@ -86,7 +85,7 @@ def _banner(animate: bool = False) -> None:
         console.print(banner(), end="")
     # Degraded like the mark above it: a lone U+00B7 left behind on an ASCII
     # terminal is the one character that gives the whole line away.
-    dot = degrade("·", glyph_level())
+    dot = degrade("·", active_glyphs())
     console.print(
         f"  [muted]v{__version__} {dot} find lookalike domains before attackers use them[/muted]\n"
     )
@@ -103,6 +102,7 @@ def _apply_appearance(theme: str | None, ascii_only: bool) -> None:
     """
     if ascii_only:
         os.environ["OTACON_ASCII"] = "1"
+    set_glyphs()
     name = theme or os.environ.get("OTACON_THEME")
     palette = set_palette(name)
     if palette.name != DEFAULT_THEME:

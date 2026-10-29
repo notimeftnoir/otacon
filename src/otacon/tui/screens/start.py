@@ -35,14 +35,17 @@ from textual.widgets import (
 from textual.widgets.option_list import Option
 
 from ... import history
-from ...core.models import ScanReport
-from ...core.types import RiskLevel
+from ...core.models import DomainResult, ScanReport
+from ...core.types import RiskLevel, ScanPhase
+from ...engine.progress import ScanProgress
 from ...engine.scanner import run_scan
 from ...triage.verdict import Delta, delta
+from ...ui.copy import PHASES
+from ...ui.glyphs import degrade
 from ...ui.tokens import Palette
-from ...utils.theme import active_palette
+from ...utils.theme import active_glyphs, active_palette
 from ...utils.validate import is_valid_domain, normalize_domain
-from ..widgets import logo
+from ..widgets import live_hits, logo, scan_tally
 from .overview import OverviewScreen
 
 # Label, option name, default. WHOIS dominates the wall clock on a busy target,
@@ -87,6 +90,7 @@ class StartScreen(Screen[None]):
 
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("q", "app.quit", "quit"),
+        Binding("escape", "stop_scan", "stop", show=False),
         # No screen-level Enter binding: it would outrank the focused widget and
         # swallow the key before the recent-scans list could open a stored run.
         # The target field starts the scan through its own submit event.
@@ -99,6 +103,8 @@ class StartScreen(Screen[None]):
         # made this screen believe a scan was always in progress.
         self._scanning = False
         self._started = 0.0
+        self._stop = False
+        self._hits: list[DomainResult] = []
 
     @property
     def palette(self) -> Palette:
@@ -144,11 +150,30 @@ class StartScreen(Screen[None]):
                     yield Checkbox(label, value=default, id=f"opt-{name}")
             yield Static("", id="setup-status")
             yield ProgressBar(total=100, show_eta=False, id="setup-progress")
+            yield Static("", id="scan-feed")
             yield Static("RECENT SCANS", id="recent-label")
             yield OptionList(id="recent")
         yield Footer()
 
+    def action_stop_scan(self) -> None:
+        """Ends the scan early, keeping whatever it has already found.
+
+        A scan nobody can interrupt is a scan people run less often, so this
+        skips the remaining probes rather than tearing the run down: the
+        report comes back marked cancelled with its findings intact.
+        """
+        if not self._scanning or self._stop:
+            return
+        self._stop = True
+        self.query_one("#setup-status", Static).update(
+            Text("Stopping — finishing the checks already in flight…", style=self._busy)
+        )
+
+    def _should_stop(self) -> bool:
+        return self._stop
+
     def on_mount(self) -> None:
+        self.query_one("#scan-feed", Static).display = False
         self.query_one("#setup-progress", ProgressBar).display = False
         self._load_recent()
         self.query_one("#target", Input).focus()
@@ -233,17 +258,48 @@ class StartScreen(Screen[None]):
         for _label, name, _d in _OPTIONS:
             self.query_one(f"#opt-{name}", Checkbox).disabled = True
         self.query_one("#setup-progress", ProgressBar).display = True
+        # The recent-scan list is noise while a scan is running, and the feed
+        # that replaces it needs the room.
+        self.query_one("#recent", OptionList).display = False
+        self.query_one("#recent-label", Static).display = False
         status.update(Text(f"Scanning {target}…", style=self._busy))
         self.run_worker(self._scan(target, options), exclusive=True)
 
-    def _on_progress(self, done: int, total: int) -> None:
-        """Called from the scan; marshalled onto the UI thread by call_from_thread."""
+    def _on_progress(self, progress: ScanProgress) -> None:
+        """Draws the scan as it runs: stage, counts and the hits so far."""
+        if self._stop:
+            return
+        pal = self.palette
         bar = self.query_one("#setup-progress", ProgressBar)
-        bar.update(total=total, progress=done)
-        elapsed = time.monotonic() - self._started
-        self.query_one("#setup-status", Static).update(
-            Text(f"Checked {done} of {total}  ·  {elapsed:.0f}s", style=self._busy)
-        )
+        if progress.total:
+            bar.update(total=progress.total, progress=progress.done)
+
+        dot = f"  {degrade('·', active_glyphs())}  "
+        line = Text()
+        line.append(f"{PHASES[progress.phase]}…", style=self._busy)
+        if progress.phase is ScanPhase.CHECKING and progress.total:
+            line.append(f"\n{progress.done} of {progress.total}", style=pal.muted)
+            # The clock is only meaningful once action_start has set it; the
+            # counts are meaningful either way, so they are not gated on it.
+            if self._started:
+                line.append(f"{dot}{time.monotonic() - self._started:.0f}s", style=pal.muted)
+            line.append(dot, style=pal.muted)
+            line.append_text(scan_tally(progress.hits, progress.dangerous, pal))
+        # Say it while it is happening, not only in the verdict afterwards: a
+        # resolver that answers nothing looks exactly like a clean brand.
+        if progress.dns_queries > 20 and progress.dns_failure_ratio >= 0.5:
+            pct = round(progress.dns_failure_ratio * 100)
+            line.append(
+                f"\n{degrade('⚠', active_glyphs())} {pct}% of DNS lookups are failing",
+                style=f"bold {pal.tone(RiskLevel.MEDIUM).fg}",
+            )
+        self.query_one("#setup-status", Static).update(line)
+
+        if progress.latest is not None:
+            self._hits.append(progress.latest)
+            feed = self.query_one("#scan-feed", Static)
+            feed.display = True
+            feed.update(live_hits(self._hits, pal))
 
     async def _scan(self, target: str, options: dict[str, bool]) -> None:
         try:
@@ -253,6 +309,7 @@ class StartScreen(Screen[None]):
                 console=Console(quiet=True),
                 show_progress=False,
                 on_progress=self._on_progress,
+                should_stop=self._should_stop,
                 check_http=options["check_http"],
                 check_whois=options["check_whois"],
                 check_dnsbl=options["check_dnsbl"],
@@ -262,7 +319,11 @@ class StartScreen(Screen[None]):
             self._fail(f"Scan failed: {exc}")
             return
         if not report.results:
-            self._fail(f"No variants could be generated for {target}.")
+            self._fail(
+                "Stopped before anything was checked."
+                if report.cancelled
+                else f"No variants could be generated for {target}."
+            )
             return
         # Read the previous run before storing this one, or the comparison is
         # against the scan that just finished.
@@ -288,7 +349,11 @@ class StartScreen(Screen[None]):
     def _fail(self, message: str) -> None:
         """Returns the form to an editable state so the operator can retry."""
         self._scanning = False
+        self._stop = False
+        self._hits.clear()
         self.query_one("#setup-progress", ProgressBar).display = False
+        self.query_one("#scan-feed", Static).display = False
+        self._load_recent()
         self.query_one("#target", Input).disabled = False
         self.query_one("#preset", RadioSet).disabled = False
         for _label, name, _d in _OPTIONS:

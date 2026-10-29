@@ -30,6 +30,11 @@ from ..ui.tokens import MIDNIGHT, Palette, get_theme
 # the CLI builds its Console at module scope, long before argv is parsed.
 _palette: Palette = MIDNIGHT
 
+# The glyph level, resolved once and kept. Probing sys.stdout per render is
+# wrong inside a full-screen application: Textual swaps the stream out, so the
+# same interface would answer FULL before it started and ASCII once running.
+_glyphs: GlyphLevel | None = None
+
 
 def active_palette() -> Palette:
     """The palette every surface should currently be drawing with."""
@@ -41,6 +46,25 @@ def set_palette(name: str | None) -> Palette:
     global _palette
     _palette = get_theme(name)
     return _palette
+
+
+def active_glyphs() -> GlyphLevel:
+    """How adventurous the surfaces may be with codepoints.
+
+    Resolved from the real stream the first time it is asked, then kept, so
+    every surface agrees for the life of the process.
+    """
+    global _glyphs
+    if _glyphs is None:
+        _glyphs = glyph_level()
+    return _glyphs
+
+
+def set_glyphs(level: GlyphLevel | None = None) -> GlyphLevel:
+    """Pins the glyph level, re-reading the environment when given nothing."""
+    global _glyphs
+    _glyphs = level if level is not None else glyph_level()
+    return _glyphs
 
 
 OTACON_THEME: Theme = rich_theme(MIDNIGHT)
@@ -75,7 +99,7 @@ def wordmark_markup(palette: Palette, glyphs: GlyphLevel | None = None) -> str:
     terminal that only has ASCII, and leaving it there would show the reader
     a replacement character in the brand mark itself.
     """
-    level = glyphs if glyphs is not None else glyph_level()
+    level = glyphs if glyphs is not None else active_glyphs()
     return "".join(
         f"[bold {palette.strong}]{degrade(ch, level)}[/]"
         if i == SPOOF_INDEX
@@ -87,7 +111,7 @@ def wordmark_markup(palette: Palette, glyphs: GlyphLevel | None = None) -> str:
 def banner(palette: Palette | None = None, glyphs: GlyphLevel | None = None) -> str:
     """The three-line brand mark, as Rich markup, for the given palette."""
     pal = palette or _palette
-    level = glyphs if glyphs is not None else glyph_level()
+    level = glyphs if glyphs is not None else active_glyphs()
     sweep = degrade(LOGO_SWEEP, level)
     return (
         f"\n [{pal.dim}]{sweep}[/]\n"
@@ -113,11 +137,13 @@ __all__ = [
     "GlyphLevel",
     "Palette",
     "RiskLevel",
+    "active_glyphs",
     "active_palette",
     "banner",
     "color_depth",
     "degrade",
     "glyph_level",
+    "set_glyphs",
     "set_palette",
     "wordmark_markup",
 ]

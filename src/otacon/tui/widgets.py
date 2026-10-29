@@ -9,6 +9,7 @@ triage console themes with the rest of the tool.
 
 from __future__ import annotations
 
+from rich.table import Table
 from rich.text import Text
 
 from ..core.models import DomainResult, ScanReport
@@ -48,6 +49,19 @@ def _palette(palette: Palette | None = None) -> Palette:
     return palette or active_palette()
 
 
+def sigil(level: RiskLevel, palette: Palette | None = None) -> str:
+    """The severity glyph for *level*, degraded to what the terminal can draw.
+
+    Every severity mark in the console goes through here. Without it `--ascii`
+    reached the brand mark and nothing else, so a terminal that cannot render
+    U+2588 was given a logo it could read above a table it could not.
+    """
+    from ..ui.glyphs import degrade
+    from ..utils.theme import active_glyphs
+
+    return degrade(_palette(palette).tone(level).sigil, active_glyphs())
+
+
 def level_color(level: RiskLevel, palette: Palette | None = None) -> str:
     """The foreground for *level* in the active (or given) palette."""
     return _palette(palette).tone(level).fg
@@ -62,12 +76,11 @@ def wordmark(spoof: bool = True, palette: Palette | None = None) -> Text:
     greyscale screenshot — and does not compete with the severity colours,
     which are the only thing in this interface that earns a hue.
     """
-    from ..ui.caps import glyph_level
     from ..ui.glyphs import degrade
-    from ..utils.theme import SPOOF_INDEX, WORDMARK
+    from ..utils.theme import SPOOF_INDEX, WORDMARK, active_glyphs
 
     pal = _palette(palette)
-    level = glyph_level()
+    level = active_glyphs()
     out = Text()
     for i, ch in enumerate(WORDMARK):
         style = f"bold {pal.strong}" if spoof and i == SPOOF_INDEX else pal.muted
@@ -77,12 +90,11 @@ def wordmark(spoof: bool = True, palette: Palette | None = None) -> Text:
 
 def logo(tagline: bool = True, palette: Palette | None = None) -> Text:
     """The three-line brand mark used on the start screen."""
-    from ..ui.caps import glyph_level
     from ..ui.glyphs import degrade
-    from ..utils.theme import HOMOGLYPH, LOGO_SWEEP, SPOOF_INDEX, TAGLINE
+    from ..utils.theme import HOMOGLYPH, LOGO_SWEEP, SPOOF_INDEX, TAGLINE, active_glyphs
 
     pal = _palette(palette)
-    level = glyph_level()
+    level = active_glyphs()
     out = Text()
     out.append(f"{degrade(LOGO_SWEEP, level)}\n", style=pal.dim)
     out.append_text(wordmark(palette=pal))
@@ -96,8 +108,12 @@ def logo(tagline: bool = True, palette: Palette | None = None) -> Text:
 
 def risk_bar(score: int) -> str:
     """Eight-cell density bar; the same ramp the console reporter uses."""
+    from ..ui.glyphs import degrade
+    from ..utils.theme import active_glyphs
+
+    level = active_glyphs()
     filled = max(0, min(BAR_WIDTH, round(score / 100 * BAR_WIDTH)))
-    return "█" * filled + "░" * (BAR_WIDTH - filled)
+    return degrade("█", level) * filled + degrade("░", level) * (BAR_WIDTH - filled)
 
 
 def gutter(level: RiskLevel, palette: Palette | None = None) -> Text:
@@ -111,7 +127,7 @@ def gutter(level: RiskLevel, palette: Palette | None = None) -> Text:
     by ink it still reads with no colour at all.
     """
     pal = _palette(palette)
-    return Text(pal.tone(level).sigil, style=pal.tone(level).fg)
+    return Text(sigil(level, pal), style=pal.tone(level).fg)
 
 
 def band_cell(level: RiskLevel, first_of_band: bool, palette: Palette | None = None) -> Text:
@@ -187,7 +203,7 @@ def tally(report: ScanReport, labelled: bool = True, palette: Palette | None = N
         if labelled:
             t.append(f"{tone.band} ", style=f"bold {tone.fg}")
         else:
-            t.append(f"{tone.sigil} ", style=tone.fg)
+            t.append(f"{sigil(level, pal)} ", style=tone.fg)
         t.append(f"{counts[level]:<4}", style="bold " + pal.strong)
     t.append(f"  {report.total_permutations} checked ", style=pal.muted)
     if report.degraded:
@@ -202,14 +218,18 @@ __all__ = [
     "FILTER_KEYS",
     "LEVELS_DESC",
     "LEVEL_COLOR",
+    "LIVE_ROWS",
     "badges",
     "band_cell",
     "distribution",
     "gutter",
     "level_color",
     "level_counts",
+    "live_hits",
     "logo",
     "risk_bar",
+    "scan_tally",
+    "sigil",
     "signals",
     "tally",
     "wordmark",
@@ -236,8 +256,9 @@ def distribution(
         if not counts[level]:
             continue
         tone = pal.tone(level)
-        bar.append(tone.sigil * max(1, round(counts[level] / total * width)), style=tone.fg)
-        legend.append(f"{tone.sigil} ", style=tone.fg)
+        mark = sigil(level, pal)
+        bar.append(mark * max(1, round(counts[level] / total * width)), style=tone.fg)
+        legend.append(f"{mark} ", style=tone.fg)
         # "harmless" rather than "safe", matching the console's verdict card:
         # one vocabulary across surfaces is the whole point of ui/copy.py.
         label = "harmless" if level is RiskLevel.SAFE else level.value
@@ -247,3 +268,46 @@ def distribution(
     out.append("\n")
     out.append_text(legend)
     return out
+
+
+LIVE_ROWS = 6
+
+
+def live_hits(
+    hits: list[DomainResult], palette: Palette | None = None, limit: int = LIVE_ROWS
+) -> Table:
+    """The riskiest findings so far, for the scan in flight.
+
+    `otacon scan` has always drawn this from inside the engine while it ran.
+    The triage console could not, so the surface people actually use showed a
+    bar and a number through the one part of a scan worth watching.
+    """
+    pal = _palette(palette)
+    table = Table.grid(padding=(0, 2))
+    table.add_column(width=5, no_wrap=True)
+    table.add_column(width=28, no_wrap=True)
+    table.add_column(ratio=1, overflow="ellipsis")
+    for r in sorted(hits, key=lambda h: (-h.risk_score, h.domain))[:limit]:
+        tone = pal.tone(r.risk_level)
+        mark = Text(sigil(r.risk_level, pal), style=tone.fg)
+        mark.append(f" {r.risk_score:>3}", style=tone.fg)
+        table.add_row(
+            mark,
+            Text(r.domain, style=f"bold {pal.strong}"),
+            Text(badges(r), style=tone.fg),
+        )
+    return table
+
+
+def scan_tally(hits: int, dangerous: int, palette: Palette | None = None) -> Text:
+    """Running count for the scan header."""
+    pal = _palette(palette)
+    t = Text()
+    if not hits:
+        t.append("nothing registered yet", style=pal.dim)
+        return t
+    t.append(f"{hits} registered", style=f"bold {pal.strong}")
+    if dangerous:
+        t.append("  ", style=pal.dim)
+        t.append(f"{dangerous} dangerous", style=f"bold {pal.tone(RiskLevel.HIGH).fg}")
+    return t

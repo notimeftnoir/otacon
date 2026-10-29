@@ -17,7 +17,7 @@ from typing import Literal
 from ..core.models import ScanReport
 from ..ui.emit import textual_vars
 from ..ui.tokens import Palette
-from ..utils.theme import active_palette
+from ..utils.theme import active_glyphs, active_palette
 from .screens import OverviewScreen, ResultsScreen, StartScreen
 from .styles import OTACON_CSS
 
@@ -45,6 +45,10 @@ class OtaconTUI(App[None]):
         # variables at startup, so a palette swapped afterwards would leave the
         # stylesheet and the widgets disagreeing.
         self.ui_palette = palette or active_palette()
+        # Resolved here, while stdout is still the real terminal: Textual
+        # replaces the stream once it starts, and a capability probed then
+        # answers for the driver rather than for the reader.
+        self.ui_glyphs = active_glyphs()
         super().__init__()
         self._report = report
         self._landing = landing

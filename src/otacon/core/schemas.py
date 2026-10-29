@@ -82,6 +82,7 @@ class ScanReportSchema(BaseModel):
     dns_hijack_detected: bool = False
     dns_queries: int = 0
     dns_failures: int = 0
+    cancelled: bool = False
 
 
 class ScoringWeightsSchema(BaseModel):

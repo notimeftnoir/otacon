@@ -23,7 +23,6 @@ from rich.console import Console
 from rich.live import Live
 from rich.text import Text
 
-from .ui.caps import glyph_level
 from .ui.glyphs import degrade
 from .ui.tokens import Palette
 from .utils.theme import (
@@ -32,6 +31,7 @@ from .utils.theme import (
     SPOOF_INDEX,
     TAGLINE,
     WORDMARK,
+    active_glyphs,
     active_palette,
     banner,
 )
@@ -58,7 +58,7 @@ def animations_enabled(console: Console) -> bool:
 def _frame(step: int, rng: random.Random, palette: Palette) -> Text:
     """One frame: travelling pulse, half-decoded wordmark, typed-out pointer."""
     progress = step / (_FRAMES - 1)
-    level = glyph_level()
+    level = active_glyphs()
 
     # The pulse travels rather than blinking, so the eye follows it left to
     # right in the same direction the letters lock.

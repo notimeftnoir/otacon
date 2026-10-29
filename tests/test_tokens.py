@@ -12,11 +12,13 @@ import re
 import pytest
 
 from otacon.core.types import PermutationType, RiskLevel
+from otacon.tui import widgets
 from otacon.ui.caps import GlyphLevel
 from otacon.ui.copy import BANDS, FLAGS, TECHNIQUES
 from otacon.ui.emit import html_vars, mix, rich_theme, terminal_theme, textual_vars
 from otacon.ui.glyphs import ASCII_FALLBACK, SAFE, degrade
 from otacon.ui.tokens import MIDNIGHT, THEMES, Palette, get_theme
+from otacon.utils import theme
 
 _HEX = re.compile(r"^#[0-9a-f]{6}$")
 
@@ -148,3 +150,33 @@ def test_mix_blends_toward_the_second_colour() -> None:
     assert mix("#ffffff", "#000000", 0.0) == "#ffffff"
     assert mix("#ffffff", "#000000", 1.0) == "#000000"
     assert mix("#ffffff", "#000000", 0.5) == "#808080"
+
+
+def test_the_glyph_level_is_resolved_once_and_kept(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Probing the stream per render is wrong inside a full-screen application.
+
+    Textual swaps stdout out when it starts, so a capability read during a
+    render answers for the driver rather than for the reader — which is how
+    `--ascii` came to reach the brand mark and nothing else.
+    """
+    monkeypatch.delenv("OTACON_ASCII", raising=False)
+    assert theme.set_glyphs(GlyphLevel.FULL) is GlyphLevel.FULL
+    monkeypatch.setenv("OTACON_ASCII", "1")
+    # Still FULL: the pinned answer survives the environment changing under it.
+    assert theme.active_glyphs() is GlyphLevel.FULL
+    # Only an explicit re-read picks the new environment up.
+    assert theme.set_glyphs() is GlyphLevel.ASCII
+    theme.set_glyphs(GlyphLevel.FULL)
+
+
+def test_ascii_mode_reaches_every_severity_mark(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A terminal that cannot draw U+2588 was given a logo it could read above
+    a table it could not."""
+    monkeypatch.setattr(theme, "_glyphs", GlyphLevel.ASCII)
+    try:
+        marks = [widgets.sigil(level) for level in RiskLevel]
+        assert all(m.isascii() for m in marks), marks
+        assert widgets.risk_bar(50).isascii()
+        assert widgets.logo().plain.isascii()
+    finally:
+        theme.set_glyphs(GlyphLevel.FULL)

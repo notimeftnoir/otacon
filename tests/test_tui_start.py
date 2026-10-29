@@ -5,14 +5,17 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from textual.geometry import Region
 from textual.screen import Screen
-from textual.widgets import Checkbox, Input, OptionList
+from textual.widgets import Checkbox, Input, OptionList, Static
 
 from otacon import history
 from otacon.core.models import DomainResult, ScanReport
-from otacon.core.types import PermutationType, RiskLevel
+from otacon.core.types import PermutationType, RiskLevel, ScanPhase
+from otacon.engine.progress import ScanProgress
 from otacon.tui.app import OtaconTUI
 from otacon.tui.screens import OverviewScreen, ResultsScreen, StartScreen
+from otacon.ui.copy import PHASES
 
 
 def _stored(target: str = "example.com") -> ScanReport:
@@ -40,7 +43,7 @@ def _stored(target: str = "example.com") -> ScanReport:
 # is set True once a screen starts, so a screen keeping its own flag there reads
 # back True forever and every guard on it silently stops working.
 _SCREEN_OWN_ATTRS = {
-    StartScreen: {"_scanning", "_started"},
+    StartScreen: {"_scanning", "_started", "_stop", "_hits"},
     ResultsScreen: {
         "_report",
         "_level",
@@ -49,8 +52,25 @@ _SCREEN_OWN_ATTRS = {
         "_rows",
         "_allowed",
         "_open_armed",
+        "_focus_mode",
+        "_bars",
+        "_labelled_tally",
     },
+    OverviewScreen: {"_report", "_delta"},
 }
+
+
+def _render(app: OtaconTUI, widget: Static) -> str:
+    """A widget's rendered text, for asserting on what the operator can read."""
+    return "\n".join(
+        "".join(segment.text for segment in strip)
+        for strip in widget.render_lines(Region(0, 0, 80, 12))
+    )
+
+
+def _build(screen_cls: type) -> Screen:  # type: ignore[type-arg]
+    """A screen instance, supplying the report the two result screens need."""
+    return screen_cls() if screen_cls is StartScreen else screen_cls(_stored())
 
 
 @pytest.mark.parametrize("screen_cls", list(_SCREEN_OWN_ATTRS))
@@ -60,11 +80,17 @@ def test_screens_do_not_shadow_textual_internals(screen_cls: type) -> None:
     assert not clashes, f"{screen_cls.__name__} shadows Textual internals: {clashes}"
 
 
-def test_the_declared_attribute_list_matches_reality() -> None:
-    """Keeps the guard above honest if a screen gains an attribute."""
-    declared = _SCREEN_OWN_ATTRS[StartScreen]
-    actual = set(vars(StartScreen())) - set(vars(Screen()))
-    assert declared == actual, f"update _SCREEN_OWN_ATTRS: {sorted(actual)}"
+@pytest.mark.parametrize("screen_cls", list(_SCREEN_OWN_ATTRS))
+def test_the_declared_attribute_list_matches_reality(screen_cls: type) -> None:
+    """Keeps the guard above honest when a screen gains an attribute.
+
+    This used to check StartScreen alone, so the three attributes the results
+    screen picked up when it learned focus mode and the bar toggle went
+    unguarded — the guard was passing while covering less than it claimed.
+    """
+    declared = _SCREEN_OWN_ATTRS[screen_cls]
+    actual = set(vars(_build(screen_cls))) - set(vars(Screen()))
+    assert declared == actual, f"update _SCREEN_OWN_ATTRS[{screen_cls.__name__}]: {sorted(actual)}"
 
 
 @pytest.mark.asyncio
@@ -176,3 +202,93 @@ async def test_a_deleted_stored_scan_reports_rather_than_crashing() -> None:
             await pilot.pause()
         # Still on the form, and still usable.
         assert isinstance(app.screen, StartScreen)
+
+
+# ── the scan while it runs ──────────────────────────────────────────────
+
+
+def _progress(phase: ScanPhase, **kw: object) -> ScanProgress:
+    return ScanProgress(phase=phase, **kw)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_each_stage_says_what_it_is_doing() -> None:
+    """Certificate Transparency is one slow call before the counter can move.
+
+    With nothing reported for it, a scan sat on a motionless bar for seconds
+    and looked hung rather than busy.
+    """
+    app = OtaconTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, StartScreen)
+        status = screen.query_one("#setup-status", Static)
+        for phase in ScanPhase:
+            screen._on_progress(_progress(phase, total=240, done=10))
+            await pilot.pause()
+            assert PHASES[phase] in status.render().plain
+
+
+@pytest.mark.asyncio
+async def test_findings_appear_while_the_scan_is_still_running() -> None:
+    """`otacon scan` has always shown this; the console showed a bar."""
+    app = OtaconTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, StartScreen)
+        feed = screen.query_one("#scan-feed", Static)
+        assert feed.display is False
+
+        hit = DomainResult(
+            domain="evil.com",
+            kind=PermutationType.TYPO,
+            resolves=True,
+            ip_addresses=["1.2.3.4"],
+            risk_score=90,
+            risk_level=RiskLevel.CRITICAL,
+            has_login_form=True,
+        )
+        screen._on_progress(
+            _progress(ScanPhase.CHECKING, total=240, done=12, hits=1, dangerous=1, latest=hit)
+        )
+        await pilot.pause()
+        assert feed.display is True
+        assert "evil.com" in _render(app, feed)
+
+
+@pytest.mark.asyncio
+async def test_a_failing_resolver_is_reported_while_it_fails() -> None:
+    """Saying it only in the verdict means watching a scan report nothing and
+    believing the brand is clean for the whole minute it takes."""
+    app = OtaconTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, StartScreen)
+        screen._on_progress(
+            _progress(ScanPhase.CHECKING, total=240, done=60, dns_queries=120, dns_failures=96)
+        )
+        await pilot.pause()
+        assert "80% of DNS lookups are failing" in (
+            screen.query_one("#setup-status", Static).render().plain
+        )
+
+
+@pytest.mark.asyncio
+async def test_escape_stops_a_running_scan_without_tearing_it_down() -> None:
+    app = OtaconTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, StartScreen)
+        assert screen._should_stop() is False
+        # Esc is inert until a scan is actually running.
+        await pilot.press("escape")
+        assert screen._should_stop() is False
+
+        screen._scanning = True
+        screen.action_stop_scan()
+        assert screen._should_stop() is True
+        assert "Stopping" in screen.query_one("#setup-status", Static).render().plain

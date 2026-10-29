@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..core.types import PermutationType, RiskLevel
+from ..core.types import PermutationType, RiskLevel, ScanPhase
 from .tokens import MIDNIGHT
 
 
@@ -132,6 +132,16 @@ BANDS: tuple[tuple[RiskLevel, str, str], ...] = (
 )
 
 
+# What each stage of a scan is actually doing, said to the person waiting.
+# "DISCOVERING" means nothing; "looking for certificates" means the wait has a
+# reason, which is the difference between a pause and a hang.
+PHASES: dict[ScanPhase, str] = {
+    ScanPhase.GENERATING: "Building the list of lookalikes an attacker could register",
+    ScanPhase.DISCOVERING: "Looking for certificates already issued for names like yours",
+    ScanPhase.CHECKING: "Checking which of them exist",
+}
+
+
 def band_label(level: RiskLevel) -> str:
     """The four-character gutter label for *level*."""
     return MIDNIGHT.tone(level).band
@@ -142,4 +152,4 @@ def level_meaning(level: RiskLevel) -> str:
     return MIDNIGHT.tone(level).label
 
 
-__all__ = ["BANDS", "FLAGS", "TECHNIQUES", "Term", "band_label", "level_meaning"]
+__all__ = ["BANDS", "FLAGS", "PHASES", "TECHNIQUES", "Term", "band_label", "level_meaning"]

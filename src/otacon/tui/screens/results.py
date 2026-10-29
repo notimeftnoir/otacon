@@ -48,6 +48,7 @@ from ..widgets import (
     gutter,
     level_color,
     risk_bar,
+    sigil,
     signals,
     tally,
     wordmark,
@@ -310,7 +311,7 @@ class ResultsScreen(Screen[None]):
         tone = pal.tone(r.risk_level)
         head = Text()
         head.append(f"{r.domain}\n", style=f"bold {pal.strong}")
-        head.append(f"{tone.sigil} {r.risk_level.value.upper()} ", style=tone.fg)
+        head.append(f"{sigil(r.risk_level, pal)} {r.risk_level.value.upper()} ", style=tone.fg)
         head.append(f"{r.risk_score}/100", style=f"bold {pal.strong}")
         head.append(f"  {tone.label}", style=pal.muted)
         head.append(f"\n{TECHNIQUES[r.kind].long}", style=pal.brand_dim)
@@ -491,7 +492,7 @@ class ResultsScreen(Screen[None]):
         for level, span, why in BANDS:
             tone = pal.tone(level)
             bands.add_row(
-                Text(f"{tone.sigil} {tone.band} {span}", style=f"bold {tone.fg}"),
+                Text(f"{sigil(level, pal)} {tone.band} {span}", style=f"bold {tone.fg}"),
                 Text(why, style=pal.muted),
             )
         parts.append(bands)

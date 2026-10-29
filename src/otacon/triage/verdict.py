@@ -36,7 +36,14 @@ class Verdict:
 
     headline: str
     explanation: str
+
     degraded: bool
+    """True when the result is not a complete picture, for any reason.
+
+    A scan the operator stopped and a scan whose resolver failed both leave a
+    short result list that reads exactly like a quiet one, so neither may be
+    reported as an all-clear.
+    """
 
 
 @dataclass(frozen=True)
@@ -66,6 +73,29 @@ def verdict(report: ScanReport) -> Verdict:
     target = report.target
     n = len(registered)
     plural = "s" if n != 1 else ""
+
+    if report.cancelled:
+        # The operator knows they stopped it; what they must not be told is
+        # that what came back is the whole picture.
+        checked = len(report.results)
+        return Verdict(
+            tone="warn",
+            level=max(
+                (r.risk_level for r in registered),
+                key=lambda lv: lv.rank,
+                default=RiskLevel.SAFE,
+            ),
+            headline=(
+                f"● Stopped early: {checked} of {report.total_permutations} "
+                f"lookalikes of {target} were checked"
+            ),
+            explanation=(
+                f"{n} registered one{plural} turned up in what was checked. The rest were "
+                "never looked at, so this is not a clean bill of health — run it again to "
+                "finish."
+            ),
+            degraded=True,
+        )
 
     if report.degraded:
         # A broken resolver and a clean brand produce the same empty result, so
