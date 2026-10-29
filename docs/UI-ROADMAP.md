@@ -332,17 +332,23 @@ overview screen alone, how many domains need action and what the first one is.
 
 ## Phase 3 — the scan itself
 
+**Status: done.**
+
 **Goal:** the most interesting 30 seconds stop being a bar.
 
-- [ ] **Phase indicator** — `permutations → DNS → HTTP/TLS → WHOIS → CT`, with
-      the active stage lit. Explains why the wait is uneven.
-- [ ] **Live findings feed** — hits appear as they are scored, worst first,
+- [x] **Phase indicator.** Written here as `permutations → DNS → HTTP/TLS →
+      WHOIS → CT`, which turned out not to be how the pipeline works: those
+      checks all happen together inside one per-domain probe and are not
+      stages at all. The real ones are building the list, discovering more
+      from Certificate Transparency, and checking — and the middle one was
+      the invisible wait worth fixing.
+- [x] **Live findings feed** — hits appear as they are scored, worst first,
       exactly as `build_live_table` already does for `otacon scan`. Removes the
       regression where the CLI shows more than the console.
-- [ ] **Live tally** — the masthead counters fill during the scan.
-- [ ] **Cancel** — `esc` stops the scan and keeps the partial report; a scan
+- [x] **Live tally** — the masthead counters fill during the scan.
+- [x] **Cancel** — `esc` stops the scan and keeps the partial report; a scan
       that cannot be interrupted is a scan people run less often.
-- [ ] **Honest degradation** — the DNS-failure warning already in `ScanReport`
+- [x] **Honest degradation** — the DNS-failure warning already in `ScanReport`
       surfaces *during* the scan, not only in the verdict.
 
 ---
@@ -448,7 +454,7 @@ product.
 | ~~0 — tokens~~ | — | M | **Done.** Every other phase is cheaper afterwards |
 | ~~1 — hierarchy~~ | 0 | M | **Done.** The loudest defect, visible in one screenshot |
 | ~~2 — non-specialist~~ | 0, 1 | M | **Done.** The stated goal of the whole effort |
-| 3 — scan | 0 | S | Self-contained; closes a real CLI/console regression |
+| ~~3 — scan~~ | 0 | S | **Done.** Closed a real CLI/console regression |
 | 5 — console | 0 | S | Mostly deletion once tokens and copy are shared |
 | 4 — operator | 1 | L | Largest surface area, lowest urgency |
 | 6 — HTML | 0 | M | Independent of everything in the terminal |
