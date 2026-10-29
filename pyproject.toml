@@ -1,6 +1,6 @@
 [project]
 name = "otacon"
-version = "2.1.0"
+version = "3.0.0"
 description = "Domain impersonation detector — typosquatting, homoglyph & combosquat detection."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -50,6 +50,17 @@ dev = [
     "bandit>=1.9.4",  # <1.9.4 crashes on Python 3.14 (ast.Constant.s removed)
     "types-setuptools",
     "build>=1.0.0",
+]
+
+# Local development conveniences, deliberately outside `dev`. CI installs the
+# dev set from a hash-pinned lockfile and audits it; these two bring about
+# thirty-five more packages with them — textual-dev carries aiohttp and a web
+# server — and CI runs neither the hook manager nor the Textual dev server.
+# Keeping them here gives a contributor one command without widening the
+# surface that pip-audit has to cover on every push.
+tooling = [
+    "textual-dev>=1.7",   # textual run --dev (live CSS), textual console
+    "pre-commit>=3.7",    # the gates in .pre-commit-config.yaml
 ]
 
 [project.scripts]

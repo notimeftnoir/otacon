@@ -14,6 +14,8 @@ through triage.actions.rescan_result.
 from __future__ import annotations
 
 import webbrowser
+from collections.abc import Callable
+from enum import Enum
 from pathlib import Path
 from typing import ClassVar
 from urllib.parse import quote
@@ -28,6 +30,7 @@ from textual.events import Resize
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Input, Static
 
+from ... import config
 from ...core.models import DomainResult, ScanReport
 from ...core.types import RiskLevel
 from ...net.whois import fetch_domain_age, format_age
@@ -48,6 +51,7 @@ from ..widgets import (
     gutter,
     level_color,
     risk_bar,
+    sigil,
     signals,
     tally,
     wordmark,
@@ -58,6 +62,57 @@ from ..widgets import (
 _LABELLED_TALLY_WIDTH = 96
 
 _LABEL_WIDTH = 13
+
+
+class SortMode(str, Enum):
+    """How the table is ordered.
+
+    Risk first because that is the question the tool answers. The others exist
+    because an operator working a list has different questions: is this name
+    one I recognise, how fresh is this batch, which technique is being used
+    against me this week.
+    """
+
+    RISK = "risk"
+    DOMAIN = "domain"
+    AGE = "age"
+    TECH = "technique"
+
+
+_SORT_ORDER: tuple[SortMode, ...] = (
+    SortMode.RISK,
+    SortMode.DOMAIN,
+    SortMode.AGE,
+    SortMode.TECH,
+)
+
+# Column order, named. Tests and the table build from the same tuple, so
+# inserting a column cannot quietly shift what an assertion is reading.
+COLUMNS: tuple[str, ...] = (
+    "mark",
+    "band",
+    "risk",
+    "domain",
+    "tech",
+    "age",
+    "signals",
+    "flags",
+)
+
+
+def column(name: str) -> int:
+    """The index of the named column."""
+    return COLUMNS.index(name)
+
+
+_SORT_KEYS: dict[SortMode, Callable[[DomainResult], tuple[object, ...]]] = {
+    SortMode.RISK: lambda r: (-r.risk_score, r.domain),
+    SortMode.DOMAIN: lambda r: (r.domain,),
+    # Unknown ages sort last: "we never found out" is not the same as "old",
+    # and putting them first would bury the fresh registrations that matter.
+    SortMode.AGE: lambda r: (r.age_days is None, r.age_days or 0, r.domain),
+    SortMode.TECH: lambda r: (r.kind.value, -r.risk_score, r.domain),
+}
 
 
 class ResultsScreen(Screen[None]):
@@ -74,6 +129,12 @@ class ResultsScreen(Screen[None]):
         Binding("3", "filter_level('3')", "med", show=False),
         Binding("4", "filter_level('4')", "low", show=False),
         Binding("5", "filter_level('5')", "safe", show=False),
+        Binding("c", "compare", "compare"),
+        Binding("comma", "settings", "settings", show=False),
+        Binding("s", "sort", "sort"),
+        Binding("space", "toggle_select", "select", show=False),
+        Binding("v", "select_visible", "select all", show=False),
+        Binding("x", "export_view", "export view", show=False),
         Binding("f", "toggle_focus", "focus"),
         Binding("b", "toggle_bars", "bars", show=False),
         Binding("u", "toggle_unregistered", "unreg", show=False),
@@ -87,18 +148,27 @@ class ResultsScreen(Screen[None]):
         Binding("k", "cursor_up", "up", show=False),
     ]
 
-    def __init__(self, report: ScanReport) -> None:
+    def __init__(self, report: ScanReport, show_unregistered: bool = False) -> None:
         super().__init__()
         self._report = report
         self._level: RiskLevel | None = None
         self._query = ""
-        self._show_unregistered = False
+        # A scan where nothing is registered has no rows to show under the
+        # default filter, so opening it filtered would be a dead end.
+        self._show_unregistered = show_unregistered
         self._rows: list[DomainResult] = []
         # Domains the operator has waved through for this session only. Never
         # written anywhere: an allow-list that outlives the session is a
         # decision for --exclude, not a keystroke.
         self._allowed: set[str] = set()
         self._open_armed: str | None = None
+        self._sort = SortMode.RISK
+        # Domains the operator has marked, by name rather than by index:
+        # the row order changes under a sort or a filter, and a selection
+        # that silently pointed at different rows afterwards would be worse
+        # than no selection at all.
+        self._selected: set[str] = set()
+        self._armed: str | None = None
         self._focus_mode = False
         self._bars = False
         self._labelled_tally = True
@@ -142,15 +212,25 @@ class ResultsScreen(Screen[None]):
         """
         table = self.query_one("#results", DataTable)
         table.clear(columns=True)
-        table.add_column("BAND", width=4)
-        table.add_column("RISK", width=(BAR_WIDTH + 4) if self._bars else 5)
         # Widths are tuned so FLAGS — the column that changes what an operator
         # does with a row — still fits inside the rail on a narrow terminal.
-        table.add_column("DOMAIN", width=28)
-        table.add_column("TECH", width=11)
-        table.add_column("AGE", width=5)
-        table.add_column("SIGNALS", width=15)
-        table.add_column("FLAGS")
+        widths: dict[str, int | None] = {
+            "mark": 1,
+            "band": 4,
+            "risk": (BAR_WIDTH + 4) if self._bars else 5,
+            "domain": 28,
+            "tech": 11,
+            "age": 5,
+            "signals": 15,
+            "flags": None,
+        }
+        for name in COLUMNS:
+            label = "" if name == "mark" else name.upper()
+            width = widths[name]
+            if width is None:
+                table.add_column(label, key=name)
+            else:
+                table.add_column(label, width=width, key=name)
 
     def on_resize(self, _event: Resize) -> None:
         """Drops the tally to glyphs when the labels no longer fit."""
@@ -185,7 +265,7 @@ class ResultsScreen(Screen[None]):
         if self._query:
             needle = self._query.lower()
             rows = [r for r in rows if needle in r.domain.lower()]
-        return sorted(rows, key=lambda r: (-r.risk_score, r.domain))
+        return sorted(rows, key=_SORT_KEYS[self._sort])
 
     def _focus_floor(self) -> RiskLevel | None:
         """The worst band that actually has rows, or None when nothing is shown.
@@ -200,8 +280,17 @@ class ResultsScreen(Screen[None]):
         return None
 
     def refresh_rows(self) -> None:
-        """Rebuilds the table from the report under the current filters."""
+        """Rebuilds the table from the report under the current filters.
+
+        The row under the cursor is kept, by domain rather than by index.
+        Rebuilding sends the cursor back to the top otherwise, which threw an
+        operator to row one every time a WHOIS answer or a re-check landed,
+        and made marking a run of rows with `space` toggle the same row on and
+        off instead of walking down the list.
+        """
         table = self.query_one("#results", DataTable)
+        here = self.selected
+        keep = here.domain if here is not None else None
         table.clear()
         self._rows = self._visible()
         pal = self.palette
@@ -220,7 +309,15 @@ class ResultsScreen(Screen[None]):
             score.append_text(mark)
             score.append(f" {r.risk_score:>3}", style=colour)
             table.add_row(
-                band_cell(r.risk_level, r.risk_level != previous, pal),
+                self._mark_cell(r, pal),
+                # Band labels only mean anything while the table is ordered by
+                # risk; under any other sort they would appear to mark runs
+                # that are not runs.
+                band_cell(
+                    r.risk_level,
+                    self._sort is SortMode.RISK and r.risk_level != previous,
+                    pal,
+                ),
                 score,
                 Text(r.domain, style=pal.dim if dimmed else f"bold {pal.strong}"),
                 Text(r.kind.value, style=pal.dim if dimmed else pal.brand_dim),
@@ -229,9 +326,38 @@ class ResultsScreen(Screen[None]):
                 Text(badges(r), style=colour),
             )
             previous = r.risk_level
+        if keep is not None:
+            for index, r in enumerate(self._rows):
+                if r.domain == keep:
+                    table.move_cursor(row=index)
+                    break
         self.query_one("#tally", Static).update(self._tally_text())
         self._render_status()
         self._render_dossier()
+
+    def _mark_cell(self, r: DomainResult, pal: Palette) -> Text:
+        """One cell saying whether this row is marked."""
+        if r.domain not in self._selected:
+            return Text(" ")
+        return Text(sigil(RiskLevel.SAFE, pal)[0], style=f"bold {pal.brand}")
+
+    @property
+    def marked(self) -> list[DomainResult]:
+        """The marked rows that are still visible, in table order.
+
+        Marks survive a filter change rather than being dropped, but an action
+        only ever touches what the operator can currently see — acting on rows
+        hidden behind a filter is how a bulk action becomes a surprise.
+        """
+        return [r for r in self._rows if r.domain in self._selected]
+
+    @property
+    def targets(self) -> list[DomainResult]:
+        """What an action applies to: the marked rows, or the row under the cursor."""
+        if self.marked:
+            return self.marked
+        current = self.selected
+        return [current] if current is not None else []
 
     @property
     def selected(self) -> DomainResult | None:
@@ -265,6 +391,11 @@ class ResultsScreen(Screen[None]):
         if self._query:
             t.append("  ·  ", style=pal.line_strong)
             t.append(f"matching {self._query!r}", style=pal.accent)
+        if self._selected:
+            t.append("  ·  ", style=pal.line_strong)
+            t.append(f"{len(self.marked)} marked", style=f"bold {pal.brand}")
+        t.append("  ·  ", style=pal.line_strong)
+        t.append(f"by {self._sort.value}", style=pal.muted)
         if self._focus_mode:
             floor = self._focus_floor()
             t.append("  ·  ", style=pal.line_strong)
@@ -308,7 +439,7 @@ class ResultsScreen(Screen[None]):
         tone = pal.tone(r.risk_level)
         head = Text()
         head.append(f"{r.domain}\n", style=f"bold {pal.strong}")
-        head.append(f"{tone.sigil} {r.risk_level.value.upper()} ", style=tone.fg)
+        head.append(f"{sigil(r.risk_level, pal)} {r.risk_level.value.upper()} ", style=tone.fg)
         head.append(f"{r.risk_score}/100", style=f"bold {pal.strong}")
         head.append(f"  {tone.label}", style=pal.muted)
         head.append(f"\n{TECHNIQUES[r.kind].long}", style=pal.brand_dim)
@@ -364,6 +495,7 @@ class ResultsScreen(Screen[None]):
         # Moving off a row disarms a pending browser open, so `o` never fires
         # against a domain other than the one the warning named.
         self._open_armed = None
+        self._armed = None
         self._render_dossier()
 
     # ── navigation ──────────────────────────────────────────────────────
@@ -377,6 +509,48 @@ class ResultsScreen(Screen[None]):
         self.query_one("#results", DataTable).action_cursor_up()
 
     # ── view modes ──────────────────────────────────────────────────────
+
+    def action_settings(self) -> None:
+        """Opens the settings, allow-list and watchlist for this target."""
+        from .settings import SettingsScreen
+
+        self.app.push_screen(SettingsScreen(self._report.target))
+
+    def action_compare(self) -> None:
+        """Opens what moved since the previous stored scan of this target."""
+        from .compare import CompareScreen
+
+        self.app.push_screen(CompareScreen(self._report))
+
+    def action_sort(self) -> None:
+        """Cycles the table order."""
+        nxt = (_SORT_ORDER.index(self._sort) + 1) % len(_SORT_ORDER)
+        self._sort = _SORT_ORDER[nxt]
+        self.refresh_rows()
+
+    def action_toggle_select(self) -> None:
+        """Marks or unmarks the row under the cursor, then moves on.
+
+        Moving on is the point: marking a run of rows is one key held down
+        rather than two alternating ones.
+        """
+        r = self.selected
+        if r is None:
+            return
+        self._selected.symmetric_difference_update({r.domain})
+        self._armed = None
+        self.refresh_rows()
+        self.query_one("#results", DataTable).action_cursor_down()
+
+    def action_select_visible(self) -> None:
+        """Marks every row the filter currently shows, or clears the marks."""
+        shown = {r.domain for r in self._rows}
+        if shown and shown <= self._selected:
+            self._selected -= shown
+        else:
+            self._selected |= shown
+        self._armed = None
+        self.refresh_rows()
 
     def action_toggle_focus(self) -> None:
         """Dims every row below the worst band present."""
@@ -420,12 +594,20 @@ class ResultsScreen(Screen[None]):
             if overlay.has_class("visible"):
                 overlay.remove_class("visible")
                 self._open_armed = None
+                self._armed = None
                 return
         bar = self.query_one("#filterbar", Input)
-        bar.value = ""
-        bar.remove_class("visible")
-        self._query = ""
-        self.refresh_rows()
+        if bar.has_class("visible") or self._query:
+            bar.value = ""
+            bar.remove_class("visible")
+            self._query = ""
+            self.refresh_rows()
+            self.query_one("#results", DataTable).focus()
+            return
+        if self._selected:
+            self._selected.clear()
+            self.refresh_rows()
+            return
         self.query_one("#results", DataTable).focus()
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -458,7 +640,9 @@ class ResultsScreen(Screen[None]):
             Text("OTACON — triage console\n", style=f"bold {pal.brand}"),
             Text(
                 "Each row is a domain that looks like yours and is registered to "
-                "someone. The score says how much it behaves like a real attack.",
+                "someone. The score says how much it behaves like a real attack.\n"
+                "Keys that act on a row act on every marked row instead, once "
+                "anything is marked.",
                 style=pal.muted,
             ),
             Text("\nKEYS", style=f"bold {pal.brand_dim}"),
@@ -467,6 +651,11 @@ class ResultsScreen(Screen[None]):
         for key, what in (
             ("↑ ↓  j k", "move between rows"),
             ("1 … 5", "show only one severity, press again to lift it"),
+            ("c", "what changed since the last scan of this target"),
+            ("s", "change the order: risk, name, age, technique"),
+            ("space", "mark this row and move on"),
+            ("v", "mark everything the filter shows, or clear the marks"),
+            ("x", "export every row the filter shows"),
             ("0", "show every severity"),
             ("f", "dim everything below the worst band present"),
             ("b", "swap the severity glyph for a full bar"),
@@ -474,10 +663,11 @@ class ResultsScreen(Screen[None]):
             ("/", "filter by part of a domain name"),
             ("w", "look up when the domain was registered"),
             ("o", "open the site — warns before it does"),
-            ("t", "write an abuse notice for its registrar"),
-            ("e", "export the selected row as JSON"),
+            ("t", "write abuse notices for the marked rows"),
+            ("e", "export the marked rows as JSON"),
             ("r", "re-check the selected row now"),
-            ("a", "hide a row for this session"),
+            ("a", "wave the marked rows through, now and in future scans"),
+            (",", "settings, the allow-list and the watchlist"),
             ("esc", "close this, or clear the filter"),
             ("q", "quit"),
         ):
@@ -489,7 +679,7 @@ class ResultsScreen(Screen[None]):
         for level, span, why in BANDS:
             tone = pal.tone(level)
             bands.add_row(
-                Text(f"{tone.sigil} {tone.band} {span}", style=f"bold {tone.fg}"),
+                Text(f"{sigil(level, pal)} {tone.band} {span}", style=f"bold {tone.fg}"),
                 Text(why, style=pal.muted),
             )
         parts.append(bands)
@@ -514,14 +704,65 @@ class ResultsScreen(Screen[None]):
 
     # ── actions on the selected row ─────────────────────────────────────
 
+    def _needs_confirming(self, action: str, what: str, count: int) -> bool:
+        """True when the operator should press the key once more first.
+
+        One row is one file and needs no ceremony. A dozen rows is a dozen
+        files written into the working directory, which is worth a sentence
+        naming the number before it happens — the same arm-and-confirm the
+        browser warning already uses, rather than a second idea of consent.
+        """
+        if count <= 1 or self._armed == action:
+            self._armed = None
+            return False
+        self._armed = action
+        pal = self.palette
+        notice = self.query_one("#notice", Static)
+        text = Text()
+        text.append(f"{what} for {count} domains\n\n", style=f"bold {pal.strong}")
+        text.append(
+            "They are written into the directory you started Otacon in.\n\n",
+            style=pal.body,
+        )
+        for r in self.targets[:12]:
+            text.append(f"  {r.domain}\n", style=pal.muted)
+        if count > 12:
+            text.append(f"  and {count - 12} more\n", style=pal.dim)
+        text.append(
+            f"\nPress {action} again to go ahead, Esc to cancel.",
+            style=f"bold {pal.tone(RiskLevel.MEDIUM).fg}",
+        )
+        notice.update(text)
+        notice.add_class("visible")
+        return True
+
     def action_allow(self) -> None:
-        """Drops the selected domain from this session's view."""
-        r = self.selected
-        if r is None:
+        """Waves the marked rows through, and remembers the decision.
+
+        Allowing used to last one session, so a defensive registration of your
+        own had to be dismissed again every week — the tool asked you to do
+        the same work repeatedly and then forgot the answer. The decision is
+        stored against this target and future scans skip those domains
+        entirely; `,` lists them and takes them back off.
+        """
+        rows = self.targets
+        if not rows:
             return
-        self._allowed.add(r.domain)
+        if self._needs_confirming("a", "Leave out of future scans", len(rows)):
+            return
+        self.query_one("#notice", Static).remove_class("visible")
+        names = [r.domain for r in rows]
+        self._allowed.update(names)
+        self._selected.difference_update(names)
+        kept = config.allow(self._report.target, *names) is not None
         self.refresh_rows()
-        self.notify(f"allowed for this session: {r.domain}", timeout=4)
+        what = names[0] if len(names) == 1 else f"{len(names)} domains"
+        self.notify(
+            f"{what}: hidden, and left out of future scans of {self._report.target}"
+            if kept
+            else f"{what}: hidden for this session (config is switched off)",
+            timeout=5,
+        )
 
     def action_open_site(self) -> None:
         """Shows the OPSEC warning, then opens the site if `o` is pressed again.
@@ -564,25 +805,69 @@ class ResultsScreen(Screen[None]):
         notice.add_class("visible")
 
     def action_takedown(self) -> None:
-        """Renders the abuse notice for the selected row and writes it to the cwd."""
-        r = self.selected
-        if r is None:
+        """Writes an abuse notice for every marked row, or for the row under the cursor."""
+        rows = self.targets
+        if not rows:
             return
-        text = build_takedown_notice(r, self._report.target)
+        if self._needs_confirming("t", "Write abuse notices", len(rows)):
+            return
+        bulk = len(rows) > 1
+        written = 0
+        for r in rows:
+            text = build_takedown_notice(r, self._report.target)
+            name = f"takedown-{r.domain.replace('.', '_')}.txt"
+            if self._write_beside_cwd(name, text, "notice saved", quiet=bulk):
+                written += 1
         notice = self.query_one("#notice", Static)
-        notice.update(Text(text, style=self.palette.body))
-        notice.add_class("visible")
-        self._write_beside_cwd(f"takedown-{r.domain.replace('.', '_')}.txt", text, "notice saved")
+        if not bulk:
+            # One notice is meant to be read before it is sent, so show it.
+            notice.update(
+                Text(build_takedown_notice(rows[0], self._report.target), style=self.palette.body)
+            )
+            notice.add_class("visible")
+        else:
+            notice.remove_class("visible")
+            self.notify(f"wrote {written} abuse notices", timeout=4)
 
     def action_export(self) -> None:
-        """Writes the selected row as a single-result JSON report."""
-        r = self.selected
-        if r is None:
+        """Writes the marked rows, or the row under the cursor, as a JSON report."""
+        rows = self.targets
+        if not rows:
             return
-        single = self._report.model_copy(update={"results": [r]})
-        self._write_beside_cwd(f"{r.domain.replace('.', '_')}.json", to_json(single), "exported")
+        if len(rows) == 1:
+            single = self._report.model_copy(update={"results": list(rows)})
+            self._write_beside_cwd(
+                f"{rows[0].domain.replace('.', '_')}.json", to_json(single), "exported"
+            )
+            return
+        if self._needs_confirming("e", "Export", len(rows)):
+            return
+        self.query_one("#notice", Static).remove_class("visible")
+        subset = self._report.model_copy(update={"results": list(rows)})
+        self._write_beside_cwd(
+            f"{self._report.target.replace('.', '_')}-selection.json",
+            to_json(subset),
+            f"exported {len(rows)} domains",
+        )
 
-    def _write_beside_cwd(self, filename: str, body: str, verb: str) -> None:
+    def action_export_view(self) -> None:
+        """Writes everything the current filter shows, in the current order.
+
+        The filters are the work: having narrowed a scan to the rows that
+        matter, handing that set to somebody else should not mean doing it
+        again by hand.
+        """
+        if not self._rows:
+            self.notify("nothing to export: no rows match", severity="warning", timeout=4)
+            return
+        view = self._report.model_copy(update={"results": list(self._rows)})
+        self._write_beside_cwd(
+            f"{self._report.target.replace('.', '_')}-view.json",
+            to_json(view),
+            f"exported {len(self._rows)} rows",
+        )
+
+    def _write_beside_cwd(self, filename: str, body: str, verb: str, quiet: bool = False) -> bool:
         """Writes *body* to *filename* under the working directory, or reports why not.
 
         The filename is attacker-influenced — it is derived from a scanned domain —
@@ -592,13 +877,15 @@ class ResultsScreen(Screen[None]):
         path = safe_relative_path(filename)
         if path is None:
             self.notify(f"refused unsafe filename: {filename}", severity="error", timeout=5)
-            return
+            return False
         try:
             Path(path).write_text(body, encoding="utf-8")
         except OSError as exc:
             self.notify(f"write failed: {exc}", severity="error", timeout=5)
-            return
-        self.notify(f"{verb}: {path}", timeout=4)
+            return False
+        if not quiet:
+            self.notify(f"{verb}: {path}", timeout=4)
+        return True
 
     def action_whois(self) -> None:
         """Fetches registration data for the selected row without blocking the UI."""
@@ -650,4 +937,4 @@ class ResultsScreen(Screen[None]):
         self.refresh_rows()
 
 
-__all__ = ["ResultsScreen"]
+__all__ = ["COLUMNS", "ResultsScreen", "SortMode", "column"]

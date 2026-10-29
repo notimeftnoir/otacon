@@ -9,11 +9,14 @@ triage console themes with the rest of the tool.
 
 from __future__ import annotations
 
+from rich.table import Table
 from rich.text import Text
 
 from ..core.models import DomainResult, ScanReport
 from ..core.types import RiskLevel
 from ..ui.copy import FLAGS
+from ..ui.copy import flags as flag_names
+from ..ui.copy import signals as _signals
 from ..ui.tokens import MIDNIGHT, Palette
 from ..utils.theme import active_palette
 
@@ -48,54 +51,71 @@ def _palette(palette: Palette | None = None) -> Palette:
     return palette or active_palette()
 
 
+def sigil(level: RiskLevel, palette: Palette | None = None) -> str:
+    """The severity glyph for *level*, degraded to what the terminal can draw.
+
+    Every severity mark in the console goes through here. Without it `--ascii`
+    reached the brand mark and nothing else, so a terminal that cannot render
+    U+2588 was given a logo it could read above a table it could not.
+    """
+    from ..ui.glyphs import degrade
+    from ..utils.theme import active_glyphs
+
+    return degrade(_palette(palette).tone(level).sigil, active_glyphs())
+
+
 def level_color(level: RiskLevel, palette: Palette | None = None) -> str:
     """The foreground for *level* in the active (or given) palette."""
     return _palette(palette).tone(level).fg
 
 
 def wordmark(spoof: bool = True, palette: Palette | None = None) -> Text:
-    """OTACON in the brand gradient, with the Cyrillic homoglyph picked out.
+    """OTACON with the Cyrillic homoglyph picked out by weight.
 
     The wordmark carries the tool's whole idea: the O at SPOOF_INDEX is U+041E,
-    not the Latin letter it reads as. Showing it stained is the one-glance
-    explanation of what the tool looks for.
+    not the Latin letter it reads as. It is marked by brightness rather than by
+    hue, so the mark reads the same under ``mono``, ``NO_COLOR`` and a
+    greyscale screenshot — and does not compete with the severity colours,
+    which are the only thing in this interface that earns a hue.
     """
-    from ..ui.caps import color_depth
-    from ..ui.emit import gradient_color, gradient_for
-    from ..utils.theme import SPOOF_INDEX, WORDMARK
+    from ..ui.glyphs import degrade
+    from ..utils.theme import SPOOF_INDEX, WORDMARK, active_glyphs
 
     pal = _palette(palette)
-    stops = gradient_for(pal, color_depth())
+    level = active_glyphs()
     out = Text()
-    last = len(WORDMARK) - 1
     for i, ch in enumerate(WORDMARK):
-        if spoof and i == SPOOF_INDEX:
-            out.append(ch, style=f"bold {pal.tone(RiskLevel.CRITICAL).fg}")
-        else:
-            out.append(ch, style=f"bold {gradient_color(i / last, stops)}")
+        style = f"bold {pal.strong}" if spoof and i == SPOOF_INDEX else pal.muted
+        out.append(degrade(ch, level), style=style)
     return out
 
 
 def logo(tagline: bool = True, palette: Palette | None = None) -> Text:
-    """The three-line radar wordmark used on the start screen."""
-    from ..utils.theme import LOGO_DOTS_BOT, LOGO_DOTS_TOP, TAGLINE
+    """The three-line brand mark used on the start screen."""
+    from ..ui.glyphs import degrade
+    from ..utils.theme import HOMOGLYPH, LOGO_SWEEP, SPOOF_INDEX, TAGLINE, active_glyphs
 
     pal = _palette(palette)
+    level = active_glyphs()
     out = Text()
-    out.append(f" {LOGO_DOTS_TOP}\n", style=pal.brand)
-    out.append("   ")
+    out.append(f"{degrade(LOGO_SWEEP, level)}\n", style=pal.dim)
     out.append_text(wordmark(palette=pal))
     out.append("\n")
-    out.append(f" {LOGO_DOTS_BOT}", style=pal.brand_dim)
+    pointer = f"{' ' * SPOOF_INDEX}{degrade('↑', level)} {HOMOGLYPH}"
+    out.append(pointer, style=pal.dim)
     if tagline:
-        out.append(f"  {TAGLINE}", style=pal.muted)
+        out.append(f" {degrade('·', level)} {TAGLINE}", style=pal.dim)
     return out
 
 
 def risk_bar(score: int) -> str:
     """Eight-cell density bar; the same ramp the console reporter uses."""
+    from ..ui.glyphs import degrade
+    from ..utils.theme import active_glyphs
+
+    level = active_glyphs()
     filled = max(0, min(BAR_WIDTH, round(score / 100 * BAR_WIDTH)))
-    return "█" * filled + "░" * (BAR_WIDTH - filled)
+    return degrade("█", level) * filled + degrade("░", level) * (BAR_WIDTH - filled)
 
 
 def gutter(level: RiskLevel, palette: Palette | None = None) -> Text:
@@ -109,7 +129,7 @@ def gutter(level: RiskLevel, palette: Palette | None = None) -> Text:
     by ink it still reads with no colour at all.
     """
     pal = _palette(palette)
-    return Text(pal.tone(level).sigil, style=pal.tone(level).fg)
+    return Text(sigil(level, pal), style=pal.tone(level).fg)
 
 
 def band_cell(level: RiskLevel, first_of_band: bool, palette: Palette | None = None) -> Text:
@@ -128,36 +148,14 @@ def band_cell(level: RiskLevel, first_of_band: bool, palette: Palette | None = N
 
 def badges(r: DomainResult) -> str:
     """Compact marker string for the flags that change how a row is treated."""
-    marks: list[str] = []
-    if r.dnsbl_listed:
-        marks.append(FLAGS["dnsbl"].short)
-    if r.favicon_matches_target:
-        marks.append(FLAGS["favicon"].short)
-    if r.has_login_form:
-        marks.append(FLAGS["login"].short)
-    if r.has_mx and r.is_mail_spoofable:
-        marks.append(FLAGS["spoof"].short)
-    if r.is_sinkhole:
-        marks.append(FLAGS["sinkhole"].short)
-    elif r.is_parked:
-        marks.append(FLAGS["parked"].short)
-    if r.is_likely_defensive:
-        # Was a bare "»", the one marker in this column with no way to find out
-        # what it meant.
-        marks.append(FLAGS["defensive"].short)
-    return " ".join(marks)
+    return " ".join(FLAGS[name].short for name in flag_names(r))
 
 
 def signals(r: DomainResult) -> str:
-    """DNS / MX / SSL / HTTP presence, as a fixed-order checklist."""
-    parts = [
-        ("DNS", r.resolves),
-        ("MX", r.has_mx),
-        ("SSL", r.has_ssl),
-    ]
-    out = [name if ok else "·" * len(name) for name, ok in parts]
-    out.append(str(r.http_status) if r.http_status is not None else "···")
-    return " ".join(out)
+    """The presence checklist, degraded to what this terminal can draw."""
+    from ..utils.theme import active_glyphs
+
+    return _signals(r, active_glyphs())
 
 
 def level_counts(report: ScanReport) -> dict[RiskLevel, int]:
@@ -185,7 +183,7 @@ def tally(report: ScanReport, labelled: bool = True, palette: Palette | None = N
         if labelled:
             t.append(f"{tone.band} ", style=f"bold {tone.fg}")
         else:
-            t.append(f"{tone.sigil} ", style=tone.fg)
+            t.append(f"{sigil(level, pal)} ", style=tone.fg)
         t.append(f"{counts[level]:<4}", style="bold " + pal.strong)
     t.append(f"  {report.total_permutations} checked ", style=pal.muted)
     if report.degraded:
@@ -196,17 +194,100 @@ def tally(report: ScanReport, labelled: bool = True, palette: Palette | None = N
 
 __all__ = [
     "BAR_WIDTH",
+    "DISTRIBUTION_WIDTH",
     "FILTER_KEYS",
     "LEVELS_DESC",
     "LEVEL_COLOR",
+    "LIVE_ROWS",
     "badges",
     "band_cell",
+    "distribution",
     "gutter",
     "level_color",
     "level_counts",
+    "live_hits",
     "logo",
     "risk_bar",
+    "scan_tally",
+    "sigil",
     "signals",
     "tally",
     "wordmark",
 ]
+
+
+DISTRIBUTION_WIDTH = 36
+
+
+def distribution(
+    report: ScanReport, palette: Palette | None = None, width: int = DISTRIBUTION_WIDTH
+) -> Text:
+    """Proportional severity bar plus its legend, for the overview screen.
+
+    The same picture the console reporter's verdict card draws, in the same
+    density glyphs the table's gutter uses, so a reader who learns the ramp
+    once can read it on every surface.
+    """
+    pal = _palette(palette)
+    counts = level_counts(report)
+    total = max(sum(counts.values()), 1)
+    bar, legend = Text(), Text()
+    for level in LEVELS_DESC:
+        if not counts[level]:
+            continue
+        tone = pal.tone(level)
+        mark = sigil(level, pal)
+        bar.append(mark * max(1, round(counts[level] / total * width)), style=tone.fg)
+        legend.append(f"{mark} ", style=tone.fg)
+        # "harmless" rather than "safe", matching the console's verdict card:
+        # one vocabulary across surfaces is the whole point of ui/copy.py.
+        label = "harmless" if level is RiskLevel.SAFE else level.value
+        legend.append(f"{counts[level]} {label}   ", style=pal.body)
+    out = Text()
+    out.append_text(bar)
+    out.append("\n")
+    out.append_text(legend)
+    return out
+
+
+LIVE_ROWS = 6
+
+
+def live_hits(
+    hits: list[DomainResult], palette: Palette | None = None, limit: int = LIVE_ROWS
+) -> Table:
+    """The riskiest findings so far, for the scan in flight.
+
+    `otacon scan` has always drawn this from inside the engine while it ran.
+    The triage console could not, so the surface people actually use showed a
+    bar and a number through the one part of a scan worth watching.
+    """
+    pal = _palette(palette)
+    table = Table.grid(padding=(0, 2))
+    table.add_column(width=5, no_wrap=True)
+    table.add_column(width=28, no_wrap=True)
+    table.add_column(ratio=1, overflow="ellipsis")
+    for r in sorted(hits, key=lambda h: (-h.risk_score, h.domain))[:limit]:
+        tone = pal.tone(r.risk_level)
+        mark = Text(sigil(r.risk_level, pal), style=tone.fg)
+        mark.append(f" {r.risk_score:>3}", style=tone.fg)
+        table.add_row(
+            mark,
+            Text(r.domain, style=f"bold {pal.strong}"),
+            Text(badges(r), style=tone.fg),
+        )
+    return table
+
+
+def scan_tally(hits: int, dangerous: int, palette: Palette | None = None) -> Text:
+    """Running count for the scan header."""
+    pal = _palette(palette)
+    t = Text()
+    if not hits:
+        t.append("nothing registered yet", style=pal.dim)
+        return t
+    t.append(f"{hits} registered", style=f"bold {pal.strong}")
+    if dangerous:
+        t.append("  ", style=pal.dim)
+        t.append(f"{dangerous} dangerous", style=f"bold {pal.tone(RiskLevel.HIGH).fg}")
+    return t

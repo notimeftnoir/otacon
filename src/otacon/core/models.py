@@ -181,6 +181,13 @@ class ScanReport:
     dns_hijack_detected: bool = False
     dns_queries: int = 0
     dns_failures: int = 0
+    cancelled: bool = False
+    """True when the operator stopped the scan before it finished.
+
+    A partial scan and a quiet one produce the same short result list, so an
+    interrupted run must carry the fact with it rather than reading as an
+    all-clear — the same reasoning as ``degraded``.
+    """
 
     @property
     def dns_failure_ratio(self) -> float:

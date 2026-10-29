@@ -305,6 +305,8 @@ rows are findable without reading any number.
 
 ## Phase 2 — the non-specialist path
 
+**Status: done.**
+
 **Goal:** someone who has never run a security tool can open the console, read
 one screen, and know what to do.
 
@@ -316,10 +318,10 @@ one screen, and know what to do.
       means for the reader. *(Phase 1)*
 - [x] **One label per concept** — `ui/copy.py`, so no surface invents its own
       spelling. *(Phase 0)* Wiring the console and HTML to it is Phase 5/6.
-- [ ] **Scan presets on the start screen** — *Quick* (DNS only, ~10s),
+- [x] **Scan presets on the start screen** — *Quick* (DNS only, ~10s),
       *Standard* (default), *Deep* (everything + CT), with the four checkboxes
       behind an *Advanced* disclosure instead of facing a first-time user.
-- [ ] **An overview screen after a scan** — verdict, distribution, the top
+- [x] **An overview screen after a scan** — verdict, distribution, the top
       three things to do, and the change since the previous scan of this target
       (history already stores it). `enter` opens the table.
 
@@ -330,77 +332,122 @@ overview screen alone, how many domains need action and what the first one is.
 
 ## Phase 3 — the scan itself
 
+**Status: done.**
+
 **Goal:** the most interesting 30 seconds stop being a bar.
 
-- [ ] **Phase indicator** — `permutations → DNS → HTTP/TLS → WHOIS → CT`, with
-      the active stage lit. Explains why the wait is uneven.
-- [ ] **Live findings feed** — hits appear as they are scored, worst first,
+- [x] **Phase indicator.** Written here as `permutations → DNS → HTTP/TLS →
+      WHOIS → CT`, which turned out not to be how the pipeline works: those
+      checks all happen together inside one per-domain probe and are not
+      stages at all. The real ones are building the list, discovering more
+      from Certificate Transparency, and checking — and the middle one was
+      the invisible wait worth fixing.
+- [x] **Live findings feed** — hits appear as they are scored, worst first,
       exactly as `build_live_table` already does for `otacon scan`. Removes the
       regression where the CLI shows more than the console.
-- [ ] **Live tally** — the masthead counters fill during the scan.
-- [ ] **Cancel** — `esc` stops the scan and keeps the partial report; a scan
+- [x] **Live tally** — the masthead counters fill during the scan.
+- [x] **Cancel** — `esc` stops the scan and keeps the partial report; a scan
       that cannot be interrupted is a scan people run less often.
-- [ ] **Honest degradation** — the DNS-failure warning already in `ScanReport`
+- [x] **Honest degradation** — the DNS-failure warning already in `ScanReport`
       surfaces *during* the scan, not only in the verdict.
 
 ---
 
 ## Phase 4 — operator features
 
+**Status: done.**
+
 **Goal:** the things an analyst asks for on day two.
 
-- [ ] **Column sort** — `s` cycles score / domain / age / technique.
-- [ ] **Multi-select** — `space` marks rows; `A` select-all-visible.
-- [ ] **Bulk actions** — export, takedown notices and allow applied to a
-      selection, with a confirm screen that names the count.
-- [ ] **Persistent allow-list** — `a` currently lasts one session only. Offer to
-      write it to the per-target config so it survives, feeding `--exclude`.
-- [ ] **Compare screen** — `c` diffs against the previous run from history: new
-      registrations, score moves, disappearances. `diff` exists in the CLI and
-      the data is already on disk.
-- [ ] **Watchlist** — mark a target for a nightly rescan; emit the command for
-      cron or a CI job rather than running a daemon.
-- [ ] **Settings screen** — theme, density, glyph level, `fail-on` threshold,
-      default preset. Written to the existing config location.
-- [ ] **Otacon command palette** — a Textual `Provider` so `^p` lists the tool's
-      own commands instead of only the framework's.
-- [ ] **Export the current view** — whatever the filter shows, to JSON/CSV/HTML.
+### Landed
+
+- [x] **Column sort** — `s` cycles risk / name / age / technique. Band labels
+      draw only while sorted by risk; under any other order they would appear
+      to mark runs that are not runs.
+- [x] **Multi-select** — `space` marks a row and moves on; `v` marks everything
+      the filter shows. Marks are held by domain, not by index, because the
+      order changes under a sort. (`v`, not `A`: the rest of the bindings are
+      unshifted and shifted letters are not reliable across terminals.)
+- [x] **Bulk actions** — takedown notices, export and allow applied to the
+      marked rows, falling back to the row under the cursor. An action only
+      touches rows the filter currently shows. The confirm is an armed overlay
+      naming the count rather than a screen: the browser warning already works
+      that way, and a second idea of consent is one too many.
+- [x] **Export the current view** — `x` writes whatever the filter shows, as
+      JSON. CSV and HTML would need the reporters to take a row subset; not
+      asked for yet.
+- [x] **Otacon command palette** — a Textual `Provider`, so ctrl+p lists the
+      tool's own commands instead of only the framework's.
+
+### Memory
+
+These needed a place to remember things; `otacon/config.py` is it, sitting
+beside the history under the same root and falling back rather than raising,
+because a convenience that can refuse to start is not one.
+
+- [x] **Persistent allow-list** — `a` leaves the domain out of future scans of
+      that target, rather than lasting one session. Both scan paths honour it;
+      the settings screen lists them and takes them back off.
+- [x] **Watchlist** — `otacon watch` keeps the list and prints crontab lines
+      for it. Otacon does not become a daemon to run on a schedule; the
+      machine already has one.
+- [x] **Settings screen** — `,` opens theme, glyph level, default preset,
+      `fail-on`, this target's watch state and its allow-list.
+
+Landed, needing no new storage:
+
+- [x] **Compare screen** — `c` diffs against the previous stored run, grouped
+      by what kind of change each one is. `triage.verdict.baseline` picks the
+      run to compare against, skipping the report already on screen: a scan is
+      stored the moment it finishes, so the newest record is usually the one
+      the operator is looking at.
 
 ---
 
 ## Phase 5 — console surface
 
+**Status: done.**
+
 **Goal:** `otacon scan` matches the console's vocabulary and stops being a wall.
 
-- [ ] **Unify badge vocabulary** from `ui/copy.py` across all four surfaces.
-- [ ] **Split the overloaded `Domain` column.** It currently carries name,
+- [x] **Unify badge vocabulary** from `ui/copy.py` across all four surfaces.
+- [x] **Split the overloaded `Domain` column.** It currently carries name,
       badges, technique, the top two reasons and the page title — up to five
       wrapped lines per row, so twelve rows fill a screen and a half.
-- [ ] **`--compact` / `--top N`** for a one-line-per-row table.
-- [ ] **Fix the `critical` background artefact** (Phase 0 removes the token;
+- [x] **`--compact` / `--top N`** for a one-line-per-row table.
+- [x] **Fix the `critical` background artefact** (Phase 0 removes the token;
       this is where the call sites are cleaned up).
-- [ ] **Gradient degradation** wired through `caps.color_depth()`.
-- [ ] **ASCII mode** verified against the `SAFE_GLYPHS` budget on Windows
+- [x] **Gradient degradation.** Overtaken: the monochrome mark removed the
+      gradient entirely, so there was nothing left to degrade.
+- [x] **ASCII mode** verified against the `SAFE_GLYPHS` budget on Windows
       terminals.
 
 ---
 
 ## Phase 6 — HTML report
 
-**Goal:** the artefact that leaves the building looks like it came from a
-product.
+**Status: not doing.** Otacon is a terminal tool, and the terminal is the
+product — not one of two places it lives. Rebuilding the HTML report as a
+designed surface would have made it a second home for the tool, with a second
+layout to keep in step and a second idea of what a finding looks like, for
+readers who are not the people the tool is for.
 
-- [ ] **Typography** — a real UI stack for prose, monospace kept for domains,
-      hashes and IPs where it carries meaning.
-- [ ] **Light and dark** from the same tokens, following `prefers-color-scheme`,
-      and a print stylesheet that survives being turned into a PDF.
-- [ ] **Executive summary** — verdict, distribution, the top findings and what
-      to do about them, before the table.
-- [ ] **Working table** — sort and search, not only the current radio-button
-      filters.
-- [ ] **Evidence detail per row** — the dossier content, collapsed.
-- [ ] **Still one self-contained file, still no external requests.** This is a
-      report about phishing; it must not phone home.
+So `--html` stays what it is: an export. It already follows the palette,
+because Phase 0 made every surface read the same tokens, and it gains any
+theme the terminal gains for free. What it will not get is a design of its
+own.
+
+What this phase proposed, kept here so the question does not come back:
+
+- ~~Typography — a real UI stack for prose, monospace for domains and hashes.~~
+- ~~Light and dark from the same tokens, plus a print stylesheet.~~
+- ~~Executive summary before the table.~~
+- ~~Sort and search instead of the radio-button filters.~~
+- ~~Per-row evidence detail, collapsed.~~
+
+The one line from it that was never negotiable still holds, and holds for the
+export as it stands: **one self-contained file, no external requests.** This
+is a report about phishing; it must not phone home.
 
 ---
 
@@ -410,6 +457,18 @@ product.
       and it is tiny. Add a larger lockup for the splash and the start screen,
       keeping the homoglyph `О` as the idea it already is.
 - [ ] **Regenerate the README SVGs** per theme once Phases 1–2 land.
+      *Blocked on an environment with working DNS.* The README states its
+      images are real output, and they currently show the pre-Phase-1
+      console and the old brand mark. Regenerating them needs a host that
+      can resolve: a cloud container behind an HTTPS-only proxy fails ~78%
+      of port-53 lookups, and `tools/render_demo_svg.py` there produces an
+      honest "Inconclusive" card rather than a table — which would
+      misrepresent the tool as broken. Run both tools from a normal
+      workstation:
+      ```
+      python tools/render_demo_svg.py example.com assets/brand/demo-scan.svg
+      python tools/render_tui_svg.py example.com assets/brand/demo-tui.svg
+      ```
 - [ ] **Theme gallery in the docs** — four themes, two colour depths.
 
 ---
@@ -418,6 +477,9 @@ product.
 
 - **No web UI, no daemon, no server.** Otacon stays a CLI tool. The watchlist
   emits a cron line; it does not become a service.
+- **No second home for the tool.** The terminal is where Otacon works. Every
+  other output — JSON, CSV, Markdown, HTML — is an export of a scan, not a
+  surface to operate it in, and none of them gets a design of its own.
 - **No telemetry**, in any surface, under any flag.
 - **No external fonts, CDNs or network calls from the HTML report.**
 - **No animation that delays input.** Motion is capped at the existing splash
@@ -433,11 +495,11 @@ product.
 |---|---|---|---|
 | ~~0 — tokens~~ | — | M | **Done.** Every other phase is cheaper afterwards |
 | ~~1 — hierarchy~~ | 0 | M | **Done.** The loudest defect, visible in one screenshot |
-| 2 — non-specialist | 0, 1 | M | The stated goal of the whole effort |
-| 3 — scan | 0 | S | Self-contained; closes a real CLI/console regression |
-| 5 — console | 0 | S | Mostly deletion once tokens and copy are shared |
-| 4 — operator | 1 | L | Largest surface area, lowest urgency |
-| 6 — HTML | 0 | M | Independent of everything in the terminal |
+| ~~2 — non-specialist~~ | 0, 1 | M | **Done.** The stated goal of the whole effort |
+| ~~3 — scan~~ | 0 | S | **Done.** Closed a real CLI/console regression |
+| ~~5 — console~~ | 0 | S | **Done.** Mostly deletion, as predicted |
+| ~~4 — operator~~ | 1 | L | **Done.** Selection, sort, compare, and the things it remembers |
+| ~~6 — HTML~~ | — | — | **Not doing.** The terminal is the product |
 | 7 — brand | 1, 2 | S | Screenshots are only worth regenerating once |
 
 Each phase lands as its own pull request with before/after screenshots rendered

@@ -14,8 +14,13 @@ from ..core.models import DomainResult, ScanReport
 from ..core.types import RiskLevel
 from ..net.whois import format_age
 from ..scoring.engine import AGE_FRESH_DAYS, AGE_NEW_DAYS, count_fresh, get_age_fresh_days
-from ..utils.theme import GLYPH_DEFENSIVE
-from ..utils.validate import parse_redirect
+from ..triage.verdict import verdict
+from ..ui.caps import GlyphLevel
+from ..ui.copy import FLAGS
+from ..ui.copy import flags as flag_names
+from ..ui.copy import signals as signal_checklist
+from ..ui.glyphs import degrade
+from ..utils.theme import active_glyphs, active_palette
 
 _BAR_STYLE: dict[RiskLevel, str] = {
     RiskLevel.SAFE: "ok",
@@ -26,6 +31,22 @@ _BAR_STYLE: dict[RiskLevel, str] = {
 }
 
 _HIGH_RISK_LEVELS = {RiskLevel.HIGH, RiskLevel.CRITICAL}
+
+# Rich draws its own frames, so `--ascii` has to reach them too: a table whose
+# every glyph degrades, sitting inside a panel drawn with U+250C, is still
+# unreadable on the terminal the flag exists for. SIMPLE_HEAD has no ASCII
+# twin in Rich, so here is one — a borderless box with a dashed header rule.
+_ASCII_SIMPLE_HEAD = box.Box(
+    "    \n    \n -- \n    \n    \n    \n    \n    \n",
+    ascii=True,
+)
+
+
+def _box(unicode_box: box.Box, ascii_box: box.Box) -> box.Box:
+    """Picks the frame style the terminal can actually draw."""
+    return ascii_box if active_glyphs() is GlyphLevel.ASCII else unicode_box
+
+
 _POINTS_RE = re.compile(r"\s*\(\+(\d+)\)$")
 
 _LEVELS_DESC = (
@@ -52,18 +73,11 @@ def _signals(result: DomainResult) -> str:
     return ", ".join(signals) or "—"
 
 
-def _redirect_host(url: str) -> str:
-    """Extracts hostname from a redirect URL; falls back to raw value."""
-    parsed = parse_redirect(url)
-    if parsed is None:
-        return url
-    return parsed[0] or url
-
-
 def _risk_bar(score: int, style: str) -> Text:
     """8-char block bar (████░░░░) + right-justified score, coloured by style."""
+    level = active_glyphs()
     filled = max(0, min(8, round(score / 100 * 8)))
-    bar = "█" * filled + "░" * (8 - filled)
+    bar = degrade("█", level) * filled + degrade("░", level) * (8 - filled)
     t = Text()
     t.append(bar, style=style)
     t.append(f" {score:>3}", style=style)
@@ -71,8 +85,13 @@ def _risk_bar(score: int, style: str) -> Text:
 
 
 def _check(value: bool) -> Text:
-    """Green ✓ when True, red — when False."""
-    return Text("✓", style="ok") if value else Text("—", style="danger")
+    """Green tick when True, red dash when False."""
+    level = active_glyphs()
+    return (
+        Text(degrade("✓", level), style="ok")
+        if value
+        else Text(degrade("—", level), style="danger")
+    )
 
 
 def _http_cell(status: int | None) -> Text:
@@ -92,7 +111,7 @@ def _http_cell(status: int | None) -> Text:
 
 def _age_cell(age_days: int | None) -> Text:
     """Compact age string coloured by risk band."""
-    label = format_age(age_days)
+    label = degrade(format_age(age_days), active_glyphs())
     if age_days is None:
         return Text(label, style="muted")
     if age_days < AGE_FRESH_DAYS:
@@ -114,33 +133,55 @@ def _why(result: DomainResult, limit: int = 2) -> str:
 
 
 def _domain_cell(result: DomainResult) -> Text:
-    """Domain name cell with badges, subtitle technique, and page title."""
-    t = Text()
-    t.append(result.domain, style="bold white")
-    if result.is_sinkhole:
-        t.append(" [sinkhole]", style="info")
-    elif result.is_parked:
-        t.append(" [parked]", style="muted")
-    if result.dnsbl_listed:
-        t.append(" [DBL]", style="critical")
-    if result.favicon_matches_target:
-        t.append(" [cloned-favicon]", style="critical")
-    if result.has_login_form:
-        t.append(" [login-form]", style="warn")
-    if result.has_mx and result.is_mail_spoofable:
-        t.append(" [spoofable-email]", style="warn")
-    t.append("\n")
-    t.append(result.kind.value, style="brand.dim")
-    why = _why(result) if result.risk_level != RiskLevel.SAFE else ""
-    if why:
-        t.append(f" · {why}", style="muted")
-    if result.is_likely_defensive and result.redirects_to:
-        t.append(f"  {GLYPH_DEFENSIVE} ", style="warn")
-        t.append(_redirect_host(result.redirects_to), style="warn")
-    if result.page_title and result.risk_level in _HIGH_RISK_LEVELS:
-        t.append("\n")
-        t.append(f'"{result.page_title}"', style="muted")
-    return t
+    """Just the name.
+
+    The redirect target used to ride along here behind a bare "»". It wrapped
+    the column onto a second line, and the Flags column already says OURS —
+    which is the same claim in a word a reader can look up.
+    """
+    return Text(result.domain, style="bold white")
+
+
+def _why_section(rows: list[DomainResult]) -> Table | None:
+    """Why the dangerous rows are dangerous, at full width, after the table.
+
+    This used to live in the domain cell, where a column two dozen characters
+    wide wrapped it across three lines and turned twelve findings into a
+    screen and a half. Reasons are prose; prose needs the width of the
+    terminal, not the width of a column.
+    """
+    worrying = [r for r in rows if r.risk_level in _HIGH_RISK_LEVELS]
+    if not worrying:
+        return None
+    grid = Table.grid(padding=(0, 2))
+    grid.add_column(width=2)
+    grid.add_column(width=26, no_wrap=True)
+    grid.add_column(ratio=1, overflow="fold")
+    for r in sorted(worrying, key=lambda x: x.risk_score, reverse=True):
+        why = _why(r)
+        if r.page_title:
+            why = f'{why} · "{r.page_title}"' if why else f'"{r.page_title}"'
+        grid.add_row(
+            Text(""),
+            Text(r.domain, style="bold white"),
+            Text(why or "registered and resolving", style="muted"),
+        )
+    return grid
+
+
+def _flags_cell(result: DomainResult) -> Text:
+    """The markers that change what an operator does, in the shared spelling.
+
+    The same four-character codes the triage console prints. They used to be
+    `[cloned-favicon]` here, `FAVICON` there and `cloned favicon` in the HTML,
+    so a reader moving between surfaces had to work out that three spellings
+    meant one thing.
+    """
+    names = flag_names(result)
+    if not names:
+        return Text("")
+    style = "critical" if result.risk_level.rank >= RiskLevel.HIGH.rank else "warn"
+    return Text(" ".join(FLAGS[n].short for n in names), style=style)
 
 
 def _verdict_banner(report: ScanReport) -> Text:
@@ -150,7 +191,7 @@ def _verdict_banner(report: ScanReport) -> Text:
 
     if not registered:
         t = Text()
-        t.append("✓ clean", style="ok")
+        t.append(f"{degrade('✓', active_glyphs())} clean", style="ok")
         t.append(
             f" — {report.total_permutations} permutations checked, none registered",
             style="muted",
@@ -163,75 +204,32 @@ def _verdict_banner(report: ScanReport) -> Text:
     fresh_count = count_fresh(registered)
 
     t = Text()
-    if crit_count:
-        t.append("⚠ ", style="critical")
-    else:
-        t.append("● ", style="warn")
+    level = active_glyphs()
+    t.append(
+        f"{degrade('⚠' if crit_count else '●', level)} ",
+        style="critical" if crit_count else "warn",
+    )
 
     t.append(f"{len(registered)} registered", style="value")
-    t.append(" · ", style="muted")
+    dot = f" {degrade('·', level)} "
+    t.append(dot, style="muted")
     t.append(f"crit: {crit_count}", style="critical" if crit_count else "muted")
-    t.append(" · ", style="muted")
+    t.append(dot, style="muted")
     t.append(f"mx: {mx_count}", style="danger" if mx_count else "muted")
-    t.append(" · ", style="muted")
+    t.append(dot, style="muted")
     t.append(f"fresh <{fresh_days}d: {fresh_count}", style="critical" if fresh_count else "muted")
     return t
 
 
 def _headline(report: ScanReport) -> tuple[str, str, str]:
-    registered = report.registered
-    n, target = len(registered), report.target
-    plural = "s" if n != 1 else ""
-    if report.degraded:
-        # A broken resolver and a clean brand produce the same empty result, so
-        # this case must never be reported as an all-clear.
-        pct = round(report.dns_failure_ratio * 100)
-        return (
-            "warn",
-            f"⚠ Inconclusive: {pct}% of DNS lookups for {target} failed",
-            (
-                f"{report.dns_failures} of {report.dns_queries} lookups could not be answered, "
-                "so a domain shown as unregistered may simply not have been checked. "
-                "Re-run with --debug to see why, and treat these results as incomplete."
-            ),
-        )
-    if not registered:
-        return (
-            "ok",
-            (
-                f"✓ All clear: none of the {report.total_permutations} lookalikes of "
-                f"{target} are registered"
-            ),
-            (
-                "Nobody has registered a domain that imitates yours. New ones appear every day, "
-                "so run this again from time to time."
-            ),
-        )
-    worst = max(r.risk_level.rank for r in registered)
-    if worst >= RiskLevel.HIGH.rank:
-        k = sum(1 for r in registered if r.risk_level.rank >= RiskLevel.HIGH.rank)
-        return (
-            "danger",
-            (
-                f"⚠ {k} lookalike{'s' if k != 1 else ''} of {target} "
-                f"look{'' if k != 1 else 's'} dangerous"
-            ),
-            (
-                "Registered and set up like a real website or mail server. "
-                "Start with the top rows of the table."
-            ),
-        )
-    if worst >= RiskLevel.LOW.rank:
-        return (
-            "warn",
-            f"● {n} registered lookalike{plural} of {target}, nothing urgent",
-            "They exist, but show few signs of being used for attacks yet. Worth a look.",
-        )
-    return (
-        "ok",
-        f"✓ {n} registered lookalike{plural} of {target}, all look harmless",
-        "Parked pages or redirects back to your own site.",
-    )
+    """The verdict's tone, headline and explanation.
+
+    Thin adapter over triage.verdict, which the overview screen renders too —
+    the console used to own this wording, so the surface most people actually
+    meet had none of it.
+    """
+    v = verdict(report)
+    return v.tone, v.headline, v.explanation
 
 
 def _distribution(registered: list[DomainResult]) -> Group:
@@ -242,16 +240,21 @@ def _distribution(registered: list[DomainResult]) -> Group:
         if not counts[lvl]:
             continue
         style = _BAR_STYLE[lvl]
-        bar.append(lvl.icon * max(1, round(counts[lvl] / total * _DIST_WIDTH)), style=style)
-        legend.append(f"{lvl.icon} ", style=style)
+        mark = degrade(active_palette().tone(lvl).sigil, active_glyphs())
+        bar.append(mark * max(1, round(counts[lvl] / total * _DIST_WIDTH)), style=style)
+        legend.append(f"{mark} ", style=style)
         label = "harmless" if lvl == RiskLevel.SAFE else lvl.value
         legend.append(f"{counts[lvl]} {label}   ", style="value")
     return Group(bar, legend)
 
 
 def _verdict_card(report: ScanReport) -> Panel:
-    style, headline, explanation = _headline(report)
-    stats = Text(f"{report.total_permutations} checked · ", style="muted")
+    decision = verdict(report)
+    style, headline, explanation = decision.tone, decision.headline, decision.explanation
+    headline = f"{degrade(decision.marker, active_glyphs())} {headline}"
+    stats = Text(
+        f"{report.total_permutations} checked {degrade('·', active_glyphs())} ", style="muted"
+    )
     stats.append_text(_verdict_banner(report))
     parts: list[Text | Group] = [Text(headline, style=style), Text(explanation, style="muted")]
     if report.registered:
@@ -261,7 +264,7 @@ def _verdict_card(report: ScanReport) -> Panel:
         title="[field] Verdict [/field]",
         title_align="left",
         border_style=style,
-        box=box.SQUARE,
+        box=_box(box.SQUARE, box.ASCII),
         padding=(1, 2),
     )
 
@@ -269,7 +272,7 @@ def _verdict_card(report: ScanReport) -> Panel:
 def _results_table(target: str, rows: list[DomainResult]) -> Table:
     title = Text()
     title.append("Otacon", style="brand")
-    title.append(" · target: ")
+    title.append(f" {degrade('·', active_glyphs())} target: ")
     title.append(target, style="value")
 
     table = Table(
@@ -279,28 +282,31 @@ def _results_table(target: str, rows: list[DomainResult]) -> Table:
         caption_style="muted",
         header_style="field",
         expand=True,
-        box=box.SIMPLE_HEAD,
+        box=_box(box.SIMPLE_HEAD, _ASCII_SIMPLE_HEAD),
         border_style="brand.dim",
         show_lines=False,
-        leading=1,
+        # No leading: it separated cells that used to run to three lines
+        # each. One row is one line now, and the blank between every pair
+        # doubled the height of the table for nothing.
     )
-    table.add_column("Domain", no_wrap=False, min_width=30, ratio=1)
-    table.add_column("Risk", width=14)
+    table.add_column("Risk", width=12)
+    table.add_column("Domain", no_wrap=False, min_width=24, ratio=1)
+    table.add_column("Tech", width=11)
     table.add_column("Age", width=5, justify="right")
-    table.add_column("DNS", width=3, justify="center")
-    table.add_column("MX", width=3, justify="center")
-    table.add_column("SSL", width=3, justify="center")
-    table.add_column("HTTP", width=4, justify="center")
+    table.add_column("Signals", width=15)
+    # Flags last and unbounded: it is the column that changes what an operator
+    # does with a row, so it gets whatever width is left rather than being the
+    # first thing squeezed.
+    table.add_column("Flags")
 
     for r in sorted(rows, key=lambda r: r.risk_score, reverse=True):
         table.add_row(
-            _domain_cell(r),
             _risk_bar(r.risk_score, _BAR_STYLE[r.risk_level]),
+            _domain_cell(r),
+            Text(r.kind.value, style="brand.dim"),
             _age_cell(r.age_days),
-            _check(r.resolves),
-            _check(r.has_mx),
-            _check(r.has_ssl),
-            _http_cell(r.http_status),
+            Text(signal_checklist(r, active_glyphs()), style="muted"),
+            _flags_cell(r),
         )
 
     return table
@@ -316,8 +322,16 @@ def build_live_table(hits: list[DomainResult], domain: str, limit: int = 0) -> T
     return table
 
 
-def render_table(report: ScanReport, console: Console, show_safe: bool = False) -> None:
-    """Renders scan results as a stylized terminal table."""
+def render_table(
+    report: ScanReport, console: Console, show_safe: bool = False, top: int = 0
+) -> None:
+    """Renders scan results as a stylized terminal table.
+
+    *top* caps how many rows the table prints, worst first. A busy brand
+    returns a hundred registered lookalikes of which the first handful are the
+    ones anybody acts on, and scrolling past the rest to reach the verdict is
+    nobody's idea of a report.
+    """
     console.print()
     console.print(_verdict_card(report))
 
@@ -327,13 +341,29 @@ def render_table(report: ScanReport, console: Console, show_safe: bool = False) 
         console.print()
         return
 
+    hidden = 0
+    if top > 0 and len(rows) > top:
+        rows = sorted(rows, key=lambda r: (-r.risk_score, r.domain))[:top]
+        hidden = len(report.results if show_safe else report.registered) - top
+
     console.print()
     console.print(_results_table(report.target, rows))
 
+    if hidden:
+        console.print(
+            f"[muted]+{hidden} more below the top {top} "
+            f"{degrade('·', active_glyphs())} drop --top to see them all[/muted]"
+        )
+
+    reasons = _why_section(rows)
+    if reasons is not None:
+        console.print("[field]Why these matter[/field]")
+        console.print(reasons)
+        console.print()
+
     if any(r.is_likely_defensive for r in rows):
         console.print(
-            f"[warn]{GLYPH_DEFENSIVE}[/warn] [muted]= likely defensive: redirects to your own "
-            "site, probably registered by you[/muted]"
+            f"[warn]{FLAGS['defensive'].short}[/warn] [muted]= {FLAGS['defensive'].meaning}[/muted]"
         )
     console.print()
 
@@ -413,15 +443,16 @@ __all__ = [
     "_check",
     "_distribution",
     "_domain_cell",
+    "_flags_cell",
     "_headline",
     "_http_cell",
-    "_redirect_host",
     "_results_table",
     "_risk_bar",
     "_signals",
     "_verdict_banner",
     "_verdict_card",
     "_why",
+    "_why_section",
     "build_live_table",
     "render_aggregate_summary",
     "render_table",

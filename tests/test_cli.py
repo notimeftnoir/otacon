@@ -962,3 +962,42 @@ def test_help_option_names_survive_forced_colour(monkeypatch) -> None:
 
     assert "--fail-on" in plain(result.output)
     assert "--domains-file" in plain(result.output)
+
+
+def test_the_version_is_the_same_in_every_place_it_is_written() -> None:
+    """pyproject, the source fallback and the runtime must agree.
+
+    `__version__` normally comes from installed metadata, so the literal in
+    __init__ is only reached from a source tree that was never installed —
+    which is exactly where nobody notices it has gone stale. It sat at the
+    previous release through a version bump once already.
+    """
+    import re
+    import tomllib
+    from pathlib import Path
+
+    import otacon
+
+    root = Path(__file__).resolve().parent.parent
+    declared = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    pyproject_version = declared["project"]["version"]
+
+    source = (root / "src" / "otacon" / "__init__.py").read_text(encoding="utf-8")
+    match = re.search(r'__version__ = "([^"]+)"', source)
+    assert match is not None, "the fallback literal disappeared from __init__"
+
+    assert match.group(1) == pyproject_version
+    assert otacon.__version__ == pyproject_version
+
+
+def test_the_changelog_documents_the_current_version() -> None:
+    """A release whose notes nobody wrote is a release nobody can read."""
+    import tomllib
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    version = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"
+    ]
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert f"## [{version}]" in changelog, f"CHANGELOG.md has no section for {version}"

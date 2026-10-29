@@ -15,12 +15,14 @@ from rich.console import Console
 
 from .._splash import play_intro
 from ..ui.emit import rich_theme
+from ..ui.glyphs import degrade
 from ..ui.tokens import DEFAULT_THEME, THEMES
-from ..utils.theme import OTACON_THEME, banner, set_palette
+from ..utils.theme import OTACON_THEME, active_glyphs, banner, set_glyphs, set_palette
 from .commands.diff import execute_diff
 from .commands.generate import execute_generate
 from .commands.scan import _CI, _FILTER, _NET, _OUT, execute_scan
 from .commands.tui import execute_tui
+from .commands.watch import DEFAULT_SCHEDULE, execute_watch
 from .state import _CliState
 
 
@@ -82,8 +84,11 @@ def _banner(animate: bool = False) -> None:
         play_intro(console)
     else:
         console.print(banner(), end="")
+    # Degraded like the mark above it: a lone U+00B7 left behind on an ASCII
+    # terminal is the one character that gives the whole line away.
+    dot = degrade("·", active_glyphs())
     console.print(
-        f"  [muted]v{__version__} · find lookalike domains before attackers use them[/muted]\n"
+        f"  [muted]v{__version__} {dot} find lookalike domains before attackers use them[/muted]\n"
     )
 
 
@@ -98,6 +103,7 @@ def _apply_appearance(theme: str | None, ascii_only: bool) -> None:
     """
     if ascii_only:
         os.environ["OTACON_ASCII"] = "1"
+    set_glyphs()
     name = theme or os.environ.get("OTACON_THEME")
     palette = set_palette(name)
     if palette.name != DEFAULT_THEME:
@@ -275,6 +281,14 @@ def scan(
     show_all: bool = typer.Option(
         False, "--all", help="Show unregistered variants too.", rich_help_panel=_FILTER
     ),
+    top: int = typer.Option(
+        0,
+        "--top",
+        "-n",
+        min=0,
+        help="Show only the N riskiest rows in the table (0 = all).",
+        rich_help_panel=_FILTER,
+    ),
     exclude: str = typer.Option(
         None,
         "--exclude",
@@ -321,6 +335,7 @@ def scan(
         no_ct=no_ct,
         concurrency=concurrency,
         show_all=show_all,
+        top=top,
         exclude=exclude,
         exclude_file=exclude_file,
         fail_on=fail_on.value if fail_on is not None else None,
@@ -404,6 +419,20 @@ def tui(
         check_dnsbl=not no_dnsbl,
         check_ct=not no_ct,
     )
+
+
+@app.command()
+def watch(
+    add: str = typer.Option(None, "--add", "-a", help="Put a target on the watchlist."),
+    remove: str = typer.Option(None, "--remove", "-r", help="Take a target off it."),
+    schedule: str = typer.Option(
+        DEFAULT_SCHEDULE,
+        "--schedule",
+        help="Cron schedule for the printed lines.",
+    ),
+) -> None:
+    """Lists the targets worth re-scanning, with crontab lines to automate it."""
+    execute_watch(console=console, add=add, remove=remove, schedule=schedule)
 
 
 if __name__ == "__main__":

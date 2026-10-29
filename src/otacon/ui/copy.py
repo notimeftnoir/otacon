@@ -18,7 +18,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..core.types import PermutationType, RiskLevel
+from ..core.models import DomainResult
+from ..core.types import PermutationType, RiskLevel, ScanPhase
+from .caps import GlyphLevel
+from .glyphs import degrade
 from .tokens import MIDNIGHT
 
 
@@ -132,6 +135,55 @@ BANDS: tuple[tuple[RiskLevel, str, str], ...] = (
 )
 
 
+# What each stage of a scan is actually doing, said to the person waiting.
+# "DISCOVERING" means nothing; "looking for certificates" means the wait has a
+# reason, which is the difference between a pause and a hang.
+PHASES: dict[ScanPhase, str] = {
+    ScanPhase.GENERATING: "Building the list of lookalikes an attacker could register",
+    ScanPhase.DISCOVERING: "Looking for certificates already issued for names like yours",
+    ScanPhase.CHECKING: "Checking which of them exist",
+}
+
+
+def signals(result: DomainResult, glyphs: GlyphLevel = GlyphLevel.FULL) -> str:
+    """DNS / MX / SSL / HTTP presence, as a fixed-order checklist.
+
+    Absent checks are dotted rather than blank so the column stays aligned and
+    a reader can see that something was looked for and not found, rather than
+    not looked for at all.
+
+    The level is passed in rather than read here: ui.copy cannot ask
+    utils.theme for the active one without a cycle, and a default that quietly
+    skipped the degrade is how `--ascii` came to cover some glyphs and not
+    others in the first place.
+    """
+    dot = degrade("·", glyphs)
+    parts = (("DNS", result.resolves), ("MX", result.has_mx), ("SSL", result.has_ssl))
+    out = [name if present else dot * len(name) for name, present in parts]
+    out.append(str(result.http_status) if result.http_status is not None else dot * 3)
+    return " ".join(out)
+
+
+def flags(result: DomainResult) -> list[str]:
+    """The markers that change what an operator does with this row, in order."""
+    found: list[str] = []
+    if result.dnsbl_listed:
+        found.append("dnsbl")
+    if result.favicon_matches_target:
+        found.append("favicon")
+    if result.has_login_form:
+        found.append("login")
+    if result.has_mx and result.is_mail_spoofable:
+        found.append("spoof")
+    if result.is_sinkhole:
+        found.append("sinkhole")
+    elif result.is_parked:
+        found.append("parked")
+    if result.is_likely_defensive:
+        found.append("defensive")
+    return found
+
+
 def band_label(level: RiskLevel) -> str:
     """The four-character gutter label for *level*."""
     return MIDNIGHT.tone(level).band
@@ -142,4 +194,14 @@ def level_meaning(level: RiskLevel) -> str:
     return MIDNIGHT.tone(level).label
 
 
-__all__ = ["BANDS", "FLAGS", "TECHNIQUES", "Term", "band_label", "level_meaning"]
+__all__ = [
+    "BANDS",
+    "FLAGS",
+    "PHASES",
+    "TECHNIQUES",
+    "Term",
+    "band_label",
+    "flags",
+    "level_meaning",
+    "signals",
+]

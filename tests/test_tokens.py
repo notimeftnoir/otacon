@@ -12,11 +12,13 @@ import re
 import pytest
 
 from otacon.core.types import PermutationType, RiskLevel
-from otacon.ui.caps import ColorDepth, GlyphLevel, gradient_stops
+from otacon.tui import widgets
+from otacon.ui.caps import GlyphLevel
 from otacon.ui.copy import BANDS, FLAGS, TECHNIQUES
 from otacon.ui.emit import html_vars, mix, rich_theme, terminal_theme, textual_vars
 from otacon.ui.glyphs import ASCII_FALLBACK, SAFE, degrade
 from otacon.ui.tokens import MIDNIGHT, THEMES, Palette, get_theme
+from otacon.utils import theme
 
 _HEX = re.compile(r"^#[0-9a-f]{6}$")
 
@@ -94,16 +96,21 @@ def test_unknown_theme_falls_back_rather_than_raising() -> None:
     assert get_theme("  VISION ") is THEMES["vision"]
 
 
-def test_gradient_degrades_instead_of_collapsing() -> None:
-    """Below truecolor a four-stop ramp quantises to one flat colour.
+@pytest.mark.parametrize("palette", THEMES.values(), ids=lambda p: p.name)
+def test_the_brand_mark_carries_no_hue(palette: Palette) -> None:
+    """It used to be a four-stop gradient, which quantised to one flat colour
+    below truecolor and so looked broken rather than merely plainer.
 
-    That is what made the wordmark look broken on a 16-colour terminal rather
-    than merely plainer, so each depth gets a ramp it can actually resolve.
+    The mark is drawn from the neutral scale in every theme now: severity is
+    the only thing in this interface that earns a colour, and the homoglyph is
+    picked out by weight. That also makes the mark identical in `mono`, under
+    NO_COLOR, in a greyscale screenshot and on paper.
     """
-    assert gradient_stops(MIDNIGHT, ColorDepth.TRUECOLOR) == MIDNIGHT.gradient
-    assert len(gradient_stops(MIDNIGHT, ColorDepth.EIGHT_BIT)) == 2
-    assert len(gradient_stops(MIDNIGHT, ColorDepth.BASIC)) == 1
-    assert len(gradient_stops(MIDNIGHT, ColorDepth.NONE)) == 1
+    for neutral in (palette.dim, palette.muted, palette.body, palette.strong):
+        channels = [int(neutral[i : i + 2], 16) for i in (1, 3, 5)]
+        # Not exact equality: daylight's greys are deliberately warm, the way
+        # paper is. The test is that none of them reads as a colour.
+        assert max(channels) - min(channels) <= 16, f"{palette.name}: {neutral} has a hue"
 
 
 def test_every_budgeted_glyph_has_an_ascii_stand_in() -> None:
@@ -143,3 +150,33 @@ def test_mix_blends_toward_the_second_colour() -> None:
     assert mix("#ffffff", "#000000", 0.0) == "#ffffff"
     assert mix("#ffffff", "#000000", 1.0) == "#000000"
     assert mix("#ffffff", "#000000", 0.5) == "#808080"
+
+
+def test_the_glyph_level_is_resolved_once_and_kept(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Probing the stream per render is wrong inside a full-screen application.
+
+    Textual swaps stdout out when it starts, so a capability read during a
+    render answers for the driver rather than for the reader — which is how
+    `--ascii` came to reach the brand mark and nothing else.
+    """
+    monkeypatch.delenv("OTACON_ASCII", raising=False)
+    assert theme.set_glyphs(GlyphLevel.FULL) is GlyphLevel.FULL
+    monkeypatch.setenv("OTACON_ASCII", "1")
+    # Still FULL: the pinned answer survives the environment changing under it.
+    assert theme.active_glyphs() is GlyphLevel.FULL
+    # Only an explicit re-read picks the new environment up.
+    assert theme.set_glyphs() is GlyphLevel.ASCII
+    theme.set_glyphs(GlyphLevel.FULL)
+
+
+def test_ascii_mode_reaches_every_severity_mark(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A terminal that cannot draw U+2588 was given a logo it could read above
+    a table it could not."""
+    monkeypatch.setattr(theme, "_glyphs", GlyphLevel.ASCII)
+    try:
+        marks = [widgets.sigil(level) for level in RiskLevel]
+        assert all(m.isascii() for m in marks), marks
+        assert widgets.risk_bar(50).isascii()
+        assert widgets.logo().plain.isascii()
+    finally:
+        theme.set_glyphs(GlyphLevel.FULL)

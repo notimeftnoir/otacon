@@ -181,7 +181,104 @@ Input:focus {
     display: block;
 }
 
+/* ── overview: the screen a finished scan lands on ─────────────────────── */
+
+#overview {
+    width: 1fr;
+    height: 1fr;
+    padding: 1 4;
+}
+
+/* Capped rather than centred: the rest of the console is a left-aligned
+   instrument panel, and a centred column on a wide terminal reads as a
+   different application. */
+#overview-body {
+    height: auto;
+    max-width: 96;
+}
+
+/* ── compare: what moved since last time ───────────────────────────────── */
+
+#compare {
+    width: 1fr;
+    height: 1fr;
+    padding: 1 4;
+}
+
+#compare-body {
+    height: auto;
+    max-width: 96;
+}
+
+/* ── settings, allow-list and watchlist ────────────────────────────────── */
+
+#settings {
+    width: 1fr;
+    height: 1fr;
+    padding: 1 4;
+}
+
+#settings-note {
+    padding-bottom: 1;
+}
+
+#settings OptionList {
+    background: $otacon-bg;
+    border: none;
+    height: auto;
+    padding: 0;
+}
+
+#settings OptionList:focus {
+    border: none;
+}
+
+#settings OptionList > .option-list--option-highlighted {
+    background: $otacon-select;
+    color: $otacon-strong;
+    text-style: bold;
+}
+
 /* ── start screen ──────────────────────────────────────────────────────── */
+
+#preset-label {
+    color: $otacon-brand-dim;
+    text-style: bold;
+    padding-top: 1;
+}
+
+#setup RadioSet {
+    background: $otacon-surface;
+    border: none;
+    height: auto;
+    padding: 0;
+    margin-bottom: 1;
+}
+
+#setup RadioSet:focus {
+    border: none;
+}
+
+#setup RadioButton {
+    background: $otacon-surface;
+    padding: 0;
+}
+
+#setup Collapsible {
+    background: $otacon-surface;
+    border: none;
+    padding: 0;
+}
+
+#setup CollapsibleTitle {
+    color: $otacon-muted;
+    padding: 0;
+}
+
+#setup CollapsibleTitle:hover {
+    color: $otacon-brand;
+    background: $otacon-surface;
+}
 
 #setup {
     width: 68;
