@@ -298,3 +298,86 @@ def test_a_dangerous_verdict_needs_no_caveat() -> None:
     )
     assert v.tone == "danger"
     assert "partial picture" not in v.explanation
+
+
+# ---------------------------------------------------------------------------
+# RFC 7505: a null MX declares the opposite of what it was scored as
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_null_mx_is_not_mail_capability(monkeypatch) -> None:
+    """`MX 0 .` says this domain handles no mail. It used to earn +25 for the
+    opposite.
+
+    Found by running a real scan: example.net topped the table at 70/100, and
+    +25 of that was "has an MX record — ready for email phishing" — on a domain
+    publishing a null MX, `v=spf1 -all` and `p=reject`. c-ares reports the root
+    exchange as an empty string, so it arrived looking like a parse failure and
+    `bool(mx)` was True for a list of one blank.
+    """
+    import otacon.net.resolver as resolver_mod
+    from otacon.core.models import Permutation
+
+    class _Rec:
+        host = ""  # exactly what c-ares gives for `MX 0 .`
+
+    async def one_null_mx(self, domain, rtype):
+        return [_Rec()] if rtype == "MX" else []
+
+    monkeypatch.setattr(resolver_mod.Resolver, "_query", one_null_mx)
+    r = resolver_mod.Resolver(check_http=False, check_whois=False, check_dnsbl=False)
+    result = await r.check_one(Permutation(domain="example.net", kind=PermutationType.TLD_SWAP))
+
+    assert result.mx_records == ["."], "the published record must survive, readable"
+    assert result.has_mx is False, "a null MX is not a mail server"
+    assert result.is_registered is True, "publishing any MX still proves registration"
+
+
+@pytest.mark.asyncio
+async def test_a_real_mx_still_counts(monkeypatch) -> None:
+    """The guard must not cost a genuine mail exchange its points."""
+    import otacon.net.resolver as resolver_mod
+    from otacon.core.models import Permutation
+
+    class _Rec:
+        host = "mx1.evil.example"
+
+    async def one_real_mx(self, domain, rtype):
+        return [_Rec()] if rtype == "MX" else []
+
+    monkeypatch.setattr(resolver_mod.Resolver, "_query", one_real_mx)
+    r = resolver_mod.Resolver(check_http=False, check_whois=False, check_dnsbl=False)
+    result = await r.check_one(Permutation(domain="evil.example", kind=PermutationType.TYPO))
+
+    assert result.has_mx is True
+    assert result.mx_records == ["mx1.evil.example"]
+
+
+def test_a_null_mx_earns_no_phishing_points() -> None:
+    """End of the chain: the scoring engine must not pay out for it."""
+    from otacon.scoring.engine import score
+
+    null_mx = score(
+        DomainResult(
+            domain="example.net",
+            kind=PermutationType.TLD_SWAP,
+            resolves=True,
+            mx_records=["."],
+            has_mx=False,
+        ),
+        "example.com",
+    )
+    real_mx = score(
+        DomainResult(
+            domain="examp1e.com",
+            kind=PermutationType.HOMOGLYPH,
+            resolves=True,
+            mx_records=["mx1.evil.example"],
+            has_mx=True,
+        ),
+        "example.com",
+    )
+    assert not any("email phishing" in why for why in null_mx.risk_reasons)
+    assert any("email phishing" in why for why in real_mx.risk_reasons)
+    assert null_mx.is_registered, "it is still a registered domain"

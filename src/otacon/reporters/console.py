@@ -129,7 +129,7 @@ def _why(result: DomainResult, limit: int = 2) -> str:
         if m and not reason.startswith("technique"):
             scored.append((int(m.group(1)), reason[: m.start()]))
     scored.sort(key=lambda p: p[0], reverse=True)
-    return glyph(" · ").join(text for _, text in scored[:limit])
+    return glyph(" · ".join(text for _, text in scored[:limit]))
 
 
 def _domain_cell(result: DomainResult) -> Text:

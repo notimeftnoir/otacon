@@ -113,8 +113,10 @@ def _shallow_note(report: ScanReport) -> str:
     missing = [what for flag, what in _SKIPPED if not getattr(report.options, flag)]
     if not missing:
         return ""
-    listed = missing[0] if len(missing) == 1 else ", ".join(missing[:-1]) + " and " + missing[-1]
-    return f" This scan did not check {listed}, so it is a partial picture."
+    # Semicolons, not "and": the first category is itself a list ending in
+    # "and login forms", so joining on another one read as "login forms and
+    # registration dates" — one clause where there are two.
+    return f" This scan did not check: {'; '.join(missing)}. It is a partial picture."
 
 
 def verdict(report: ScanReport) -> Verdict:

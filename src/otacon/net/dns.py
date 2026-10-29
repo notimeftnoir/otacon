@@ -26,6 +26,15 @@ _HOST_FIELDS = ("addr", "exchange", "nsdname", "cname", "dname", "target")
 # count as failures — otherwise the health signal is noise.
 _NEGATIVE_ANSWER_CODES = frozenset({1, 4})  # ARES_ENODATA, ARES_ENOTFOUND
 
+NULL_MX = "."
+"""RFC 7505: an MX of "." declares that the domain handles no mail at all.
+
+c-ares reports the root exchange as an empty string, so it arrives looking like
+a parse failure rather than the explicit statement it is. It is evidence that
+somebody registered the name — a record had to be published — but the opposite
+of evidence that the name can send or receive mail.
+"""
+
 
 def is_negative_answer(exc: BaseException) -> bool:
     """True when the resolver said 'no such name' / 'no data' rather than failing.

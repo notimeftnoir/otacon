@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from ..core.models import DomainResult
 from ..net.whois import format_age
+from ..utils.theme import glyph
 
 
 def evidence(r: DomainResult) -> list[tuple[str, str, str]]:
@@ -39,7 +40,9 @@ def evidence(r: DomainResult) -> list[tuple[str, str, str]]:
             ("Certificate", f"{r.ssl_issuer or 'unknown issuer'}{age}", "browsers show a padlock")
         )
     if r.age_days is not None:
-        rows.append(("Registered", format_age(r.age_days) + " ago", "domain age from WHOIS/RDAP"))
+        rows.append(
+            ("Registered", glyph(format_age(r.age_days)) + " ago", "domain age from WHOIS/RDAP")
+        )
     if r.has_mx:
         spoof_info = (
             f"DMARC: {r.dmarc_policy or 'none'} (spoofable)"

@@ -321,7 +321,7 @@ class ResultsScreen(Screen[None]):
                 score,
                 Text(r.domain, style=pal.dim if dimmed else f"bold {pal.strong}"),
                 Text(r.kind.value, style=pal.dim if dimmed else pal.brand_dim),
-                Text(format_age(r.age_days), style=muted),
+                Text(glyph(format_age(r.age_days)), style=muted),
                 Text(signals(r), style=muted),
                 Text(badges(r), style=colour),
             )
@@ -466,7 +466,11 @@ class ResultsScreen(Screen[None]):
             reasons = self._kv_grid()
             for reason in r.risk_reasons:
                 reasons.add_row(
-                    Text(glyph("·"), style=pal.line_strong), Text(reason, style=pal.muted)
+                    Text(glyph("·"), style=pal.line_strong),
+                    # The engine writes these with em-dashes in them; they go
+                    # into the JSON and HTML reports verbatim, so they are
+                    # degraded here rather than at the source.
+                    Text(glyph(reason), style=pal.muted),
                 )
             parts.append(reasons)
 
@@ -824,8 +828,14 @@ class ResultsScreen(Screen[None]):
         notice = self.query_one("#notice", Static)
         if not bulk:
             # One notice is meant to be read before it is sent, so show it.
+            # Degraded for the preview only. The file keeps its em-dashes: it
+            # is pasted into a ticket or an email client, not drawn on this
+            # terminal, and the glyph budget is a terminal-font constraint.
             notice.update(
-                Text(build_takedown_notice(rows[0], self._report.target), style=self.palette.body)
+                Text(
+                    glyph(build_takedown_notice(rows[0], self._report.target)),
+                    style=self.palette.body,
+                )
             )
             notice.add_class("visible")
         else:
@@ -896,7 +906,7 @@ class ResultsScreen(Screen[None]):
         if r is None:
             return
         if r.age_days is not None:
-            self.notify(f"{r.domain}: registered {format_age(r.age_days)} ago", timeout=4)
+            self.notify(f"{r.domain}: registered {glyph(format_age(r.age_days))} ago", timeout=4)
             return
         self.notify(f"querying WHOIS for {r.domain}" + glyph("…"), timeout=2)
         self.run_worker(self._do_whois(r.domain), exclusive=False)
@@ -907,7 +917,7 @@ class ResultsScreen(Screen[None]):
             self.notify(f"{domain}: no WHOIS data", severity="warning", timeout=4)
             return
         self._replace(domain, {"created_at": created, "age_days": age})
-        self.notify(f"{domain}: registered {format_age(age)} ago", timeout=4)
+        self.notify(f"{domain}: registered {glyph(format_age(age))} ago", timeout=4)
 
     def action_rescan(self) -> None:
         """Re-probes the selected domain and rescores it in place."""

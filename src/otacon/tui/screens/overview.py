@@ -108,7 +108,7 @@ class OverviewScreen(Screen[None]):
 
         if self._delta is not None and not self._delta.quiet:
             days = max((self._report.started_at - self._delta.since).days, 0)
-            when = "earlier today" if days < 1 else f"{format_age(days)} ago"
+            when = "earlier today" if days < 1 else f"{glyph(format_age(days))} ago"
             parts.append(
                 Text(glyph(f"\nSINCE YOUR LAST SCAN · {when}"), style=f"bold {pal.brand_dim}")
             )

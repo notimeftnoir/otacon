@@ -82,7 +82,7 @@ class CompareScreen(Screen[None]):
         if self._previous is None:
             return Text("no earlier scan ", style=pal.muted)
         days = max((self._report.started_at - self._previous.started_at).days, 0)
-        when = "earlier today" if days < 1 else f"{format_age(days)} ago"
+        when = "earlier today" if days < 1 else f"{glyph(format_age(days))} ago"
         return Text(f"compared with {when} ", style=pal.muted)
 
     def _by_domain(self) -> dict[str, DomainResult]:

@@ -117,8 +117,13 @@ class DomainResult:
 
     @property
     def is_registered(self) -> bool:
-        """Whether the variant looks actively registered or in use."""
-        return self.resolves or self.has_mx or self.has_ssl
+        """Whether the variant looks actively registered or in use.
+
+        ``mx_records`` is checked as well as ``has_mx``: a domain whose only
+        record is RFC 7505's null MX handles no mail, so ``has_mx`` is False,
+        but somebody had to register the name to publish it.
+        """
+        return self.resolves or self.has_mx or self.has_ssl or bool(self.mx_records)
 
     def model_copy(self, *, update: dict[str, Any] | None = None) -> Self:
         """Returns a copy of this result with updated attributes."""

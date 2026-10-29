@@ -13,7 +13,7 @@ import httpx
 
 from ..core.models import DomainResult, Permutation
 from .content import _MAX_BODY_BYTES, _strip_unsafe_chars
-from .dns import is_negative_answer
+from .dns import NULL_MX, is_negative_answer
 from .dns import query_records as _query_dns
 from .dnsbl import check_dnsbl
 from .email_sec import check_email_security
@@ -190,7 +190,14 @@ class Resolver:
         return bool(t is not None and t.done() and not t.cancelled() and t.result())
 
     async def _resolve_mx(self, domain: str) -> list[str]:
-        return [_strip_unsafe_chars(r.host) for r in await self._query(domain, "MX")]
+        """Mail exchanges for *domain*, with a null MX spelled as it is published.
+
+        c-ares hands back an empty exchange for RFC 7505's ``MX 0 .``; keeping
+        it as ``NULL_MX`` makes the record readable instead of looking like a
+        failed parse, and lets the caller tell "no mail by declaration" from
+        "a mail server is configured".
+        """
+        return [_strip_unsafe_chars(rec.host) or NULL_MX for rec in await self._query(domain, "MX")]
 
     async def _resolve_ns(self, domain: str) -> list[str]:
         return [_strip_unsafe_chars(r.host).lower() for r in await self._query(domain, "NS")]
@@ -275,7 +282,11 @@ class Resolver:
                         ips = []
 
                 resolves = bool(ips)
-                has_mx = bool(mx)
+                # A null MX is a declaration that this domain handles no mail,
+                # so it must not earn the "ready for email phishing" weight —
+                # the heaviest infrastructure signal there is. It still counts
+                # as registration, through DomainResult.is_registered.
+                has_mx = any(exchange != NULL_MX for exchange in mx)
 
                 has_ssl = False
                 ssl_issuer: str | None = None

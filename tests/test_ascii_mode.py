@@ -40,7 +40,7 @@ def ascii_terminal(monkeypatch):
 @pytest.fixture
 def row() -> DomainResult:
     """One row carrying every signal, so no branch is skipped for want of data."""
-    return DomainResult(
+    raw = DomainResult(
         domain="examp1e.com",
         kind=PermutationType.HOMOGLYPH,
         note="visually identical character",
@@ -65,18 +65,33 @@ def row() -> DomainResult:
         spf_record="v=spf1 -all",
         is_mail_spoofable=True,
         is_parked=False,
-        risk_score=92,
-        risk_level=RiskLevel.CRITICAL,
-        risk_reasons=["technique: homoglyph (+25)", "resolves to an IP (+10)"],
     )
+    # Scored by the real engine, not by hand: its reason strings carry em-dashes
+    # that an invented list would not, and that is exactly the text the dossier
+    # and the console's "why" section print.
+    from otacon.scoring.engine import score
+
+    return score(raw, "example.com", target_title="Example Domain")
 
 
 @pytest.fixture
 def report(row: DomainResult) -> ScanReport:
+    # Two rows on purpose: one carrying every signal, and one with nothing
+    # known about it. A real scan is mostly the second kind, and a fixture made
+    # only of the first never renders the "no data" dash that format_age,
+    # _age_cell and the signal checklist all reach for.
+    unknown = DomainResult(
+        domain="exarnple.com",
+        kind=PermutationType.TYPO,
+        resolves=True,
+        ip_addresses=["198.51.100.7"],
+        risk_score=28,
+        risk_level=RiskLevel.LOW,
+    )
     return ScanReport(
         target="example.com",
         total_permutations=12,
-        results=[row],
+        results=[row, unknown],
         dns_queries=24,
         dns_failures=9,
         options=ScanOptions(),
@@ -182,6 +197,34 @@ def test_the_tui_widgets_are_ascii(report: ScanReport, row: DomainResult) -> Non
         _assert_ascii(_rendered(w.band_cell(level, True)), f"the {level.value} band label")
 
 
+def test_absent_data_renders_as_ascii_too(row: DomainResult) -> None:
+    """A real scan is mostly rows with no WHOIS answer.
+
+    `format_age(None)` returns U+2014 and leaves degrading to its callers; six
+    of the seven forgot, so the triage console printed an em-dash in the AGE
+    column of every row whose age was unknown — which no fixture here had,
+    because they all carried an age.
+    """
+    from otacon.net.whois import format_age
+    from otacon.triage.dossier import evidence
+    from otacon.utils.theme import glyph
+
+    assert glyph(format_age(None)) == "--"
+    blank = row.model_copy(update={"age_days": None, "created_at": None})
+    _assert_ascii("".join(a + b + c for a, b, c in evidence(blank)), "the dossier with no age")
+    _assert_ascii(_rendered(_rendered_age_cell(blank)), "the age cell with no age")
+
+
+def _rendered_age_cell(r: DomainResult):
+    """The AGE cell exactly as the triage console's row builder makes it."""
+    from rich.text import Text
+
+    from otacon.net.whois import format_age
+    from otacon.utils.theme import glyph
+
+    return Text(glyph(format_age(r.age_days)))
+
+
 def test_the_verdict_and_dossier_are_ascii(report: ScanReport, row: DomainResult) -> None:
     from otacon.triage.dossier import evidence
     from otacon.triage.notice import build_takedown_notice
@@ -193,7 +236,13 @@ def test_the_verdict_and_dossier_are_ascii(report: ScanReport, row: DomainResult
     # marker is deliberately raw so each surface degrades it; check the contract.
     _assert_ascii(glyph(v.marker), "the degraded verdict marker")
     _assert_ascii("".join(a + b + c for a, b, c in evidence(row)), "the dossier evidence")
-    _assert_ascii(build_takedown_notice(row, "example.com"), "the takedown notice")
+    # The notice itself keeps its em-dashes on purpose: it is written to a .txt
+    # and pasted into a ticket, not drawn on this terminal. Only the console's
+    # preview of it is a terminal surface.
+    _assert_ascii(glyph(build_takedown_notice(row, "example.com")), "the notice preview")
+    assert "—" in build_takedown_notice(row, "example.com"), (
+        "the written notice should keep its typography; only the preview degrades"
+    )
 
 
 def test_every_surface_that_degrades_the_verdict_marker_actually_does() -> None:
