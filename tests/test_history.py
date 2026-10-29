@@ -192,3 +192,30 @@ def test_a_cli_scan_persists_into_the_isolated_directory(
     saved = _report("from-cli.com")
     scan_cmd.history.save(saved)
     assert (isolate_scan_history / "from-cli.com").is_dir()
+
+
+def test_two_scans_in_the_same_second_are_both_kept(tmp_path) -> None:
+    """The filename is a timestamp accurate to the second.
+
+    Two runs started inside the same one used to land on the same name, and the
+    second silently replaced the first — in the one place whose whole job is to
+    keep every scan.
+    """
+    report = ScanReport(target="example.com", total_permutations=1)
+    paths = [history.save(report, root=tmp_path) for _ in range(3)]
+
+    assert len(set(paths)) == 3
+    assert len(list((tmp_path / "example.com").glob("*.json"))) == 3
+
+
+def test_the_suffix_does_not_break_newest_first_ordering(tmp_path) -> None:
+    """scans() sorts filenames in reverse, so a suffix must not outrank a later scan."""
+    from datetime import UTC, datetime
+
+    early = ScanReport(target="example.com", started_at=datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC))
+    late = ScanReport(target="example.com", started_at=datetime(2026, 1, 2, 0, 0, 0, tzinfo=UTC))
+    history.save(early, root=tmp_path)
+    history.save(early, root=tmp_path)  # same second -> suffixed
+    history.save(late, root=tmp_path)
+
+    assert history.scans("example.com", root=tmp_path)[0].started_at == late.started_at

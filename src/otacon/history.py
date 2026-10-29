@@ -107,6 +107,13 @@ def save(report: ScanReport, root: Path | None = None, keep: int = DEFAULT_KEEP)
 
     stamp = report.started_at.astimezone(UTC).strftime(_STAMP)
     path = directory / f"{stamp}.json"
+    # The stamp is only accurate to the second, so two runs started in the same
+    # one landed on the same filename and the second quietly replaced the first.
+    # Everything here exists to keep every scan, so suffix rather than clobber.
+    suffix = 1
+    while path.exists():
+        path = directory / f"{stamp}-{suffix}.json"
+        suffix += 1
     path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
     path.chmod(stat.S_IRUSR | stat.S_IWUSR)
     prune(report.target, keep=keep, root=root)

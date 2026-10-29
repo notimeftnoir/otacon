@@ -49,47 +49,22 @@ class Permutation:
 
 
 @dataclass(frozen=True, slots=True)
-class NetworkSignals:
-    """Network indicators collected during resolution and probe stages."""
+class ScanOptions:
+    """Which probes a scan actually ran.
 
-    resolves: bool = False
-    ip_addresses: list[str] = field(default_factory=list)
-    has_mx: bool = False
-    mx_records: list[str] = field(default_factory=list)
-    has_ssl: bool = False
-    ssl_issuer: str | None = None
-    ssl_cert_age_days: int | None = None
-    ssl_san_matches: bool | None = None
-    http_status: int | None = None
-    server_header: str | None = None
-    redirects_to: str | None = None
-    page_title: str | None = None
-    title_similarity: float | None = None
-    created_at: datetime | None = None
-    age_days: int | None = None
-    ns_records: list[str] = field(default_factory=list)
-    has_spf: bool = False
-    spf_record: str | None = None
-    has_dmarc: bool = False
-    dmarc_policy: str | None = None
-    is_mail_spoofable: bool = False
-    favicon_hash: int | None = None
-    favicon_matches_target: bool = False
-    has_login_form: bool = False
-    dnsbl_listed: bool = False
-    dnsbl_source: str | None = None
-    is_sinkhole: bool = False
+    A report that does not say what it looked at cannot be compared against
+    another one: "no MX record" and "MX was never checked" produce the same
+    empty field, so a diff between a full scan and a --no-http one reported
+    every live site as having lost its website. The same gap stopped the
+    triage console from honouring the operator's choices when it re-probed a
+    single row. Defaults are True so a report stored before this existed reads
+    exactly as it did before.
+    """
 
-
-@dataclass(frozen=True, slots=True)
-class RiskAssessment:
-    """Calculated risk heuristic indicators."""
-
-    risk_score: int = 0
-    risk_level: RiskLevel = RiskLevel.SAFE
-    risk_reasons: list[str] = field(default_factory=list)
-    is_likely_defensive: bool = False
-    is_parked: bool = False
+    http: bool = True
+    whois: bool = True
+    dnsbl: bool = True
+    ct: bool = True
 
 
 @dataclass(slots=True)
@@ -170,6 +145,14 @@ class DomainResult:
         return cls(**schema.model_dump())
 
 
+def _report_fields(schema: ScanReportSchema) -> dict[str, Any]:
+    """Unpacks a validated report schema into ScanReport's own constructor kwargs."""
+    raw = schema.model_dump()
+    raw["results"] = [DomainResult(**r) for r in raw.pop("results", [])]
+    raw["options"] = ScanOptions(**raw.pop("options", {}))
+    return raw
+
+
 @dataclass(slots=True)
 class ScanReport:
     """Complete scan report container."""
@@ -181,6 +164,18 @@ class ScanReport:
     dns_hijack_detected: bool = False
     dns_queries: int = 0
     dns_failures: int = 0
+    probe_failures: int = 0
+    """Variants whose probe raised instead of answering. See ``degraded``."""
+
+    dnsbl_refused: bool = False
+    """True when a reputation list declined to answer rather than saying clean.
+
+    Spamhaus refuses queries arriving via large public resolvers. Scored as
+    "not listed" that silently zeroed the heaviest weight in the scoring, so
+    the fact travels with the report.
+    """
+
+    options: ScanOptions = field(default_factory=ScanOptions)
     cancelled: bool = False
     """True when the operator stopped the scan before it finished.
 
@@ -195,14 +190,26 @@ class ScanReport:
         return self.dns_failures / self.dns_queries if self.dns_queries else 0.0
 
     @property
+    def probe_failure_ratio(self) -> float:
+        """Share of variants whose probe raised instead of answering."""
+        checked = len(self.results)
+        return self.probe_failures / checked if checked else 0.0
+
+    @property
     def degraded(self) -> bool:
-        """True when enough DNS lookups failed that a quiet result is not trustworthy.
+        """True when enough lookups failed that a quiet result is not trustworthy.
 
         "Does not resolve" and "could not be checked" produce the same empty
         result, so a scan whose resolver is broken reports an all-clear. Above
         this share, the verdict says so instead.
+
+        Probe failures count for the same reason DNS ones do: a variant whose
+        check raised comes back as a blank result, which reads as "nothing
+        registered here" rather than "this was never answered".
         """
-        return self.dns_queries > 0 and self.dns_failure_ratio >= DEGRADED_RATIO
+        return (self.dns_queries > 0 and self.dns_failure_ratio >= DEGRADED_RATIO) or (
+            bool(self.results) and self.probe_failure_ratio >= DEGRADED_RATIO
+        )
 
     @property
     def registered(self) -> list[DomainResult]:
@@ -231,16 +238,10 @@ class ScanReport:
     def model_validate(cls, data: Any) -> Self:
         """Validates input through Pydantic schema and returns an immutable ScanReport."""
         schema = ScanReportSchema.model_validate(data)
-        raw = schema.model_dump()
-        raw_results = raw.pop("results", [])
-        results = [DomainResult(**r) for r in raw_results]
-        return cls(results=results, **raw)
+        return cls(**_report_fields(schema))
 
     @classmethod
     def model_validate_json(cls, data: str) -> Self:
         """Validates JSON input through Pydantic schema and returns an immutable ScanReport."""
         schema = ScanReportSchema.model_validate_json(data)
-        raw = schema.model_dump()
-        raw_results = raw.pop("results", [])
-        results = [DomainResult(**r) for r in raw_results]
-        return cls(results=results, **raw)
+        return cls(**_report_fields(schema))

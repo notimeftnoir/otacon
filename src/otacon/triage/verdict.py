@@ -125,15 +125,25 @@ def verdict(report: ScanReport) -> Verdict:
 
     if report.degraded:
         # A broken resolver and a clean brand produce the same empty result, so
-        # this case must never be reported as an all-clear.
-        pct = round(report.dns_failure_ratio * 100)
+        # this case must never be reported as an all-clear. Name the layer that
+        # actually failed: DNS and the probes above it degrade independently.
+        if report.probe_failures and report.probe_failure_ratio >= report.dns_failure_ratio:
+            pct = round(report.probe_failure_ratio * 100)
+            what = f"{pct}% of checks on {target} could not be completed"
+            why = (
+                f"{report.probe_failures} of {len(report.results)} lookalikes raised an error "
+                "instead of answering"
+            )
+        else:
+            pct = round(report.dns_failure_ratio * 100)
+            what = f"{pct}% of DNS lookups for {target} failed"
+            why = f"{report.dns_failures} of {report.dns_queries} lookups could not be answered"
         return Verdict(
             tone="warn",
             level=RiskLevel.SAFE,
-            headline=f"Inconclusive: {pct}% of DNS lookups for {target} failed",
+            headline=f"Inconclusive: {what}",
             explanation=(
-                f"{report.dns_failures} of {report.dns_queries} lookups could not be answered, "
-                "so a domain shown as unregistered may simply not have been checked. "
+                f"{why}, so a domain shown as unregistered may simply not have been checked. "
                 "Re-run with --debug to see why, and treat these results as incomplete."
             ),
             degraded=True,

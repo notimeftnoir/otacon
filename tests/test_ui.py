@@ -185,7 +185,7 @@ def test_evidence_never_parses_hostile_markup_from_a_scanned_page() -> None:
 
 
 def test_next_steps_skip_what_the_user_already_did(monkeypatch) -> None:
-    from otacon import cli
+    from otacon.cli.commands import scan as cli
 
     console, buf = _console()
     report = ScanReport(target="example.com", results=[_hit(90, RiskLevel.CRITICAL)])

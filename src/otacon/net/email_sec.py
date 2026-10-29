@@ -6,6 +6,8 @@ import asyncio
 import re
 from typing import Any
 
+from .content import _strip_unsafe_chars
+
 _DMARC_POLICY_RE = re.compile(r"\bp=([a-z]+)")
 
 
@@ -27,7 +29,8 @@ async def check_email_security(
     for txt in txt_records:
         if "v=spf1" in txt.lower():
             has_spf = True
-            spf_rec = txt.strip()
+            # Whatever the remote zone published; sanitised like MX and NS are.
+            spf_rec = _strip_unsafe_chars(txt.strip())
             break
 
     has_dmarc = False

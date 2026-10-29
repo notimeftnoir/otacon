@@ -23,13 +23,7 @@ from .core.exceptions import (
     ValidationError,
     WhoisError,
 )
-from .core.models import (
-    DomainResult,
-    NetworkSignals,
-    Permutation,
-    RiskAssessment,
-    ScanReport,
-)
+from .core.models import DomainResult, Permutation, ScanOptions, ScanReport
 from .core.types import PermutationType, RiskLevel
 from .engine.scanner import run_scan
 from .permutations.generator import generate
@@ -47,16 +41,15 @@ __all__ = [
     "DNSResolutionError",
     "DomainResult",
     "HTTPProbeError",
-    "NetworkSignals",
     "OtaconError",
     "Permutation",
     "PermutationError",
     "PermutationType",
     "ReportExportError",
     "ResolutionError",
-    "RiskAssessment",
     "RiskLevel",
     "SSRFBlockedError",
+    "ScanOptions",
     "ScanReport",
     "ScoringError",
     "SecurityError",

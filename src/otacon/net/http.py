@@ -19,6 +19,9 @@ from .content import (
 )
 
 _REDIRECT_MAX = 200
+# Major only: a scan should not need a release to keep its UA honest, and
+# three separate literals had sat at "2.0" since before 3.0.0.
+USER_AGENT = "Otacon/3 (+domain-monitoring)"
 DEFAULT_HTTP_TIMEOUT = 4.0
 HTTP_DEADLINE = 15.0
 HTTPS_GRACE = 2.0
@@ -155,6 +158,7 @@ __all__ = [
     "DEFAULT_HTTP_TIMEOUT",
     "HTTPS_GRACE",
     "HTTP_DEADLINE",
+    "USER_AGENT",
     "_REDIRECT_MAX",
     "HTTPProbeResult",
     "probe_http",

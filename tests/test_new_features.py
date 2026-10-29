@@ -165,7 +165,7 @@ async def test_resolver_dnsbl_mock_hit() -> None:
         return []
 
     r = Resolver()
-    r._dns.query = mock_query  # type: ignore[assignment]
+    r._dns.query_dns = mock_query  # type: ignore[assignment]
     listed, source = await r._check_dnsbl("evil.com")
     assert listed is True
     assert source == "Spamhaus DBL (phishing)"
@@ -177,7 +177,7 @@ async def test_resolver_dnsbl_clean() -> None:
         raise RuntimeError("NXDOMAIN")
 
     r = Resolver()
-    r._dns.query = mock_query  # type: ignore[assignment]
+    r._dns.query_dns = mock_query  # type: ignore[assignment]
     listed, source = await r._check_dnsbl("clean.com")
     assert listed is False
     assert source is None
@@ -215,7 +215,7 @@ async def test_fetch_ct_domains_certspotter() -> None:
             ]
 
     class MockClient:
-        async def get(self, url: str):
+        async def get(self, url: str, **kwargs):
             if "certspotter" in url:
                 return MockResponse()
             return MockResponse()
@@ -252,7 +252,7 @@ async def test_fetch_ct_domains_crtsh_fallback() -> None:
             ]
 
     class MockClient:
-        async def get(self, url: str):
+        async def get(self, url: str, **kwargs):
             if "certspotter" in url:
                 return MockCertspotterResp()
             return MockCrtshResp()
@@ -270,7 +270,7 @@ async def test_fetch_ct_domains_graceful_error_handling() -> None:
     from otacon.ct_logs import fetch_ct_domains
 
     class FailingClient:
-        async def get(self, url: str):
+        async def get(self, url: str, **kwargs):
             raise RuntimeError("Network unreachable")
 
         async def aclose(self):

@@ -916,7 +916,7 @@ class ResultsScreen(Screen[None]):
 
     async def _do_rescan(self, result: DomainResult) -> None:
         try:
-            updated = await rescan_result(result, self._report.target)
+            updated = await rescan_result(result, self._report.target, self._report.options)
         except Exception as exc:
             self.notify(f"rescan failed: {exc}", severity="error", timeout=5)
             return

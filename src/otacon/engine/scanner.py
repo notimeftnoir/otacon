@@ -21,7 +21,7 @@ from rich.progress import (
 )
 
 from .. import permutations
-from ..core.models import DomainResult, Permutation, ScanReport
+from ..core.models import DomainResult, Permutation, ScanOptions, ScanReport
 from ..core.types import PermutationType, RiskLevel, ScanPhase
 from ..net.resolver import Resolver
 from ..reporters.console import build_live_table
@@ -36,6 +36,12 @@ _HIJACK_WARNING = (
     "[warn]⚠  Your DNS resolver answers nonexistent domains (NXDOMAIN hijacking)."
     " Hijacked answers were discarded; consider scanning with a clean resolver"
     " (e.g. 1.1.1.1).[/warn]"
+)
+
+_DNSBL_WARNING = (
+    "[warn]⚠  A reputation list declined to answer, so DNSBL findings are"
+    " incomplete. Large public resolvers are refused by Spamhaus; scan from a"
+    " resolver of your own.[/warn]"
 )
 
 _LIVE_ROWS = 8
@@ -108,15 +114,15 @@ async def run_scan(
                 total=total,
                 hits=len(hits),
                 dangerous=sum(1 for h in hits if h.risk_level.rank >= RiskLevel.HIGH.rank),
-                dns_queries=int(getattr(resolver_ref["r"], "dns_queries", 0)),
-                dns_failures=int(getattr(resolver_ref["r"], "dns_failures", 0)),
+                dns_queries=resolver_ref["r"].dns_queries if resolver_ref["r"] else 0,
+                dns_failures=resolver_ref["r"].dns_failures if resolver_ref["r"] else 0,
                 latest=latest,
             )
         )
 
     # The resolver does not exist until well after the first progress report,
     # and the DNS counters live on it.
-    resolver_ref: dict[str, object] = {"r": None}
+    resolver_ref: dict[str, Resolver | None] = {"r": None}
 
     report_progress(ScanPhase.GENERATING)
     # The module is imported, not the function, so a test that patches
@@ -140,31 +146,20 @@ async def run_scan(
                 Live(progress, console=console, refresh_per_second=4, transient=True)
             )
 
-        resolver_cls = Resolver
-        try:
-            resolver = await stack.enter_async_context(
-                resolver_cls(
-                    concurrency=safe_concurrency,
-                    check_http=check_http,
-                    target=target,
-                    check_whois=check_whois,
-                    check_dnsbl=check_dnsbl,
-                )
+        resolver = await stack.enter_async_context(
+            Resolver(
+                concurrency=safe_concurrency,
+                check_http=check_http,
+                target=target,
+                check_whois=check_whois,
+                check_dnsbl=check_dnsbl,
             )
-        except TypeError:
-            resolver = await stack.enter_async_context(
-                resolver_cls(
-                    concurrency=safe_concurrency,
-                    check_http=check_http,
-                    target=target,
-                    check_whois=check_whois,
-                )
-            )
+        )
 
         resolver_ref["r"] = resolver
         report_progress(ScanPhase.CHECKING, total=len(perms))
 
-        if check_ct and hasattr(resolver, "fetch_ct_domains"):
+        if check_ct:
             # A single slow network call that used to report nothing at all.
             report_progress(ScanPhase.DISCOVERING, total=len(perms))
             try:
@@ -219,9 +214,10 @@ async def run_scan(
                 tg.create_task(_worker())
 
         hijack_detected = resolver.dns_hijack_detected
-        # getattr: a test double standing in for Resolver need not carry counters.
-        dns_queries = int(getattr(resolver, "dns_queries", 0))
-        dns_failures = int(getattr(resolver, "dns_failures", 0))
+        dns_queries = resolver.dns_queries
+        dns_failures = resolver.dns_failures
+        probe_failures = resolver.probe_failures
+        dnsbl_refused = resolver.dnsbl_refused
 
     results.sort(key=lambda r: (-r.risk_score, r.domain))
     report = ScanReport(
@@ -231,6 +227,9 @@ async def run_scan(
         dns_hijack_detected=hijack_detected,
         dns_queries=dns_queries,
         dns_failures=dns_failures,
+        probe_failures=probe_failures,
+        dnsbl_refused=dnsbl_refused,
+        options=ScanOptions(http=check_http, whois=check_whois, dnsbl=check_dnsbl, ct=check_ct),
         cancelled=should_stop is not None and should_stop(),
     )
 
@@ -241,6 +240,8 @@ async def run_scan(
         )
     if report.dns_hijack_detected:
         console.print(_HIJACK_WARNING)
+    if dnsbl_refused:
+        console.print(_DNSBL_WARNING)
     return report
 
 

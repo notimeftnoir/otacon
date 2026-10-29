@@ -22,10 +22,12 @@ from .http import (
     DEFAULT_HTTP_TIMEOUT,
     HTTP_DEADLINE,
     HTTPS_GRACE,
+    USER_AGENT,
     HTTPProbeResult,
     probe_http,
     read_capped_body,
 )
+from .rdap import DEFAULT_RDAP_TIMEOUT
 from .security import _PinnedHTTPTransport, first_safe_ip
 from .tls import HTTPS_PORT, inspect_cert, probe_ssl
 from .whois import fetch_domain_age
@@ -33,6 +35,8 @@ from .whois import fetch_domain_age
 _log = logging.getLogger("otacon.net.resolver")
 
 DEFAULT_CONCURRENCY = 50
+# HTTP + HTTPS raced, plus one favicon fetch on a 2xx.
+_CONNECTIONS_PER_PROBE = 3
 _DNS_TIMEOUT = 3.0
 _HTTP_TIMEOUT = DEFAULT_HTTP_TIMEOUT
 _HTTPS_PORT = HTTPS_PORT
@@ -63,7 +67,7 @@ class Resolver:
         self._target_title: str | None = None
         self._target_favicon_hash: int | None = None
         self._http: httpx.AsyncClient | None = None
-        self._whois_cache: dict[str, asyncio.Task[tuple[datetime | None, int | None]]] = {}
+        self._rdap: httpx.AsyncClient | None = None
         self._wildcard_task: asyncio.Task[frozenset[str]] | None = None
         self._ip_pins: dict[str, str] = {}
         # Health of the DNS layer itself. Every swallowed lookup error here used
@@ -71,6 +75,13 @@ class Resolver:
         # a library break shipped as a confident all-clear.
         self.dns_queries = 0
         self.dns_failures = 0
+        # Same reasoning one level up: a probe that raises returns a blank
+        # result, which reads as "nothing registered here" rather than
+        # "this was never answered". Counted so the report can say so.
+        self.probe_failures = 0
+        # True once a reputation list declined to answer rather than
+        # saying the domain was clean. See net.dnsbl._REFUSAL_PREFIX.
+        self.dnsbl_refused = False
 
     async def _fetch_target_title(self) -> str | None:
         """Fetches page title and favicon hash of the target domain for cloned-site detection."""
@@ -85,27 +96,40 @@ class Resolver:
             return None
 
     async def __aenter__(self) -> Resolver:
+        # A probe opens three connections, not one: probe_http races HTTP and
+        # HTTPS, and a 2xx answer fetches the favicon as well. Sized at
+        # `concurrency` the pool was half of what the semaphore admits, so
+        # every probe waited a full round for a slot — and at the pool timeout
+        # the PoolTimeout read as "this host serves nothing".
+        pool = self._concurrency * _CONNECTIONS_PER_PROBE
         transport = _PinnedHTTPTransport(
             self._ip_pins,
             verify=False,
-            limits=httpx.Limits(
-                max_connections=self._concurrency,
-                max_keepalive_connections=self._concurrency,
-            ),
+            limits=httpx.Limits(max_connections=pool, max_keepalive_connections=pool),
         )
         self._http = httpx.AsyncClient(
             transport=transport,
             timeout=_HTTP_TIMEOUT,
             follow_redirects=False,
-            headers={"User-Agent": "Otacon/2.0 (+domain-monitoring)"},
+            headers={"User-Agent": USER_AGENT},
+        )
+        # One client for every RDAP lookup in the scan. Built per domain it
+        # meant a fresh TLS handshake to rdap.org for each one, which is the
+        # slowest part of a scan of a busy brand. follow_redirects is required:
+        # rdap.org always redirects to the authoritative registry.
+        self._rdap = httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=DEFAULT_RDAP_TIMEOUT,
+            headers={"User-Agent": USER_AGENT},
         )
         if self._check_http and self.target:
             self._target_title = await self._fetch_target_title()
         return self
 
     async def __aexit__(self, *exc: object) -> None:
-        if self._http is not None:
-            await self._http.aclose()
+        for client in (self._http, self._rdap):
+            if client is not None:
+                await client.aclose()
 
     async def fetch_ct_domains(self) -> set[str]:
         """Discovers certificates and lookalike domains via Certificate Transparency logs."""
@@ -113,17 +137,26 @@ class Resolver:
 
         return await fetch_ct_domains(self.target)
 
-    async def _query_ips(self, domain: str, rtype: Literal["A", "AAAA"]) -> list[str]:
+    async def _query(self, domain: str, rtype: str) -> list[Any]:
+        """Queries *rtype* for *domain*, counting the lookup and whether it answered.
+
+        Every record type goes through here. MX, NS and TXT used to have their
+        own copy of this that counted nothing, so a resolver failing on those
+        was invisible to ``ScanReport.degraded`` — the one signal that says a
+        quiet result cannot be trusted.
+        """
         self.dns_queries += 1
         try:
             async with asyncio.timeout(_DNS_TIMEOUT):
-                records = await _query_dns(self._dns, domain, rtype)
-            return [r.host for r in records]
+                return await _query_dns(self._dns, domain, rtype)
         except Exception as exc:
             if not is_negative_answer(exc):
                 self.dns_failures += 1
             _log.debug("%s lookup failed for %s: %r", rtype, domain, exc)
             return []
+
+    async def _query_ips(self, domain: str, rtype: Literal["A", "AAAA"]) -> list[str]:
+        return [r.host for r in await self._query(domain, rtype)]
 
     async def _resolve_a(self, domain: str) -> list[str]:
         async with asyncio.TaskGroup() as tg:
@@ -157,40 +190,27 @@ class Resolver:
         return bool(t is not None and t.done() and not t.cancelled() and t.result())
 
     async def _resolve_mx(self, domain: str) -> list[str]:
-        try:
-            async with asyncio.timeout(_DNS_TIMEOUT):
-                records = await _query_dns(self._dns, domain, "MX")
-            return [_strip_unsafe_chars(r.host) for r in records]
-        except Exception as exc:
-            _log.debug("MX lookup failed for %s: %r", domain, exc)
-            return []
+        return [_strip_unsafe_chars(r.host) for r in await self._query(domain, "MX")]
 
     async def _resolve_ns(self, domain: str) -> list[str]:
-        try:
-            async with asyncio.timeout(_DNS_TIMEOUT):
-                records = await _query_dns(self._dns, domain, "NS")
-            return [_strip_unsafe_chars(r.host).lower() for r in records]
-        except Exception as exc:
-            _log.debug("NS lookup failed for %s: %r", domain, exc)
-            return []
+        return [_strip_unsafe_chars(r.host).lower() for r in await self._query(domain, "NS")]
 
     async def _check_dnsbl(self, domain: str) -> tuple[bool, str | None]:
-        return await check_dnsbl(domain, self._dns, timeout=_DNS_TIMEOUT)
+        listed, source, refused = await check_dnsbl(domain, self._dns, timeout=_DNS_TIMEOUT)
+        if refused:
+            # Sticky for the whole scan: one refusal means the list is not
+            # answering this host, so the report must not read as a clean bill.
+            self.dnsbl_refused = True
+        return listed, source
 
     async def _resolve_txt(self, domain: str) -> list[str]:
-        try:
-            async with asyncio.timeout(_DNS_TIMEOUT):
-                records = await _query_dns(self._dns, domain, "TXT")
-            out: list[str] = []
-            for r in records:
-                txt = getattr(r, "text", "")
-                if isinstance(txt, bytes):
-                    txt = txt.decode("utf-8", "replace")
-                out.append(str(txt))
-            return out
-        except Exception as exc:
-            _log.debug("TXT lookup failed for %s: %r", domain, exc)
-            return []
+        out: list[str] = []
+        for r in await self._query(domain, "TXT"):
+            txt = getattr(r, "text", "")
+            if isinstance(txt, bytes):
+                txt = txt.decode("utf-8", "replace")
+            out.append(str(txt))
+        return out
 
     async def _check_email_security(
         self, domain: str
@@ -232,27 +252,11 @@ class Resolver:
         async with asyncio.TaskGroup() as tg:
             t_ssl = tg.create_task(self._check_ssl(domain, safe_ip))
             t_http = tg.create_task(self._probe_http(domain))
-        ssl_info = t_ssl.result()
-        http_res = t_http.result()
-        if not isinstance(http_res, HTTPProbeResult):
-            http_res = HTTPProbeResult(
-                http_res[0],
-                http_res[1],
-                http_res[2],
-                http_res[3],
-                getattr(http_res, "has_login_form", False),
-                getattr(http_res, "favicon_hash", None),
-            )
-        return ssl_info, http_res
+        return t_ssl.result(), t_http.result()
 
     async def _fetch_whois(self, domain: str) -> tuple[datetime | None, int | None]:
         async with self._whois_sem:
-            return await fetch_domain_age(domain)
-
-    async def _cached_whois(self, domain: str) -> tuple[datetime | None, int | None]:
-        if domain not in self._whois_cache:
-            self._whois_cache[domain] = asyncio.create_task(self._fetch_whois(domain))
-        return await self._whois_cache[domain]
+            return await fetch_domain_age(domain, client=self._rdap)
 
     async def check_one(self, perm: Permutation) -> DomainResult:
         """Fully checks a single domain permutation variant against network signals."""
@@ -323,7 +327,7 @@ class Resolver:
                     async with asyncio.TaskGroup() as tg:
                         t_ns = tg.create_task(self._resolve_ns(perm.domain))
                         if self._check_whois:
-                            t_whois = tg.create_task(self._cached_whois(perm.domain))
+                            t_whois = tg.create_task(self._fetch_whois(perm.domain))
                         if self._enable_dnsbl:
                             t_dnsbl = tg.create_task(self._check_dnsbl(perm.domain))
                         if has_mx:
@@ -374,7 +378,8 @@ class Resolver:
                     has_login_form=has_login_form,
                 )
             except Exception as exc:
-                _log.debug("check_one failed for %s: %r", perm.domain, exc)
+                self.probe_failures += 1
+                _log.warning("probe failed for %s: %r", perm.domain, exc)
                 return DomainResult(domain=perm.domain, kind=perm.kind, note=perm.note)
 
 

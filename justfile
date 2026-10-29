@@ -92,6 +92,14 @@ lock:
 build:
     python -m build
 
+# Install the built wheel into a throwaway venv and run it, as CI does.
+smoke: build
+    rm -rf /tmp/otacon-smoke
+    python -m venv /tmp/otacon-smoke
+    /tmp/otacon-smoke/bin/pip install --quiet dist/*.whl
+    /tmp/otacon-smoke/bin/otacon --version
+    /tmp/otacon-smoke/bin/otacon generate example.com --limit 3
+
 # Regenerate the README screenshots from a real scan; needs working DNS.
 demo DOMAIN="example.com":
     # A host that cannot resolve produces an honest "inconclusive" card rather

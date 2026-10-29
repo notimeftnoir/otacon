@@ -77,19 +77,11 @@ async def query_records(resolver: Any, name: str, rtype: str) -> list[Any]:
     """Queries *rtype* records for *name*, normalised across aiodns versions.
 
     Returns records exposing ``.host`` / ``.text`` whether the resolver is an
-    aiodns>=4 instance (DNSResult), a pre-4.0 one (plain list), or a test double
-    patched onto ``.query``.
+    aiodns>=4 instance (``query_dns``, returning a DNSResult) or a pre-4.0 one
+    (``query``, returning a plain list).
     """
-    from unittest.mock import Mock
-
-    query_fn = getattr(resolver, "query", None)
-    is_custom = isinstance(query_fn, Mock) or (
-        hasattr(resolver, "__dict__") and "query" in resolver.__dict__
-    )
-    if is_custom or not hasattr(resolver, "query_dns"):
-        result = await resolver.query(name, rtype)
-    else:
-        result = await resolver.query_dns(name, rtype)
+    query_fn = getattr(resolver, "query_dns", None) or resolver.query
+    result = await query_fn(name, rtype)
     answer = getattr(result, "answer", None)
     if answer is None:
         return list(result)

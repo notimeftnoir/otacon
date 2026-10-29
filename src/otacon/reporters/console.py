@@ -13,7 +13,7 @@ from rich.text import Text
 from ..core.models import DomainResult, ScanReport
 from ..core.types import RiskLevel
 from ..net.whois import format_age
-from ..scoring.engine import AGE_FRESH_DAYS, AGE_NEW_DAYS, count_fresh, get_age_fresh_days
+from ..scoring.engine import count_fresh, get_age_fresh_days, get_age_new_days
 from ..triage.verdict import verdict
 from ..ui.caps import GlyphLevel
 from ..ui.copy import FLAGS
@@ -114,9 +114,9 @@ def _age_cell(age_days: int | None) -> Text:
     label = degrade(format_age(age_days), active_glyphs())
     if age_days is None:
         return Text(label, style="muted")
-    if age_days < AGE_FRESH_DAYS:
+    if age_days < get_age_fresh_days():
         return Text(label, style="critical")
-    if age_days < AGE_NEW_DAYS:
+    if age_days < get_age_new_days():
         return Text(label, style="warn")
     return Text(label, style="value")
 

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- A scan now records which probes it ran, under `options` in the report. Without it, "no MX record" and "MX was never checked" were the same empty field: `otacon diff` compared a full scan against a `--no-http` one and reported every live lookalike as having lost its certificate, and every listed domain as having just been blacklisted. The diff now skips any signal the two scans did not both gather, and says at the top which ones those are.
+- The triage console's re-check (`r`) honours the scan's own options. It built a resolver with HTTP, WHOIS and DNSBL switched on whatever the operator had chosen, so re-probing one row of a DNS-only scan sent traffic to the lookalike and queried a registry — the two things `--no-http` and `--no-whois` exist to prevent. It had no test; it has five now.
+- A reputation list that declines to answer is no longer scored as a clean domain. Spamhaus refuses queries arriving via large public resolvers and replies in `127.255.255.0/24`; matched only against the `127.0.1.x` listings, that read as "not listed" and silently zeroed the heaviest weight in the scoring — including for anyone following the tool's own advice to scan from `1.1.1.1`. The scan now warns, and the report carries `dnsbl_refused`.
+- A probe that raises is counted rather than swallowed. `check_one` caught every exception and returned a blank result, which reads as "nothing registered here"; the new `probe_failures` feeds `degraded` exactly as the DNS counter does, so a library break can no longer ship as a confident all-clear. The failure is logged at warning level instead of debug.
+- `dns_queries` and `dns_failures` now count MX, NS and TXT lookups too. They only ever counted A and AAAA, so a resolver failing on the other record types was invisible to the one signal that says a quiet result cannot be trusted.
+- The HTTP connection pool is sized for what a probe actually opens. A probe races HTTP and HTTPS and fetches a favicon, but the pool was sized at `concurrency` — half the demand — so every probe waited a full round for a slot and a pool timeout read as "this host serves nothing". Measured on real sockets, the HTTP phase took twice as long as it needed to.
+- RDAP lookups share one connection instead of building a client per domain, which meant a fresh TLS handshake to `rdap.org` for every registered variant.
+- Every `--no-*` flag is now covered by a test. `run_scan` was called through a chain of `except TypeError` retries that discarded `check_dnsbl` and `check_ct` on the way down, so a signature change would have scanned with them on regardless. The chain is gone; the stale test double that kept it alive is fixed.
+- The abuse notice no longer leaves live hostnames in its prose. It defanged the domain and then printed it raw three more times in the body, where a mail client turns each into a clickable link to the phishing page. Raw values now sit in one labelled block for registrar tooling.
+- Two scans of one target started in the same second are both kept. The filename is a timestamp accurate to the second, so the later one silently replaced the earlier — in the one place whose job is to keep every scan.
+- The crt.sh fallback gets a timeout it can finish in. It shared a 4-second budget with Certspotter and rarely returned anything, so it was listed as a second source while behaving like none.
+- `otacon --help` no longer offers a guided mode. It was deleted in 3.0.0.
+- SPF records are sanitised like every other string taken from a remote zone, and shown in the dossier — they had been collected and stored since the first release without ever being displayed.
+- The fresh-certificate boost and the console's age colouring follow `AGE_FRESH_DAYS` overrides. Three of five call sites used the getter and two read the constant directly, so an override moved some of the output and not the rest.
+- The version test no longer fails on a correct tree. It asserted the *installed* distribution's version, so any editable install made before a version bump failed it, and the fix was `pip install -e .` rather than a code change. What the wheel reports is now checked where that can be done honestly — see below.
+
+### Added
+- CI installs the built wheel into a clean venv and runs it (`otacon --version`, `generate`, `--help`), comparing the reported version against `pyproject.toml`. Every other gate ran against the source tree through an editable install, so a broken `[project.scripts]` entry or a package missed by `packages.find` passed everything and would have failed only after `pipx install otacon`. `just smoke` runs the same thing locally.
+
+### Removed
+- Dead code, about 290 lines. `NetworkSignals` and `RiskAssessment` were never constructed and duplicated every `DomainResult` field while being re-exported as public API; `ScoringWeightsSchema`, `WhoisResultSchema` and `CTLogEntrySchema` were never validated with, and the first contradicted the real weights it appeared to document; `_detect_sinkhole`, `_detect_parking` and `_detect_defensive` had no callers; the WHOIS cache could never hit, because permutations are deduplicated before they reach it; `otacon.cli` re-exported forty names, four of them stdlib (`sys`, `Path`, `Enum`, `dataclass`), of which exactly one was ever imported.
+- `unittest.mock` is no longer imported inside the DNS query path to detect test doubles. `query_records` now asks whether the resolver has the modern API, which is the question it was really answering.
+- The `[[tool.mypy.overrides]]` block for test modules, which mypy itself reported as unused: CI only ever type-checks `src/otacon`.
+
 ## [3.0.0] — 2026-10-29
 
 A major because the guided prompts are gone: the triage console is the tool

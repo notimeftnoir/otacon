@@ -12,7 +12,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .core.models import DomainResult, ScanReport
+from .core.models import DomainResult, ScanOptions, ScanReport
 from .core.types import RiskLevel
 
 
@@ -42,6 +42,8 @@ class ReportDiff(BaseModel):
     new_domains: list[DomainDiff] = Field(default_factory=list)
     dropped_domains: list[DomainDiff] = Field(default_factory=list)
     modified_domains: list[DomainDiff] = Field(default_factory=list)
+    caveats: list[str] = Field(default_factory=list)
+    """What these two scans did not both check, and so cannot be compared on."""
 
     @property
     def has_changes(self) -> bool:
@@ -59,12 +61,55 @@ class ReportDiff(BaseModel):
 ScanDiff = ReportDiff
 
 
-def _compare_results(old: DomainResult, new: DomainResult) -> list[str]:
-    """Generates human-readable descriptions of changes between two results."""
+def _shared_options(old: ScanReport, new: ScanReport) -> ScanOptions:
+    """What both scans actually looked at.
+
+    A signal only one of them probed cannot be compared: the field is empty in
+    the other report because nothing asked, not because the answer was no.
+    """
+    a, b = old.options, new.options
+    return ScanOptions(
+        http=a.http and b.http,
+        whois=a.whois and b.whois,
+        dnsbl=a.dnsbl and b.dnsbl,
+        ct=a.ct and b.ct,
+    )
+
+
+def _option_caveats(old: ScanReport, new: ScanReport) -> list[str]:
+    """Plain-language notes on what these two scans cannot be compared on."""
+    a, b = old.options, new.options
+    notes = []
+    for flag, what in (
+        ("http", "websites, certificates, favicons and login forms"),
+        ("whois", "registration dates"),
+        ("dnsbl", "reputation lists"),
+        ("ct", "Certificate Transparency discovery"),
+    ):
+        if getattr(a, flag) != getattr(b, flag):
+            ran, skipped = ("earlier", "later") if getattr(a, flag) else ("later", "earlier")
+            notes.append(f"only the {ran} scan checked {what}, so the {skipped} one cannot differ")
+    return notes
+
+
+def _compare_results(
+    old: DomainResult, new: DomainResult, shared: ScanOptions | None = None
+) -> list[str]:
+    """Generates human-readable descriptions of changes between two results.
+
+    *shared* is what both scans probed; anything outside it is left alone.
+    Without it a full scan compared against a ``--no-http`` one reported every
+    live site as having lost its certificate and every listed domain as having
+    just been blacklisted — a nightly cron job's worth of false alarms.
+    """
+    opts = shared if shared is not None else ScanOptions()
     changes: list[str] = []
-    if old.risk_score != new.risk_score:
+    # Scores are a function of every signal, so they are only comparable when
+    # both scans gathered the same ones.
+    if old.risk_score != new.risk_score and opts == ScanOptions():
         changes.append(f"Score shifted {old.risk_score} → {new.risk_score}")
 
+    # DNS and MX are never gated by a flag: always comparable.
     if not old.has_mx and new.has_mx:
         mx_desc = f": {', '.join(new.mx_records)}" if new.mx_records else ""
         changes.append(f"Mail server added{mx_desc}")
@@ -74,16 +119,17 @@ def _compare_results(old: DomainResult, new: DomainResult) -> list[str]:
     if set(old.ip_addresses) != set(new.ip_addresses):
         changes.append(f"IP changed: {', '.join(old.ip_addresses)} → {', '.join(new.ip_addresses)}")
 
-    if not old.has_ssl and new.has_ssl:
-        changes.append(f"SSL certificate added: {new.ssl_issuer or 'unknown'}")
+    if opts.http:
+        if not old.has_ssl and new.has_ssl:
+            changes.append(f"SSL certificate added: {new.ssl_issuer or 'unknown'}")
 
-    if not old.favicon_matches_target and new.favicon_matches_target:
-        changes.append("Favicon now matches target brand")
+        if not old.favicon_matches_target and new.favicon_matches_target:
+            changes.append("Favicon now matches target brand")
 
-    if not old.has_login_form and new.has_login_form:
-        changes.append("Credential login form detected")
+        if not old.has_login_form and new.has_login_form:
+            changes.append("Credential login form detected")
 
-    if not old.dnsbl_listed and new.dnsbl_listed:
+    if opts.dnsbl and not old.dnsbl_listed and new.dnsbl_listed:
         changes.append(f"Blacklisted on DNSBL ({new.dnsbl_source})")
 
     return changes
@@ -94,10 +140,12 @@ def compute_diff(old: ScanReport, new: ScanReport) -> ReportDiff:
     old_by_domain = {r.domain: r for r in old.results}
     new_by_domain = {r.domain: r for r in new.results}
 
+    shared = _shared_options(old, new)
     diff = ReportDiff(
         target=new.target or old.target,
         old_date=old.started_at,
         new_date=new.started_at,
+        caveats=_option_caveats(old, new),
     )
 
     for domain, res in new_by_domain.items():
@@ -130,7 +178,7 @@ def compute_diff(old: ScanReport, new: ScanReport) -> ReportDiff:
     for domain, new_res in new_by_domain.items():
         if domain in old_by_domain:
             old_res = old_by_domain[domain]
-            changes = _compare_results(old_res, new_res)
+            changes = _compare_results(old_res, new_res, shared)
             if changes:
                 diff.modified_domains.append(
                     DomainDiff(
@@ -162,6 +210,11 @@ def render_diff(diff: ReportDiff, console: Console) -> None:
         )
 
     console.print(Panel(head, border_style="brand"))
+
+    for note in diff.caveats:
+        console.print(f"[warn]⚠  These scans are not directly comparable: {note}.[/warn]")
+    if diff.caveats:
+        console.print()
 
     if not diff.has_changes:
         console.print("[ok]✓ No changes detected between scan reports.[/ok]\n")
@@ -219,7 +272,9 @@ __all__ = [
     "_compare_results",
     "_diff_summary",
     "_load_report",
+    "_option_caveats",
     "_render_diff_table",
+    "_shared_options",
     "compute_diff",
     "render_diff",
 ]

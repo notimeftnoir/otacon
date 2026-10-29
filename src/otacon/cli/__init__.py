@@ -1,94 +1,15 @@
-"""Typer CLI entry point and subpackage for Otacon v2.0."""
+"""Typer CLI entry point for Otacon.
+
+Only ``app`` leaves this module. It used to re-export forty names so that a
+test could reach any CLI helper through one import — including ``sys``,
+``Path``, ``Enum`` and ``dataclass``, which made four stdlib objects part of
+Otacon's apparent public API. Nothing imported them: every caller reaches
+helpers by their real module path, which is also the only path that
+monkeypatching works through.
+"""
 
 from __future__ import annotations
 
-import sys
-from dataclasses import dataclass
-from enum import Enum
-from pathlib import Path
+from .main import app
 
-from .. import permutations, reporters, scoring
-from .._asyncutils import run_async
-from .._splash import play_intro
-from ..core.models import ScanReport
-from ..core.types import RiskLevel
-from ..engine.scanner import run_scan
-from ..utils.theme import BANNER, OTACON_THEME
-from ..utils.validate import (
-    is_valid_domain,
-    normalize_domain,
-    parse_domain_list,
-    safe_cli_path,
-)
-from .commands.diff import execute_diff
-from .commands.generate import execute_generate
-from .commands.scan import (
-    _CI,
-    _FILTER,
-    _NET,
-    _OUT,
-    _load_domains,
-    _load_exclusions,
-    _load_weights,
-    _print_next_steps,
-    _run_scan,
-    execute_scan,
-)
-from .main import (
-    _banner,
-    _configure_logging,
-    _ensure_unicode_output,
-    _Threshold,
-    _version_callback,
-    app,
-    console,
-    diff,
-    generate,
-    scan,
-)
-from .state import _CliState, _state
-
-__all__ = [
-    "BANNER",
-    "OTACON_THEME",
-    "_CI",
-    "_FILTER",
-    "_NET",
-    "_OUT",
-    "Enum",
-    "Path",
-    "RiskLevel",
-    "ScanReport",
-    "_CliState",
-    "_Threshold",
-    "_banner",
-    "_configure_logging",
-    "_ensure_unicode_output",
-    "_load_domains",
-    "_load_exclusions",
-    "_load_weights",
-    "_print_next_steps",
-    "_run_scan",
-    "_state",
-    "_version_callback",
-    "app",
-    "console",
-    "dataclass",
-    "diff",
-    "execute_diff",
-    "execute_generate",
-    "execute_scan",
-    "generate",
-    "is_valid_domain",
-    "normalize_domain",
-    "parse_domain_list",
-    "permutations",
-    "play_intro",
-    "reporters",
-    "run_async",
-    "run_scan",
-    "safe_cli_path",
-    "scan",
-    "scoring",
-    "sys",
-]
+__all__ = ["app"]

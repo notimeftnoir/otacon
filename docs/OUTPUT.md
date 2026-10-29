@@ -58,26 +58,57 @@ Every score is fully decomposed — you can always answer *"why did this get 92?
 
 ## Scan health
 
-Every JSON report carries two counters alongside the results:
+Every JSON report records how well the scan itself went, alongside the results:
 
 | Field | Meaning |
 |---|---|
-| `dns_queries` | A and AAAA lookups attempted during the scan |
+| `dns_queries` | DNS lookups attempted during the scan — A, AAAA, MX, NS and TXT |
 | `dns_failures` | Of those, how many failed rather than answering |
+| `probe_failures` | Variants whose check raised an error instead of returning a result |
+| `dnsbl_refused` | True when a reputation list declined to answer at all |
 
 A domain that does not exist is an *answer*, not a failure, so a healthy scan of
 a typical target sits around 5% even though most variants are unregistered.
 
 The distinction matters because "does not resolve" and "could not be checked"
-produce the same empty result. When failures reach 20% of lookups the terminal
-verdict stops reporting an all-clear and says the scan is inconclusive instead.
-In a pipeline, check the ratio yourself before trusting a quiet report:
+produce the same empty result. When either failure count reaches 20% the
+terminal verdict stops reporting an all-clear and says the scan is inconclusive
+instead, naming whichever layer actually failed.
+
+`dnsbl_refused` is its own flag because a refusal is not a clean bill of health.
+Spamhaus declines queries that arrive through large public resolvers and answers
+`127.255.255.254` rather than "not listed" — scored as clean, that silently
+zeroed the heaviest single weight in the scoring. If you see it, scan from a
+resolver of your own.
+
+In a pipeline, check these yourself before trusting a quiet report:
 
 ```bash
 otacon -q scan example.com --json report.json
 python -c "
 import json; r = json.load(open('report.json'))
-assert r['dns_failures'] / max(r['dns_queries'], 1) < 0.2, 'scan degraded'"
+assert r['dns_failures'] / max(r['dns_queries'], 1) < 0.2, 'DNS degraded'
+assert r['probe_failures'] / max(len(r['results']), 1) < 0.2, 'probes degraded'
+assert not r.get('dnsbl_refused'), 'reputation lists did not answer'"
 ```
 
-Reports written before 2.2.0 carry neither field and read back as zero.
+Reports written before 2.2.0 carry none of these and read back as zero/false.
+
+## What the scan looked at
+
+A report records which probes it ran, under `options`:
+
+```json
+"options": { "http": true, "whois": true, "dnsbl": true, "ct": false }
+```
+
+This is what makes two reports comparable. "No MX record" and "MX was never
+checked" produce the same empty field, so `otacon diff` skips any signal the two
+scans did not both gather and says so at the top of its output — without it, a
+nightly job that gained a `--no-http` one evening reported every live lookalike
+as having lost its certificate. The triage console reads the same field when you
+re-check a single row, so a re-probe never reaches for something the scan was
+told to leave alone.
+
+Reports written before 3.1.0 have no `options` key and read back as a full
+scan, which is how they were already compared.

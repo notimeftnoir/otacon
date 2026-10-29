@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 import typer
 from rich.console import Console
@@ -209,31 +208,21 @@ def execute_scan(
             + "[/muted]"
         )
 
-        run_scan_fn = _run_scan
-        run_async_fn = run_async
-        reporters_mod = reporters
-
-        scan_kwargs: dict[str, Any] = {
-            "exclude": per_target,
-            "quiet": quiet,
-            "weights": weights,
-            "check_whois": not no_whois,
-            "check_dnsbl": not no_dnsbl,
-            "check_ct": not no_ct,
-            "console": console,
-        }
         try:
-            try:
-                coro = run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
-            except TypeError:
-                scan_kwargs.pop("console", None)
-                try:
-                    coro = run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
-                except TypeError:
-                    scan_kwargs.pop("check_ct", None)
-                    scan_kwargs.pop("check_dnsbl", None)
-                    coro = run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
-            report = run_async_fn(coro)
+            report = run_async(
+                _run_scan(
+                    d,
+                    concurrency,
+                    check_http=not no_http,
+                    exclude=per_target,
+                    quiet=quiet,
+                    weights=weights,
+                    check_whois=not no_whois,
+                    check_dnsbl=not no_dnsbl,
+                    check_ct=not no_ct,
+                    console=console,
+                )
+            )
         except KeyboardInterrupt:
             console.print("\n[muted]Interrupted.[/muted]")
             raise typer.Exit(1) from None
@@ -248,14 +237,14 @@ def execute_scan(
             # History is a convenience; never let it cost the operator a scan.
             _log_history_failure(console, exc)
 
-        reporters_mod.render_table(report, console, show_safe=show_all, top=top)
+        reporters.render_table(report, console, show_safe=show_all, top=top)
         all_reports[d] = report
 
     if not all_reports:
         raise typer.Exit(1)
 
     if len(domains) > 1:
-        reporters_mod.render_aggregate_summary(all_reports, scan_errors, console)
+        reporters.render_aggregate_summary(all_reports, scan_errors, console)
 
     multi = len(all_reports) > 1
 

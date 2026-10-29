@@ -52,6 +52,12 @@ def evidence(r: DomainResult) -> list[tuple[str, str, str]]:
             else "mail exchanger configured"
         )
         rows.append(("Mail Security", spoof_info, meaning))
+        # Collected since the first release and shown nowhere until now: a
+        # lookalike with its own SPF record has had its mail set up deliberately.
+        if r.has_spf:
+            rows.append(
+                ("Sender Policy", r.spf_record or "SPF present", "mail sending is configured")
+            )
     if r.favicon_matches_target:
         rows.append(
             ("Favicon", f"matches target (hash: {r.favicon_hash})", "cloned brand visual identity")

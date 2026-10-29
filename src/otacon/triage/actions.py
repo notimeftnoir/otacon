@@ -7,20 +7,34 @@ to report it.
 
 from __future__ import annotations
 
-from ..core.models import DomainResult, Permutation
+from ..core.models import DomainResult, Permutation, ScanOptions
 from ..net.resolver import Resolver
 from ..scoring import engine as scoring
 
 
-async def rescan_result(result: DomainResult, target: str, check_http: bool = True) -> DomainResult:
+async def rescan_result(
+    result: DomainResult, target: str, options: ScanOptions | None = None
+) -> DomainResult:
     """Re-probes one variant and returns it rescored.
 
     A result goes stale the moment it is printed — a domain that was parked an
     hour ago may be serving a login form now — so the console can ask for any
     single row to be checked again without repeating the whole scan.
+
+    *options* are the ones the scan ran with, from ``ScanReport.options``. They
+    are not a nicety: this used to probe with HTTP, WHOIS and DNSBL switched on
+    whatever the operator had chosen, so re-checking one row of a DNS-only scan
+    sent traffic to the lookalike and queried a registry — the exact things
+    `--no-http` and `--no-whois` exist to prevent.
     """
+    opts = options or ScanOptions()
     perm = Permutation(domain=result.domain, kind=result.kind, note=result.note)
-    async with Resolver(check_http=check_http, target=target) as resolver:
+    async with Resolver(
+        check_http=opts.http,
+        target=target,
+        check_whois=opts.whois,
+        check_dnsbl=opts.dnsbl,
+    ) as resolver:
         raw = await resolver.check_one(perm)
         return scoring.score(raw, target, target_title=resolver.target_title)
 

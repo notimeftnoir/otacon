@@ -19,6 +19,13 @@ _log = logging.getLogger("otacon.ct_logs")
 _CERTSPOTTER_URL = "https://api.certspotter.com/v1/issuances?domain={domain}&include_subdomains=true&expand=dns_names"
 _CRTSH_URL = "https://crt.sh/?q={domain}&output=json"
 
+# Certspotter answers in well under a second. crt.sh runs the query against
+# a large database and regularly takes ten or more, so sharing one 4-second
+# budget meant the fallback almost never returned anything — it was listed
+# as a second source while behaving like none. It only runs when Certspotter
+# came back thin, and the scan shows a DISCOVERING stage while it waits.
+_CRTSH_TIMEOUT = 15.0
+
 
 async def fetch_ct_domains(
     target: str,
@@ -26,6 +33,9 @@ async def fetch_ct_domains(
     client: httpx.AsyncClient | None = None,
 ) -> set[str]:
     """Queries CT logs for certificates matching *target*.
+
+    *timeout* bounds the fast Certspotter call; the crt.sh fallback gets
+    ``_CRTSH_TIMEOUT`` instead, because it is far slower.
 
     Returns a deduplicated set of valid domains observed in CT logs.
     Degrades gracefully: on timeout or remote error, returns empty set so scans
@@ -58,7 +68,7 @@ async def fetch_ct_domains(
         # 2. Secondary source: crt.sh (if certspotter found few or none)
         if len(found) < 10:
             try:
-                resp = await http.get(_CRTSH_URL.format(domain=domain))
+                resp = await http.get(_CRTSH_URL.format(domain=domain), timeout=_CRTSH_TIMEOUT)
                 if resp.status_code == 200:
                     data = resp.json()
                     if isinstance(data, list):
