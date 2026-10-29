@@ -378,17 +378,20 @@ overview screen alone, how many domains need action and what the first one is.
 
 ## Phase 5 — console surface
 
+**Status: done.**
+
 **Goal:** `otacon scan` matches the console's vocabulary and stops being a wall.
 
-- [ ] **Unify badge vocabulary** from `ui/copy.py` across all four surfaces.
-- [ ] **Split the overloaded `Domain` column.** It currently carries name,
+- [x] **Unify badge vocabulary** from `ui/copy.py` across all four surfaces.
+- [x] **Split the overloaded `Domain` column.** It currently carries name,
       badges, technique, the top two reasons and the page title — up to five
       wrapped lines per row, so twelve rows fill a screen and a half.
-- [ ] **`--compact` / `--top N`** for a one-line-per-row table.
-- [ ] **Fix the `critical` background artefact** (Phase 0 removes the token;
+- [x] **`--compact` / `--top N`** for a one-line-per-row table.
+- [x] **Fix the `critical` background artefact** (Phase 0 removes the token;
       this is where the call sites are cleaned up).
-- [ ] **Gradient degradation** wired through `caps.color_depth()`.
-- [ ] **ASCII mode** verified against the `SAFE_GLYPHS` budget on Windows
+- [x] **Gradient degradation.** Overtaken: the monochrome mark removed the
+      gradient entirely, so there was nothing left to degrade.
+- [x] **ASCII mode** verified against the `SAFE_GLYPHS` budget on Windows
       terminals.
 
 ---
@@ -466,8 +469,8 @@ is a report about phishing; it must not phone home.
 | ~~1 — hierarchy~~ | 0 | M | **Done.** The loudest defect, visible in one screenshot |
 | ~~2 — non-specialist~~ | 0, 1 | M | **Done.** The stated goal of the whole effort |
 | ~~3 — scan~~ | 0 | S | **Done.** Closed a real CLI/console regression |
+| ~~5 — console~~ | 0 | S | **Done.** Mostly deletion, as predicted |
 | ~~6 — HTML~~ | — | — | **Not doing.** The terminal is the product |
-| 5 — console | 0 | S | Mostly deletion once tokens and copy are shared |
 | 4 — operator | 1 | L | Largest surface area, lowest urgency |
 | 7 — brand | 1, 2 | S | Screenshots are only worth regenerating once |
 
