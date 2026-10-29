@@ -50,4 +50,3 @@ brand-protection:
     - if: $CI_PIPELINE_SOURCE == "schedule"
 ```
 
----

@@ -1,4 +1,4 @@
-"""Main Typer CLI application dispatching scan, generate, and diff subcommands."""
+"""Main Typer CLI application dispatching the scan, tui, generate, diff and watch subcommands."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ app = typer.Typer(
     help=(
         "Find lookalike domains that imitate yours (typos, homoglyphs, other TLDs) "
         "and see which ones are registered and dangerous.\n\n"
-        "Run [bold]otacon[/bold] with no arguments for a guided mode."
+        "Run [bold]otacon[/bold] with no arguments for the triage console."
     ),
     epilog=(
         "[bold]Examples[/bold]\n\n"
@@ -173,7 +173,7 @@ def _main(
         help="Use ASCII stand-ins for the block and arrow glyphs, for limited fonts.",
     ),
 ) -> None:
-    """Shows banner before command execution or enters interactive guided mode when called bare."""
+    """Shows banner before command execution, or opens the triage console when called bare."""
     ctx.obj = _CliState(quiet=quiet)
     console.quiet = quiet
     _configure_logging(debug)
@@ -190,9 +190,8 @@ def _main(
 def _textual_capable(console: Console) -> bool:
     """True when the terminal can host a full-screen Textual application.
 
-    Textual asks more of a terminal than the guided prompts do: it takes over
-    the screen, needs cursor addressing and reads keys raw. A pipe, a dumb
-    terminal or a CI shell has none of that.
+    Textual takes over the screen, needs cursor addressing and reads keys raw.
+    A pipe, a dumb terminal or a CI shell has none of that.
     """
     return bool(console.is_terminal) and not console.is_dumb_terminal
 

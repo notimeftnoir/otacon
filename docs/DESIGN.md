@@ -67,7 +67,7 @@ This document explains *why* Otacon is built the way it is. For *how to use it*,
 
 Every stage exchanges models from `core/` — `Permutation`, then `DomainResult`, finally aggregated into a `ScanReport`. Each carries enough information for downstream stages to be **stateless**: a reporter does not need to know how a domain was generated or how it got scored. `score()` returns a scored copy rather than mutating its input, so the same result can be re-scored under different weights without a re-scan.
 
-`utils/` holds what every layer needs — the palette and the trust-boundary validators — and `core/` holds the models, enums and exceptions. Nothing in either imports from a layer above it.
+`core/` holds the models, enums and exceptions; `ui/` holds the design tokens and the shared wording; `utils/` holds the trust-boundary validators and resolves which palette is active. Nothing in any of the three imports from a layer above it.
 
 ---
 
@@ -75,25 +75,26 @@ Every stage exchanges models from `core/` — `Permutation`, then `DomainResult`
 
 | Package | Responsibility | I/O? | Lines |
 |---|---|---|---|
-| `core/` | Models, enums and exceptions flowing through the pipeline | no | 552 |
-| `utils/` | Palette and the shared trust-boundary validators | no | 276 |
+| `core/` | Models, enums and exceptions flowing through the pipeline | no | 601 |
+| `ui/` | Design tokens: the four palettes, glyph degradation, terminal capabilities, and the one spelling of every flag and technique | no | 814 |
+| `utils/` | The active palette and the shared trust-boundary validators | no | 338 |
 | `permutations/` | 12 permutation rules (incl. regional combosquatting) and IDN encoding; pure | no | 618 |
-| `engine/` | Scan orchestration under structured concurrency, bounded by the OS descriptor limit | coordinates | 280 |
-| `net/` | Every async probe: DNS, HTTP, TLS, RDAP, WHOIS, DNSBL, mail security, content | **yes** | 1414 |
+| `engine/` | Scan orchestration under structured concurrency, bounded by the OS descriptor limit | coordinates | 356 |
+| `net/` | Every async probe: DNS, HTTP, TLS, RDAP, WHOIS, DNSBL, mail security, content | **yes** | 1425 |
 | `scoring/` | Rule-based 0–100 score with transparent reasons, plus the parked/sinkhole/defensive classifiers | no | 608 |
-| `reporters/` | Terminal table, JSON, Markdown, CSV and the self-contained HTML report | output | 1230 |
-| `cli/` | Typer subcommands: `scan`, `tui`, `generate`, `diff` | orchestration | 1029 |
-| `triage/` | Guided prompts, the post-scan action loop, dossier and takedown notice | terminal | 961 |
-| `tui/` | Textual triage console | terminal | 579 |
+| `reporters/` | Terminal table, JSON, Markdown, CSV and the self-contained HTML report | output | 1290 |
+| `cli/` | Typer subcommands: `scan`, `tui`, `generate`, `diff`, `watch` | orchestration | 1223 |
+| `triage/` | What the console acts with: the dossier, the abuse notice, re-probing one row | no | 476 |
+| `tui/` | Textual triage console — start, live scan, overview, results, compare, settings | terminal | 2689 |
 
-Alongside them sit a few single-file modules: `diff.py` (report comparison), `ct_logs.py`
-(Certificate Transparency discovery), `_splash.py` (the start-up animation) and
-`_asyncutils.py` (a cross-platform event-loop wrapper for a Windows socket teardown quirk).
-`theme.py`, `_validate.py`, `models.py`, `resolver.py`, `_scanner.py`, `html_report.py`,
-`_hashutils.py` and `interactive.py` are thin re-exports kept so pre-2.0 import paths keep
-resolving; none of them holds logic.
+Alongside them sit a few single-file modules: `history.py` (the directory of past
+scans), `config.py` (what the operator decided — settings, allow-list, watchlist),
+`diff.py` (report comparison), `ct_logs.py` (Certificate Transparency discovery),
+`_splash.py` (the start-up animation) and `_asyncutils.py` (a cross-platform
+event-loop wrapper for a Windows socket teardown quirk). The pre-2.0 re-export
+shims are gone.
 
-Total: ~7,600 lines of source, 608 tests.
+Total: ~11,400 lines of source, 632 test functions.
 
 
 ---
@@ -128,8 +129,10 @@ Two separate semaphores in `Resolver`:
 ### Per-run WHOIS cache
 WHOIS is the slowest single operation (~1–5s typical, up to 10s timeout). The resolver caches lookups by domain using `asyncio.Task`, so concurrent `check_one()` calls for the same domain share a single network round-trip. The cache is per-`Resolver`-instance, so each scan starts fresh.
 
-### Single source of truth for theme
-`utils/theme.py` defines the rich palette, risk-level thresholds, icons, and the banner. Terminal, HTML, and Markdown outputs all consult it — changing a color in one place propagates everywhere. This is enforced by importing `RiskLevel` and `OTACON_THEME` from there in every renderer.
+### Single source of truth for the look
+`ui/tokens.py` holds the four palettes as pure data — no Rich, no Textual, no I/O — and `ui/emit.py` turns a `Palette` into whatever a given renderer wants: a Rich theme, Textual CSS variables, HTML custom properties, or the terminal theme the README's SVG screenshots are exported with. `ui/copy.py` does the same for words: one spelling of every flag and technique, so a finding is not `[cloned-favicon]` in one surface and `FAVICON` in another. `utils/theme.py` is the thin layer that resolves which palette is active (`--theme`, `OTACON_THEME`, `NO_COLOR`) and renders the banner.
+
+Four surfaces draw the same report — the Rich console, the Textual console, the HTML report and the screenshots — and each used to carry its own hard-coded copy of the colours. A test asserts the four themes are complete, so a surface cannot acquire a colour the others lack.
 
 ### Pydantic models as the data contract
 `DomainResult` flows unchanged from `net/resolver.py` through `scoring/engine.py` and into every reporter. Each stage just *adds* fields (or doesn't). This gives us, for free:
@@ -143,7 +146,7 @@ Every network call is wrapped. A failure returns `None` / `[]` / `False` and the
 The `check_one()` method has a broad `except Exception` at the outermost level. This is deliberate and documented: an unhandled exception there would close the shared `httpx.AsyncClient` and cascade-kill every other concurrent coroutine. We accept the precision loss in exchange for scan integrity.
 
 ### Defensive-redirect detection
-Brand owners often register their own lookalikes and 301 them back. `scoring/classifiers.py` detects this by parsing the `Location` header from a 3xx response and matching the hostname against the target (exact or subdomain). A match **clears the score to 0** and flags the row with `»`, on the reasoning that a domain redirecting to you is one you already control. The check deliberately refuses to fire when the variant has an MX record: a redirect costs an attacker nothing to add, and mail is the capability that makes a lookalike dangerous.
+Brand owners often register their own lookalikes and 301 them back. `scoring/classifiers.py` detects this by parsing the `Location` header from a 3xx response and matching the hostname against the target (exact or subdomain). A match **clears the score to 0** and flags the row `OURS`, on the reasoning that a domain redirecting to you is one you already control. The check deliberately refuses to fire when the variant has an MX record: a redirect costs an attacker nothing to add, and mail is the capability that makes a lookalike dangerous.
 
 ### Self-contained HTML report
 `reporters/html.py` produces a single `.html` file with inlined CSS, no JavaScript (100% CSP-compliant `default-src 'none'`), pure-CSS table filtering (`All`, `Threats`, `Critical`, `High`, `MX`), and inline SVG risk distribution charts. Domain names are automatically defanged (`[.]`) and link to safe inspection sandboxes (urlscan.io). Hand it to legal, attach it to a ticket, upload it to S3 — it just works. No Jinja2 dependency; we use pure f-strings and `html.escape()`.

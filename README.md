@@ -17,24 +17,20 @@
 
 <p align="center">
   <a href="#install"><b>Install</b></a> ·
-  <a href="#quick-start"><b>Quick start</b></a> ·
-  <a href="#triage-console"><b>Triage console</b></a> ·
-  <a href="#detection-techniques"><b>Techniques</b></a> ·
+  <a href="#one-minute-tour"><b>Tour</b></a> ·
+  <a href="#the-triage-console"><b>Console</b></a> ·
+  <a href="#what-it-looks-for"><b>Detection</b></a> ·
   <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md"><b>Usage</b></a> ·
   <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md"><b>Scoring</b></a> ·
-  <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/CI.md"><b>CI/CD</b></a> ·
   <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/FAQ.md"><b>FAQ</b></a>
 </p>
 
-> **Otacon** finds domains impersonating yours — **typosquats, homoglyph fakes, combosquats, IDN/punycode tricks** and more. It generates hundreds of variants, checks which are actually registered, and scores each by real-world phishing risk. One command, under a minute, no paid APIs.
-
 <p align="center">
-  <img src="https://raw.githubusercontent.com/notimeftnoir/otacon/main/assets/brand/demo-scan.svg"
-    alt="otacon scan example.com — 234 permutations checked, registered lookalikes ranked by risk"
-    width="860">
+  <b>Otacon finds the domains impersonating yours — before a phishing campaign uses them.</b><br>
+  It generates hundreds of lookalikes, checks which are actually registered, and
+  scores each one by how much it behaves like a real attack.<br>
+  <sub>One command · under a minute · no paid APIs · passive only</sub>
 </p>
-
-<sub><i>Real output: a full scan of <code>example.com</code> — 240 permutations, 84 registered lookalikes at the time of recording; the verdict card and the ten riskiest rows. Registrations change daily, so a scan today shows different domains. Regenerate with <code>python tools/render_demo_svg.py example.com assets/brand/demo-scan.svg</code>.</i></sub>
 
 ---
 
@@ -45,23 +41,45 @@ pipx install otacon      # isolated global install (recommended)
 pip install otacon       # or into an active virtualenv
 ```
 
-Python 3.12–3.13 on Linux, macOS or Windows. No system libraries are needed:
-the DNS engine (`pycares`) ships prebuilt wheels with `c-ares` built in.
+Python 3.12+ on Linux, macOS or Windows. No system libraries needed — the DNS
+engine (`pycares`) ships prebuilt wheels with `c-ares` built in.
 
-## Quick start
+## One-minute tour
 
 ```bash
-otacon scan example.com                   # full scan: DNS, MX, TLS, HTTP, WHOIS
-otacon scan example.com --no-http         # DNS only — roughly 3x faster
-otacon scan example.com --fail-on high    # CI gate: exit 2 on high or critical
-otacon tui example.com                    # scan, then triage in the console
-otacon tui --from report.json             # reopen a saved report
-otacon generate example.com -o list.txt   # offline wordlist, no network traffic
-otacon                                    # the triage console (no arguments)
+otacon scan example.com            # scan and print the verdict
+otacon                             # or work the findings in the console
 ```
 
-Global flags (`--quiet`, `--debug`, `--version`) go **before** the subcommand;
-everything else goes after it.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/notimeftnoir/otacon/main/assets/brand/demo-scan.svg"
+    alt="otacon scan example.com — verdict card, severity spread, and the ten riskiest registered lookalikes with the reason each one matters"
+    width="860">
+</p>
+
+<p align="center"><sub><i>Real output, not a mock-up: <code>example.com</code> — 240 permutations,
+82 registered lookalikes, the ten riskiest and why each one matters. Registrations change
+daily, so your scan will differ.</i></sub></p>
+
+Every run ends with the same three things: **a verdict in plain words**, the
+**severity spread**, and **one line per finding** with the reason it is there.
+
+```bash
+otacon scan example.com --no-http          # DNS only — roughly 3× faster
+otacon scan example.com --top 10           # just the riskiest rows
+otacon scan example.com --html report.html # self-contained report to hand over
+otacon scan example.com --fail-on high     # CI gate: exit 2 on high or critical
+otacon watch --add example.com             # keep it on the list, print cron lines
+otacon generate example.com -o list.txt    # offline wordlist, no network traffic
+```
+
+Global flags (`--quiet`, `--debug`, `--theme`, `--ascii`, `--version`) go
+**before** the subcommand; everything else goes after it.
+
+<details>
+<summary><b>Exit codes and report formats</b></summary>
+
+<br>
 
 | Exit code | Meaning |
 |---|---|
@@ -69,123 +87,178 @@ everything else goes after it.
 | `1` | Runtime error (bad input, file I/O) |
 | `2` | Threshold breached — at least one registered variant met it |
 
-Reports are written with `--json`, `--md`, `--html` and `--csv`; pass as many as
-you like, since every format renders from the same in-memory report.
+Reports are written with `--json`, `--markdown`, `--html` and `--csv`. Pass as
+many as you like: every format renders from the same in-memory report, so they
+always agree. Details in [`docs/OUTPUT.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/OUTPUT.md).
+
+A scan whose resolver is failing looks exactly like a clean one, so Otacon
+counts its DNS failures and refuses to report an all-clear once they pass 20%
+of lookups — it says the scan was **inconclusive** instead.
+
+</details>
 
 ---
 
-## What it checks
+## The triage console
 
-For every variant that resolves, Otacon gathers the signals below and turns
-them into one explained score. Each is a flag you can switch off when you want
-a faster or quieter scan.
+A scan of a busy brand returns a few hundred rows of which a handful matter.
+`otacon` opens on the answer to *am I in trouble* — the verdict, the spread,
+what moved since last time, and the three rows worth opening first.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/notimeftnoir/otacon/main/assets/brand/demo-overview.svg"
+    alt="The console's overview screen: verdict, severity spread, and the three findings to open first"
+    width="860">
+</p>
+
+`enter` goes on to the table. The dossier on the left tracks the cursor —
+every signal with a one-line explanation of what it means, then the full
+scoring breakdown — and the table on the right is every finding, worst first.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/notimeftnoir/otacon/main/assets/brand/demo-tui.svg"
+    alt="The console's triage table: dossier pane on the left, findings on the right, severity bands named in the gutter"
+    width="860">
+</p>
+
+One hand works it: `j`/`k` move, `1`–`5` filter to a severity, `/` searches,
+`space` marks rows and `t` / `e` / `a` act on everything marked. `?` opens a
+glossary of every key, band, flag and technique.
+
+<details>
+<summary><b>The full key map</b></summary>
+
+<br>
+
+| Key | Action |
+|---|---|
+| `↑` `↓` or `j` `k` | Move between rows |
+| `enter` | From the overview, open the full table |
+| `1` … `5` | Show one severity only — critical, high, medium, low, safe. Again lifts it. |
+| `0` | Show every severity |
+| `/` | Filter by part of a domain name. `esc` clears it. |
+| `u` | Also show variants nobody has registered |
+| `s` | Change the order: risk, name, age, technique |
+| `f` | Dim everything below the worst band present |
+| `b` | Swap the severity glyph for a full bar |
+| `space` | Mark this row and move on |
+| `v` | Mark everything the filter shows, or clear the marks |
+| `o` | Open the site — warns first |
+| `w` | Look up when the domain was registered |
+| `r` | Re-check the selected row now |
+| `t` | Write abuse notices for the marked rows |
+| `e` | Export the marked rows as JSON |
+| `x` | Export every row the filter shows |
+| `a` | Wave the marked rows through, now and in future scans |
+| `c` | What changed since the last scan of this target |
+| `,` | Settings, the allow-list and the watchlist |
+| `?` | Glossary — keys, score bands, flags, techniques |
+| `q` | Quit |
+
+Keys that act on a row act on every marked row instead, once anything is marked.
+
+</details>
+
+Running `otacon` bare asks for a target and how deep to look — **Quick**,
+**Standard** or **Thorough** — then scans inside the console, findings
+appearing as they are scored. `esc` stops a scan and keeps what it found.
+
+Every scan is kept on disk, so the start screen lists what you looked at
+before and reopens any of it **offline**. `otacon tui --from report.json`
+reads a report from anywhere, so a nightly `otacon -q scan` in CI can be
+triaged by hand the next morning without touching the network.
+
+---
+
+## What it looks for
+
+**12 permutation techniques**, modelled on real campaigns, plus
+**Certificate Transparency discovery** — which surfaces lookalikes already
+holding a certificate that no permutation rule would have guessed.
+
+<details>
+<summary><b>Every technique, with a real example</b></summary>
+
+<br>
+
+| Technique | Example (`example.com`) | Real attack vector |
+|---|---|---|
+| **Homoglyph** | `examp1e.com`, `ex4mple.com` | Visual identity — humans can't tell the difference |
+| **IDN / Punycode** | `xn--exampe-7db.com` *(`l` → ł)* | ACE-encoded Unicode that browsers may render natively |
+| **Typo** | `exmple.com`, `exsmple.com`, `exampel.com` | Fat-finger typing on QWERTY keyboards |
+| **Combosquat** | `example-login.com`, `secureexample.com` | Adds a "trust" keyword — common in phishing email links |
+| **TLD swap** | `example.io`, `example.top`, `example.icu` | Same name, different (often cheap, often abused) TLD |
+| **Subdomain spoof** | `example.com.login.net` | Your domain as a label; URL-bar trickery |
+| **Bitsquat** | `axample.com` (`e`→`a` is one bit flip) | DRAM/DNS memory errors flip a single bit |
+| **Hyphenation** | `ex-ample.com` | Insert or remove a hyphen |
+| **Soundsquat** | `eksample.com` | Phonetic substitution (ph/f, c/k, s/z, x/ks) |
+| **Vowel swap** | `exomple.com`, `exumple.com` | Replace one vowel with another |
+| **Plural** | `shops.com` ← `shop.com` | Singular ↔ plural |
+| **WWW-merge** | `wwwexample.com` | Dot dropped between "www" and the domain |
+
+Each variant is reported once, under the first technique that produced it, and
+the original domain is never included — see
+[`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md#reading-a-report)
+for why that matters when you read a report.
+
+The homoglyph table covers all 26 letters, and every Unicode entry is
+cross-checked against Unicode's own
+[confusables.txt](https://www.unicode.org/Public/security/latest/confusables.txt):
+19 of the 25 share a UTS&nbsp;#39 skeleton with the letter they imitate. The
+other six (Cyrillic `к`, `п`, `т`, `ь`, plus `ł` and `í`) are kept on
+purpose — UTS&nbsp;#39 folds them elsewhere, but they render close enough in
+the sans-serif fonts browsers and mail clients use that real campaigns exploit
+them. Each is labelled as such in the source, so nothing in the table is an
+unlabelled guess.
+
+</details>
+
+<details>
+<summary><b>Every signal behind a score</b></summary>
+
+<br>
+
+For each variant that resolves, Otacon gathers these and turns them into one
+explained score. Each group is a flag you can switch off for a faster or
+quieter scan.
 
 | Group | Signals |
 |---|---|
 | **Reachability** | A / AAAA records, HTTP status, redirect target, server header, NXDOMAIN-hijack canary |
 | **Mail** | MX records, SPF, DMARC policy — a lookalike with mail and no enforced DMARC is a ready-made sender |
 | **TLS** | Certificate issuer, age, and whether its SAN actually covers the host |
-| **Brand cloning** | Page title similarity to yours, and a favicon MurmurHash3 match (the Shodan/Censys hash) |
+| **Brand cloning** | Page-title similarity to yours, and a favicon MurmurHash3 match (the Shodan/Censys hash) |
 | **Credential capture** | Password and auth inputs detected in the served page |
 | **Reputation** | Spamhaus DBL and SURBL listings, passively over DNS |
-| **Discovery** | Certificate Transparency logs, surfacing lookalikes already holding a certificate that no permutation rule would have guessed |
 | **Registration** | Creation date via RDAP over HTTPS, falling back to port 43 WHOIS |
+| **Discovery** | Certificate Transparency logs |
 
 Three classifiers then override the arithmetic: a **sinkholed** or
 law-enforcement-seized domain drops to zero, so does a **defensive
 registration** that redirects to you without mail, and a **parked** domain has
-its traffic signals ignored. See
-[`docs/SCORING.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md)
-for every point value.
+its traffic signals ignored. Every point value is in
+[`docs/SCORING.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md).
+
+</details>
 
 ---
 
-## Why Otacon?
+## Who it's for
 
-Phishing campaigns almost always start with a **lookalike domain**. Attackers register `github-update.com`, `paypa1.com`, `goog1e.com` weeks (or days) before the actual attack. By the time anyone notices, credentials are already gone.
+Attackers register `github-update.com`, `paypa1.com`, `goog1e.com` weeks — or
+days — before the attack. By the time anyone notices, credentials are gone.
 
-Otacon is built for the people who need to find those domains **before the attack lands**:
+- **Blue team / SOC** — scheduled audits of your own brand, so a new fake with
+  mail or a fresh registration is caught in hours, not after the incident.
+- **Pentest / red team** — reconnaissance: the lookalikes that already exist
+  against a client's brand, for scope or for social-engineering tests.
+- **Brand protection** — hundreds of variants in one shot, exported as
+  JSON/HTML for the legal team.
+- **CI/CD** — `--fail-on critical` blocks a release while an impersonation is
+  live.
 
-| Role | Use case |
-|---|---|
-| **Pentester / red team** | Reconnaissance — find existing lookalikes against the client's brand to include in scope or use in social-engineering tests |
-| **Blue team / SOC** | Scheduled audits of your own domain (e.g. a daily CI cron job) to catch a new fake fast, especially one with MX or fresh registration |
-| **Brand protection** | Audit hundreds of variants in one shot, export as JSON/HTML for the legal team or DMCA filings |
-| **CI/CD gate** | Block deploys when a critical impersonation is live (`--fail-on critical`) |
-
-Otacon is **fully passive**: DNS queries, a TLS handshake, one HTTP GET per variant. No exploit attempts, no auth, no scraping at scale.
-
----
-
-## Triage console
-
-A scan of a busy brand returns a few hundred rows of which a handful matter.
-`otacon tui` keeps the whole report in memory and lets one hand work it.
-
-```bash
-otacon tui example.com            # scan, then open the console on the result
-otacon tui --from report.json     # reopen a saved report, no network at all
-```
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/notimeftnoir/otacon/main/assets/brand/demo-tui.svg"
-    alt="otacon tui — dossier pane on the left, results table on the right, risk filters bound to the number keys"
-    width="860">
-</p>
-
-The dossier on the left tracks the cursor: every signal with a one-line
-explanation of what it means, then the full scoring breakdown. Arrows or
-`j`/`k` move, `1`–`5` filter to a single risk level, `/` filters by substring,
-`a` reveals unregistered variants, and `w` / `t` / `e` run WHOIS, render an
-abuse notice, and export the selected row. Full key map in
-[`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md#triage-console-otacon-tui).
-
-Running `otacon` with no arguments opens it directly: name a target, choose how
-deep to look, and the scan runs inside the console. Every scan is kept, so the
-start screen lists what you looked at before and reopens any of it offline.
-
-`--from` reads a report from anywhere on disk, so a nightly `otacon -q scan` in
-CI can be triaged by hand the next morning without touching the network.
-
----
-
-## Detection techniques
-
-Otacon implements **12 permutation techniques** modeled on real-world attacks. The
-homoglyph table covers all 26 letters, not just the handful that are easy to
-eyeball, and every Unicode entry in it is cross-checked against Unicode's own
-[confusables.txt](https://www.unicode.org/Public/security/latest/confusables.txt):
-19 of the 25 share a UTS&nbsp;#39 skeleton with the letter they imitate. The
-other six (Cyrillic `к`, `п`, `т`, `ь`, plus `ł` and `í`) are kept on purpose —
-UTS&nbsp;#39 folds them elsewhere, but they render close enough in the
-sans-serif fonts browsers and mail clients use that real campaigns exploit them.
-Each of the six is labelled as such in the source, so nothing in the table is an
-unlabelled guess.
-
-| Technique | Example (`example.com`) | Real attack vector |
-|---|---|---|
-| **Homoglyph** | `examp1e.com`, `ex4mple.com` | Visual identity — humans can't tell the difference |
-| **IDN / Punycode** | `xn--exampe-7db.com` *(`l` → ł)* | ACE-encoded unicode that browsers may render natively |
-| **Typo** | `exmple.com`, `exsmple.com`, `exampel.com` | Fat-finger typing on QWERTY keyboards |
-| **Combosquat** | `example-login.com`, `secureexample.com` | Adds "trust" keyword — common in phishing email links |
-| **TLD swap** | `example.io`, `example.top`, `example.icu` | Same name, different (often cheap/abused) TLD |
-| **Subdomain spoof** | `example.com.login.net` | Original domain as a label; URL-bar trickery |
-| **Bitsquat** | `axample.com` (`e`→`a` is one bit flip) | DRAM/DNS memory errors flip a single bit |
-| **Hyphenation** | `ex-ample.com` | Insert/remove a hyphen |
-| **Soundsquat** | `eksample.com` | Phonetic substitution (ph/f, c/k, s/z, x/ks) |
-| **Vowel swap** | `exomple.com`, `exumple.com` | Replace one vowel with another |
-| **Plural** | `shops.com` ← `shop.com` | Singular ↔ plural variation |
-| **WWW-merge** | `wwwexample.com` | Dot dropped between "www" and the domain — easy to misread |
-
-Certificate Transparency discovery runs alongside these: it finds lookalikes
-that already hold a certificate, including ones no permutation rule would
-generate. Those are reported as `ct-log` rather than as a technique, and
-subdomains of your own domain are dropped before scoring.
-
-Every example above is real output, not an illustration. Each variant is
-reported once, under the first technique that produced it, and the original
-domain is never included — see [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md#reading-a-report)
-for why that matters when you read a report.
+Otacon is **passive only**: DNS queries, a TLS handshake, one HTTP GET per
+variant. No exploit attempts, no auth, no scraping at scale.
 
 ---
 
@@ -193,54 +266,57 @@ for why that matters when you read a report.
 
 | Document | What's in it |
 |---|---|
-| [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md) | Every CLI flag, the four modes, the triage console, whitelisting |
-| [`docs/SCORING.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md) | Every signal and its point value, risk-level thresholds |
+| [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md) | Every CLI flag, the five subcommands, the console key map, what Otacon remembers |
+| [`docs/SCORING.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md) | Every signal and its point value, the risk bands |
 | [`docs/OUTPUT.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/OUTPUT.md) | The five output formats and the JSON schema |
 | [`docs/CI.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/CI.md) | Ready-to-paste GitHub Actions and GitLab CI pipelines |
 | [`docs/FAQ.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/FAQ.md) | Legality, speed, IDN handling, troubleshooting |
 | [`docs/DESIGN.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/DESIGN.md) | Architecture and design rationale |
 
----
+Four themes ship with it — `midnight`, `daylight`, `vision` (colour-vision
+safe) and `mono` — selected with `--theme`, `OTACON_THEME`, or `NO_COLOR`.
+`--ascii` degrades every block, arrow and box-drawing character for limited
+fonts.
 
-## Comparison with dnstwist
+<details>
+<summary><b>How it compares to dnstwist</b></summary>
 
-[`dnstwist`](https://github.com/elceef/dnstwist) is the OG tool in this space. Otacon and dnstwist solve overlapping problems with different priorities.
+<br>
+
+[`dnstwist`](https://github.com/elceef/dnstwist) is the OG tool in this space.
+The two solve overlapping problems with different priorities.
 
 | | **Otacon** | **dnstwist** |
 |---|---|---|
 | Risk **score** with explained signals | ✓ 0–100, every point sourced | ✗ raw signals only |
-| Defensive-registration flag | ✓ `»` on redirect-to-original | ✗ |
-| CI/CD exit code gating | ✓ `--fail-on` | ✗ |
-| Self-contained HTML report | ✓ dark theme, zero JS, pure-CSS filters, SVG charts, defanged IOCs | partial (`--format html`) |
-| Keyboard triage console | ✓ the default surface: filter by risk, search, live dossier, open (OPSEC safe) / whois / takedown / rescan / allow | ✗ |
-| Scan memory | ✓ every scan kept on disk, reopened offline | ✗ |
+| Defensive-registration flag | ✓ on redirect-to-original | ✗ |
+| CI/CD exit-code gating | ✓ `--fail-on` | ✗ |
+| Self-contained HTML report | ✓ zero JS, pure-CSS filters, SVG charts, defanged IOCs | partial (`--format html`) |
+| Keyboard triage console | ✓ the default surface | ✗ |
+| Scan memory, reopened offline | ✓ | ✗ |
 | Automated abuse takedown notice | ✓ formatted draft with technical evidence | ✗ |
 | Permutation techniques | 12 (with regional combosquatting for `.pl`, `.de`, `.fr`) | 13+ |
-| Visual screenshots of pages | ✗ | ✓ |
+| Screenshots of pages | ✗ | ✓ |
 | Fuzzy/phonetic dictionary attacks | ✓ soundsquat | ✓ |
 | Registration data enrichment | RDAP over HTTPS + WHOIS fallback | WHOIS + GeoIP |
 
-**Use dnstwist if** you want screenshots, fuzzy hashing, deeper enrichment.
-**Use Otacon if** you want an opinionated risk score, defensive-flag detection, and a CI-friendly exit code.
+**Use dnstwist if** you want screenshots, fuzzy hashing or deeper enrichment.
+**Use Otacon if** you want an explained risk score, defensive-flag detection
+and a CI-friendly exit code.
+
+</details>
 
 ---
 
-## Contributing
+## Licence and ethics
 
-See [`CONTRIBUTING.md`](https://github.com/notimeftnoir/otacon/blob/main/CONTRIBUTING.md) for the dev setup and the lint gates,
-and [`SECURITY.md`](https://github.com/notimeftnoir/otacon/blob/main/SECURITY.md) for the disclosure policy.
+**MIT.** Use it freely — on domains you own, domains inside an authorized
+engagement with written scope, or domains you have explicit permission to
+monitor. Not to harass, dox, or build attack tooling.
 
----
-
-## License & ethics
-
-**MIT License.** Use it freely.
-
-Otacon is **passive only** — DNS queries, a TLS handshake, a single HTTP GET per variant. No exploit attempts, no brute-forcing, no auth.
-
-**Use only on:**
-- Domains you own
-- Domains within an authorized security testing engagement (with written scope)
-- Domains you have explicit permission to monitor
-
-**Do not use to:** harass, dox, or build attack tooling. If you found this useful for a defense engagement, [say hi](https://github.com/notimeftnoir/otacon/issues) — feedback shapes the roadmap.
+See [`CONTRIBUTING.md`](https://github.com/notimeftnoir/otacon/blob/main/CONTRIBUTING.md)
+for the dev setup and lint gates, and
+[`SECURITY.md`](https://github.com/notimeftnoir/otacon/blob/main/SECURITY.md)
+for the disclosure policy. If Otacon helped on a defence engagement,
+[say hi](https://github.com/notimeftnoir/otacon/issues) — feedback shapes the
+roadmap.

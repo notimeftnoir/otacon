@@ -104,4 +104,3 @@ All weights, including `infra_cap` and the two negative age bands, are overridab
 
 > 📐 Full architecture, pipeline, and design rationale → [`DESIGN.md`](DESIGN.md)
 
----

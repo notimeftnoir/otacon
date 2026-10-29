@@ -23,7 +23,7 @@ Because pentesters and SOC analysts need to *defend* their findings. "Our model 
 <details>
 <summary><b>How fast is it?</b></summary>
 
-A full scan of a typical domain (~230 permutations) with HTTP probing takes **30–60 seconds** on a residential connection; the more variants are registered, the longer the TLS/HTTP/WHOIS phase. DNS-only mode (`--no-http`) is roughly **3× faster** — about 12 seconds for `example.com`.
+A full scan of a typical domain (~240 permutations) with HTTP probing takes **30–60 seconds** on a residential connection; the more variants are registered, the longer the TLS/HTTP/WHOIS phase. DNS-only mode (`--no-http`) is roughly **3× faster** — about 12 seconds for `example.com`.
 
 Bottlenecks are usually:
 1. WHOIS query rate-limiting (we cap at 4 concurrent)
@@ -66,6 +66,25 @@ Otacon first queries modern **RDAP (Registration Data Access Protocol)** over HT
 </details>
 
 <details>
+<summary><b>The table shows boxes, or the colours are unreadable</b></summary>
+
+Two separate knobs. `--ascii` (or `OTACON_ASCII=1`) replaces every block,
+arrow and box-drawing character with an ASCII stand-in, for terminals whose
+font lacks them. `--theme` (or `OTACON_THEME`) changes the palette:
+
+| Theme | For |
+|---|---|
+| `midnight` | the default dark palette |
+| `daylight` | light terminals, and HTML you intend to print |
+| `vision` | colour-vision deficiency — blue → amber → vermillion, ordered under every common form |
+| `mono` | no hue at all; severity is carried by glyph density and weight |
+
+`NO_COLOR` resolves to `mono` on its own. An unknown theme name falls back to
+the default rather than refusing to run.
+
+</details>
+
+<details>
 <summary><b>How do I add my own permutation technique?</b></summary>
 
 1. Add a value to the `PermutationType` enum in `core/types.py`
@@ -78,8 +97,6 @@ Otacon first queries modern **RDAP (Registration Data Access Protocol)** over HT
 
 ---
 
----
-
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -88,7 +105,7 @@ Otacon first queries modern **RDAP (Registration Data Access Protocol)** over HT
 | `pip` tries to compile `pycares` and fails | No prebuilt wheel for your Python/platform (wheels cover CPython 3.10–3.14 on Linux, macOS and Windows; PyPy or an unusual CPU architecture may lack one) | Use CPython 3.12–3.13, or install the `c-ares` headers (`apt install libc-ares-dev` / `brew install c-ares`) so it can build |
 | Scan hangs at "Checking variants" | DNS resolver unreachable or rate-limiting | Lower `--concurrency`, switch resolver (`1.1.1.1`, `8.8.8.8`) |
 | WHOIS always `—` for `.ai` / `.io` / `.pl` | Registry WHOIS rate-limit | Re-run later; this is normal |
-| Windows: `ConnectionResetError [WinError 10054]` | Should be auto-fixed in 1.0+ | Ensure you're on the latest version; this used the Proactor loop, we've switched to Selector on Windows |
+| Windows: `ConnectionResetError [WinError 10054]` | The Proactor event loop, used before 1.0 | Upgrade — Otacon selects the Selector loop on Windows |
 
 If something still doesn't work, please [open an issue](https://github.com/notimeftnoir/otacon/issues) with:
 
@@ -97,4 +114,3 @@ If something still doesn't work, please [open an issue](https://github.com/notim
 - The full command and (if safe to share) the target
 - The error message or unexpected behavior
 
----

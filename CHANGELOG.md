@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Otacon now remembers what the operator decided, not only what a scan found. `a` on a row leaves that domain out of future scans of the target instead of lasting one session, `,` opens the settings, allow-list and watchlist, and `otacon watch` keeps the list of targets worth re-scanning and prints the crontab lines for them. Stored under `<OTACON_HOME>/config/`, owner-only; `OTACON_NO_CONFIG=1` turns it off.
 - `c` in the triage console opens what changed since the previous stored scan of this target: what was registered, what got worse, what was found, and what stopped resolving, each under its own heading. The comparison was only ever shown on the overview of a scan that had just finished, so reopening a saved report or walking back from the table lost it. Nothing is recomputed — scan history and the delta already did the work, there was no screen on them.
 
+### Changed
+- The README and `docs/` describe 3.0.0 rather than the release before it. The screenshots predated two majors — they showed a scan table that no longer exists and a triage console that now opens on an overview first — and the documented key map still had `a` revealing unregistered variants, which is `u` now; `a` is the allow-list. `--theme`, `--ascii`, `--top`, `otacon watch` and everything Otacon remembers between runs were undocumented, and `USAGE.md` promised a `whitelist.txt` prompt that no longer exists. The README leads with what a scan looks like and keeps its reference tables behind disclosures instead of stacking six of them down the page.
+- `tools/render_demo_svg.py` renders through `reporters.render_table`, the same function `otacon scan` prints with, and takes its SVG palette from `ui.emit.terminal_theme` rather than a hard-coded sixth copy of the colours. It also accepts `--from report.json`, so both README screenshots can come from one scan and agree on their numbers. `tools/render_tui_svg.py` takes `--screen overview|results`, since a report now opens on the overview.
+- `otacon --help` no longer offers a guided mode. It was deleted in 3.0.0.
+
 ## [3.0.0] — 2026-10-29
 
 A major because the guided prompts are gone: the triage console is the tool
