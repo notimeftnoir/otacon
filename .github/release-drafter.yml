@@ -15,6 +15,8 @@ exclude-labels: ['skip-changelog']
 
 # Bucketed changelog sections.
 categories:
+  - title: '💥 Breaking changes'
+    labels: ['breaking']
   - title: '🔒 Security'
     labels: ['security']
   - title: '✨ Features'
@@ -65,8 +67,19 @@ autolabeler:
     title:
       - '/^chore(\(.*\))?:/i'
   - label: 'breaking'
+    # A `feat!` in the commits does not reach the squashed PR title, so v3.0.0
+    # resolved as a minor from 2.1.0 and the draft named itself 2.2.0. The body
+    # matchers are anchored to the two forms that actually declare a break —
+    # the conventional-commits footer and the bold lead-in this repo writes —
+    # because a loose /breaking change/i would also fire on "not a breaking
+    # change" and bump a major by accident. `publish.yml` compares the tag with
+    # pyproject.toml either way, so this keeps the draft honest rather than
+    # guarding the upload.
     title:
       - '/!:/'
+    body:
+      - '/^BREAKING[ -]CHANGE:/m'
+      - '/^\*\*Breaking:?\*\*/im'
 
 template: |
   ## What changed
