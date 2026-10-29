@@ -395,20 +395,28 @@ overview screen alone, how many domains need action and what the first one is.
 
 ## Phase 6 — HTML report
 
-**Goal:** the artefact that leaves the building looks like it came from a
-product.
+**Status: not doing.** Otacon is a terminal tool, and the terminal is the
+product — not one of two places it lives. Rebuilding the HTML report as a
+designed surface would have made it a second home for the tool, with a second
+layout to keep in step and a second idea of what a finding looks like, for
+readers who are not the people the tool is for.
 
-- [ ] **Typography** — a real UI stack for prose, monospace kept for domains,
-      hashes and IPs where it carries meaning.
-- [ ] **Light and dark** from the same tokens, following `prefers-color-scheme`,
-      and a print stylesheet that survives being turned into a PDF.
-- [ ] **Executive summary** — verdict, distribution, the top findings and what
-      to do about them, before the table.
-- [ ] **Working table** — sort and search, not only the current radio-button
-      filters.
-- [ ] **Evidence detail per row** — the dossier content, collapsed.
-- [ ] **Still one self-contained file, still no external requests.** This is a
-      report about phishing; it must not phone home.
+So `--html` stays what it is: an export. It already follows the palette,
+because Phase 0 made every surface read the same tokens, and it gains any
+theme the terminal gains for free. What it will not get is a design of its
+own.
+
+What this phase proposed, kept here so the question does not come back:
+
+- ~~Typography — a real UI stack for prose, monospace for domains and hashes.~~
+- ~~Light and dark from the same tokens, plus a print stylesheet.~~
+- ~~Executive summary before the table.~~
+- ~~Sort and search instead of the radio-button filters.~~
+- ~~Per-row evidence detail, collapsed.~~
+
+The one line from it that was never negotiable still holds, and holds for the
+export as it stands: **one self-contained file, no external requests.** This
+is a report about phishing; it must not phone home.
 
 ---
 
@@ -438,6 +446,9 @@ product.
 
 - **No web UI, no daemon, no server.** Otacon stays a CLI tool. The watchlist
   emits a cron line; it does not become a service.
+- **No second home for the tool.** The terminal is where Otacon works. Every
+  other output — JSON, CSV, Markdown, HTML — is an export of a scan, not a
+  surface to operate it in, and none of them gets a design of its own.
 - **No telemetry**, in any surface, under any flag.
 - **No external fonts, CDNs or network calls from the HTML report.**
 - **No animation that delays input.** Motion is capped at the existing splash
@@ -455,9 +466,9 @@ product.
 | ~~1 — hierarchy~~ | 0 | M | **Done.** The loudest defect, visible in one screenshot |
 | ~~2 — non-specialist~~ | 0, 1 | M | **Done.** The stated goal of the whole effort |
 | ~~3 — scan~~ | 0 | S | **Done.** Closed a real CLI/console regression |
+| ~~6 — HTML~~ | — | — | **Not doing.** The terminal is the product |
 | 5 — console | 0 | S | Mostly deletion once tokens and copy are shared |
 | 4 — operator | 1 | L | Largest surface area, lowest urgency |
-| 6 — HTML | 0 | M | Independent of everything in the terminal |
 | 7 — brand | 1, 2 | S | Screenshots are only worth regenerating once |
 
 Each phase lands as its own pull request with before/after screenshots rendered
