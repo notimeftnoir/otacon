@@ -25,9 +25,7 @@ from .core.exceptions import (
 )
 from .core.models import (
     DomainResult,
-    NetworkSignals,
     Permutation,
-    RiskAssessment,
     ScanReport,
 )
 from .core.types import PermutationType, RiskLevel
@@ -45,14 +43,12 @@ __all__ = [
     "DNSResolutionError",
     "DomainResult",
     "HTTPProbeError",
-    "NetworkSignals",
     "OtaconError",
     "Permutation",
     "PermutationError",
     "PermutationType",
     "ReportExportError",
     "ResolutionError",
-    "RiskAssessment",
     "RiskLevel",
     "SSRFBlockedError",
     "ScanReport",

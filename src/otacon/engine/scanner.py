@@ -20,7 +20,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from ..core.models import DomainResult, Permutation, ScanReport
+from ..core.models import DomainResult, Permutation, ScanOptions, ScanReport
 from ..core.types import PermutationType
 from ..net.resolver import Resolver
 from ..permutations.generator import generate
@@ -35,6 +35,12 @@ _HIJACK_WARNING = (
     "[warn]⚠  Your DNS resolver answers nonexistent domains (NXDOMAIN hijacking)."
     " Hijacked answers were discarded; consider scanning with a clean resolver"
     " (e.g. 1.1.1.1).[/warn]"
+)
+
+_DNSBL_REFUSED_WARNING = (
+    "[warn]⚠  A reputation list (Spamhaus/SURBL) refused to answer this resolver —"
+    " usually because it is a large public one. DNSBL listings were not checked;"
+    " scan through your own or your ISP's resolver.[/warn]"
 )
 
 _LIVE_ROWS = 8
@@ -139,39 +145,22 @@ async def run_scan(
                         return cast(type[Resolver], val)
             return Resolver
 
-        resolver_cls = _get_resolver_cls()
-        try:
-            resolver = await stack.enter_async_context(
-                resolver_cls(
-                    concurrency=safe_concurrency,
-                    check_http=check_http,
-                    target=target,
-                    check_whois=check_whois,
-                    check_dnsbl=check_dnsbl,
-                )
+        resolver = await stack.enter_async_context(
+            _get_resolver_cls()(
+                concurrency=safe_concurrency,
+                check_http=check_http,
+                target=target,
+                check_whois=check_whois,
+                check_dnsbl=check_dnsbl,
             )
-        except TypeError:
-            resolver = await stack.enter_async_context(
-                resolver_cls(
-                    concurrency=safe_concurrency,
-                    check_http=check_http,
-                    target=target,
-                    check_whois=check_whois,
-                )
-            )
+        )
 
         if check_ct and hasattr(resolver, "fetch_ct_domains"):
             try:
                 ct_domains = await resolver.fetch_ct_domains()
                 existing = {p.domain for p in perms}
-                # CT aggregators are queried with include_subdomains, so most hits are
-                # the target's own infrastructure. Those are not impersonation — scoring
-                # them as lookalikes made the target's own subdomains the single largest
-                # source of critical findings.
-                own_suffix = f".{target}"
+                # fetch_ct_domains already drops the target's own infrastructure.
                 for d in sorted(ct_domains):
-                    if d == target or d.endswith(own_suffix):
-                        continue
                     if d not in existing and (exclude is None or d not in exclude):
                         perms.append(
                             Permutation(
@@ -205,6 +194,8 @@ async def run_scan(
         # getattr: a test double standing in for Resolver need not carry counters.
         dns_queries = int(getattr(resolver, "dns_queries", 0))
         dns_failures = int(getattr(resolver, "dns_failures", 0))
+        probe_failures = int(getattr(resolver, "probe_failures", 0))
+        dnsbl_refused = bool(getattr(resolver, "dnsbl_refused", False))
 
     results.sort(key=lambda r: (-r.risk_score, r.domain))
     report = ScanReport(
@@ -214,6 +205,9 @@ async def run_scan(
         dns_hijack_detected=hijack_detected,
         dns_queries=dns_queries,
         dns_failures=dns_failures,
+        probe_failures=probe_failures,
+        dnsbl_refused=dnsbl_refused,
+        options=ScanOptions(http=check_http, whois=check_whois, dnsbl=check_dnsbl, ct=check_ct),
     )
 
     if progress is not None:
@@ -223,6 +217,8 @@ async def run_scan(
         )
     if report.dns_hijack_detected:
         console.print(_HIJACK_WARNING)
+    if report.dnsbl_refused:
+        console.print(_DNSBL_REFUSED_WARNING)
     return report
 
 

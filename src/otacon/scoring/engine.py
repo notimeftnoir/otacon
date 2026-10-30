@@ -101,7 +101,7 @@ def _tls_points(result: DomainResult, reasons: list[str], weights: ScoringWeight
     if (
         domain_is_new
         and result.ssl_cert_age_days is not None
-        and 0 <= result.ssl_cert_age_days < AGE_FRESH_DAYS
+        and 0 <= result.ssl_cert_age_days < get_age_fresh_days()
     ):
         points += weights.points_ssl_fresh
         reasons.append(

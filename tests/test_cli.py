@@ -504,7 +504,7 @@ class _FakeResolver:
 
     dns_hijack_detected = False
 
-    def __init__(self, concurrency, check_http, target, check_whois=True) -> None:
+    def __init__(self, concurrency, check_http, target, check_whois=True, check_dnsbl=True) -> None:
         self.target_title = None
 
     async def __aenter__(self) -> _FakeResolver:
@@ -607,6 +607,7 @@ def test_scan_no_whois_flag_passed_to_scan(monkeypatch) -> None:
         quiet=False,
         weights=None,
         check_whois=True,
+        **kwargs,
     ):
         called_kwargs["check_whois"] = check_whois
         return ScanReport(target=domain, total_permutations=0)

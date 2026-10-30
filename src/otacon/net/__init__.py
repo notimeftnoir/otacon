@@ -13,7 +13,6 @@ from .content import (
     mmh3_32,
     shodan_favicon_hash,
 )
-from .dns import DEFAULT_DNS_TIMEOUT, DNSClient
 from .dnsbl import check_dnsbl
 from .email_sec import check_email_security
 from .http import (
@@ -44,7 +43,6 @@ from .whois import DEFAULT_WHOIS_TIMEOUT, fetch_domain_age, format_age
 
 __all__ = [
     "DEFAULT_CONCURRENCY",
-    "DEFAULT_DNS_TIMEOUT",
     "DEFAULT_HTTP_TIMEOUT",
     "DEFAULT_RDAP_TIMEOUT",
     "DEFAULT_TLS_TIMEOUT",
@@ -55,7 +53,6 @@ __all__ = [
     "_MAX_BODY_BYTES",
     "_REDIRECT_MAX",
     "_TITLE_MAX",
-    "DNSClient",
     "HTTPProbeResult",
     "Resolver",
     "_PinnedHTTPTransport",

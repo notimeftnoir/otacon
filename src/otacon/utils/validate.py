@@ -114,7 +114,11 @@ def safe_relative_path(filename: str, base: str | None = None) -> str | None:
 
 
 def safe_cli_path(filename: str) -> str | None:
-    """Validates CLI paths, allowing absolute or relative paths without directory escapes."""
+    """Resolves an output path the operator typed, refusing NUL bytes and Windows device names.
+
+    Any directory is allowed — the operator chose it on their own command line.
+    This is not a containment check; use ``safe_relative_path`` for that.
+    """
     if not filename or "\x00" in filename:
         return None
     candidate = Path(filename)

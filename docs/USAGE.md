@@ -108,6 +108,7 @@ otacon scan example.com --weights-file weights.json
 | `0` | Clean — nothing at/above the `--fail-on` threshold |
 | `1` | Runtime error (bad input, empty domain, file I/O error) |
 | `2` | Threshold breached — at least one registered variant met `--fail-on` |
+| `3` | Nothing breached, but the result is unverified — the scan was degraded (DNS or probe failures), Spamhaus/SURBL refused the resolver, or a domain could not be scanned. Only with `--fail-on`. |
 
 ---
 

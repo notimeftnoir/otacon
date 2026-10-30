@@ -627,6 +627,22 @@ def test_to_csv_neutralizes_formula_in_domain() -> None:
     assert "'=cmd|" in row
 
 
+def test_to_csv_neutralizes_a_tab_prefixed_title() -> None:
+    """Some spreadsheet apps strip a leading tab and then evaluate what follows."""
+    r = _make_hit("evil.com", 70, RiskLevel.HIGH)
+    r.page_title = "\t=1+1"
+    csv_text = to_csv(ScanReport(target="example.com", total_permutations=1, results=[r]))
+    assert "'\t=1+1" in csv_text
+
+
+def test_to_csv_neutralizes_formula_in_notes() -> None:
+    """Reasons quote remote data (a DNSBL source, a redirect host), so they are untrusted too."""
+    r = _make_hit("evil.com", 70, RiskLevel.HIGH)
+    r.risk_reasons = ["=HYPERLINK(1)", "listed"]
+    csv_text = to_csv(ScanReport(target="example.com", total_permutations=1, results=[r]))
+    assert "'=HYPERLINK(1); listed" in csv_text
+
+
 # ---------------------------------------------------------------------------
 # Aggregate JSON
 # ---------------------------------------------------------------------------

@@ -222,17 +222,9 @@ def execute_scan(
             "console": console,
         }
         try:
-            try:
-                coro = run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
-            except TypeError:
-                scan_kwargs.pop("console", None)
-                try:
-                    coro = run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
-                except TypeError:
-                    scan_kwargs.pop("check_ct", None)
-                    scan_kwargs.pop("check_dnsbl", None)
-                    coro = run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
-            report = run_async_fn(coro)
+            report = run_async_fn(
+                run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
+            )
         except KeyboardInterrupt:
             console.print("\n[muted]Interrupted.[/muted]")
             raise typer.Exit(1) from None
@@ -316,6 +308,21 @@ def execute_scan(
             for r in rep.registered
         ):
             raise typer.Exit(2)
+        # Nothing crossed the threshold — but a gate may only say so when the
+        # scan could actually tell. A broken resolver, probes that raised, a
+        # reputation list that refused to answer or a domain that was never
+        # scanned all look like "nothing found", and exit 0 would turn them
+        # into a green nightly build.
+        unverified = scan_errors + [
+            d for d, rep in all_reports.items() if rep.degraded or rep.dnsbl_refused
+        ]
+        if unverified:
+            console.print(
+                "[warn]⚠ --fail-on: could not verify "
+                + escape(", ".join(unverified))
+                + " — exiting 3 rather than reporting a clean result.[/warn]"
+            )
+            raise typer.Exit(3)
 
 
 __all__ = [

@@ -106,6 +106,26 @@ jobs:
       - name: Build wheel + sdist
         run: python -m build
 
+      - name: Smoke-test the built wheel
+        # Everything above this point runs against the source tree through an
+        # editable install, so nothing ever exercised the console script, the
+        # entry point, or what the wheel actually contains. A broken
+        # `[project.scripts]` or a package missed by `packages.find` passed
+        # every gate and would only have failed after `pipx install otacon`.
+        # `--version` also checks the wheel's metadata against pyproject, which
+        # is the one place that comparison can be made honestly.
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --quiet dist/*.whl
+          expected=$(python -c "import tomllib,pathlib; \
+            print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          got=$(/tmp/smoke/bin/otacon --version | tr -d '\r' | awk '{print $NF}')
+          test "$got" = "$expected" || { echo "wheel reports $got, pyproject says $expected"; exit 1; }
+          # An offline command, so the smoke test never depends on the network.
+          /tmp/smoke/bin/otacon generate example.com --limit 3
+          /tmp/smoke/bin/otacon --help > /dev/null
+          echo "wheel installs and runs: $got"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
