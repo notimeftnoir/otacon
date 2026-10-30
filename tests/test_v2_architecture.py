@@ -305,15 +305,12 @@ def test_scoring_weights_type_check() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_scanner_get_generate_fn_avoids_cli_generate_command() -> None:
-    import otacon.cli  # noqa: F401  # ensures otacon.cli is imported and in sys.modules
-    from otacon.engine.scanner import _get_generate_fn
-    from otacon.permutations.generator import generate
+def test_scanner_generates_through_the_permutations_package() -> None:
+    """The scan reaches generate() via the package, never the Typer `generate` command."""
+    import otacon.cli  # noqa: F401  # the CLI module defines a command named generate
+    from otacon import permutations
+    from otacon.engine import scanner
 
-    fn = _get_generate_fn()
-    # Must NOT be the Typer CLI command function
-    assert fn is generate
-    # Must be callable with (domain, exclude=...)
-    perms = fn("example.com")
-    assert len(perms) > 0
-    assert perms[0].domain != "example.com"
+    assert scanner.permutations is permutations
+    perms = scanner.permutations.generate("example.com")
+    assert perms and perms[0].domain != "example.com"

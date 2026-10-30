@@ -7,7 +7,6 @@ import logging
 import time
 from collections import Counter
 from contextlib import AsyncExitStack
-from typing import Any, cast
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -20,10 +19,10 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from ..core.models import DomainResult, Permutation, ScanReport
+from .. import permutations
+from ..core.models import DomainResult, Permutation, ScanOptions, ScanReport
 from ..core.types import PermutationType
 from ..net.resolver import Resolver
-from ..permutations.generator import generate
 from ..reporters.console import build_live_table
 from ..scoring.config import ScoringWeights
 from ..scoring.engine import score
@@ -35,6 +34,12 @@ _HIJACK_WARNING = (
     "[warn]⚠  Your DNS resolver answers nonexistent domains (NXDOMAIN hijacking)."
     " Hijacked answers were discarded; consider scanning with a clean resolver"
     " (e.g. 1.1.1.1).[/warn]"
+)
+
+_DNSBL_REFUSED_WARNING = (
+    "[warn]⚠  A reputation list (Spamhaus/SURBL) refused to answer this resolver —"
+    " usually because it is a large public one. DNSBL listings were not checked;"
+    " scan through your own or your ISP's resolver.[/warn]"
 )
 
 _LIVE_ROWS = 8
@@ -71,23 +76,6 @@ def _variant_summary(perms: list[Permutation]) -> str:
     return f"[ok]✓[/ok] [value]{len(perms)}[/value] lookalikes generated  {parts}"
 
 
-def _get_generate_fn() -> Any:
-    import sys
-
-    for mod_name in ("otacon.interactive", "otacon.cli", "otacon._scanner"):
-        mod = sys.modules.get(mod_name)
-        if mod and hasattr(mod, "permutations") and hasattr(mod.permutations, "generate"):
-            val = mod.permutations.generate
-            if val is not generate:
-                return val
-    mod = sys.modules.get("otacon.permutations")
-    if mod and hasattr(mod, "generate"):
-        val = mod.generate
-        if val is not generate:
-            return val
-    return generate
-
-
 async def run_scan(
     target: str,
     concurrency: int,
@@ -101,8 +89,9 @@ async def run_scan(
     check_ct: bool = True,
 ) -> ScanReport:
     """Scans all permutations of target using structured concurrency."""
-    gen_fn = _get_generate_fn()
-    perms = await asyncio.to_thread(gen_fn, target, exclude=exclude)
+    # The package attribute, looked up at call time, so patching
+    # otacon.permutations.generate reaches the scan.
+    perms = await asyncio.to_thread(permutations.generate, target, exclude=exclude)
     if not perms:
         return ScanReport(target=target, total_permutations=0)
 
@@ -123,55 +112,22 @@ async def run_scan(
                 Live(progress, console=console, refresh_per_second=4, transient=True)
             )
 
-        def _get_resolver_cls() -> type[Resolver]:
-            import sys
-
-            for mod_name in (
-                "otacon._scanner",
-                "otacon.cli",
-                "otacon.interactive",
-                "otacon.resolver",
-            ):
-                mod = sys.modules.get(mod_name)
-                if mod and hasattr(mod, "Resolver"):
-                    val = mod.Resolver
-                    if val is not Resolver:
-                        return cast(type[Resolver], val)
-            return Resolver
-
-        resolver_cls = _get_resolver_cls()
-        try:
-            resolver = await stack.enter_async_context(
-                resolver_cls(
-                    concurrency=safe_concurrency,
-                    check_http=check_http,
-                    target=target,
-                    check_whois=check_whois,
-                    check_dnsbl=check_dnsbl,
-                )
+        resolver = await stack.enter_async_context(
+            Resolver(
+                concurrency=safe_concurrency,
+                check_http=check_http,
+                target=target,
+                check_whois=check_whois,
+                check_dnsbl=check_dnsbl,
             )
-        except TypeError:
-            resolver = await stack.enter_async_context(
-                resolver_cls(
-                    concurrency=safe_concurrency,
-                    check_http=check_http,
-                    target=target,
-                    check_whois=check_whois,
-                )
-            )
+        )
 
         if check_ct and hasattr(resolver, "fetch_ct_domains"):
             try:
                 ct_domains = await resolver.fetch_ct_domains()
                 existing = {p.domain for p in perms}
-                # CT aggregators are queried with include_subdomains, so most hits are
-                # the target's own infrastructure. Those are not impersonation — scoring
-                # them as lookalikes made the target's own subdomains the single largest
-                # source of critical findings.
-                own_suffix = f".{target}"
+                # fetch_ct_domains already drops the target's own infrastructure.
                 for d in sorted(ct_domains):
-                    if d == target or d.endswith(own_suffix):
-                        continue
                     if d not in existing and (exclude is None or d not in exclude):
                         perms.append(
                             Permutation(
@@ -205,6 +161,8 @@ async def run_scan(
         # getattr: a test double standing in for Resolver need not carry counters.
         dns_queries = int(getattr(resolver, "dns_queries", 0))
         dns_failures = int(getattr(resolver, "dns_failures", 0))
+        probe_failures = int(getattr(resolver, "probe_failures", 0))
+        dnsbl_refused = bool(getattr(resolver, "dnsbl_refused", False))
 
     results.sort(key=lambda r: (-r.risk_score, r.domain))
     report = ScanReport(
@@ -214,6 +172,9 @@ async def run_scan(
         dns_hijack_detected=hijack_detected,
         dns_queries=dns_queries,
         dns_failures=dns_failures,
+        probe_failures=probe_failures,
+        dnsbl_refused=dnsbl_refused,
+        options=ScanOptions(http=check_http, whois=check_whois, dnsbl=check_dnsbl, ct=check_ct),
     )
 
     if progress is not None:
@@ -223,6 +184,8 @@ async def run_scan(
         )
     if report.dns_hijack_detected:
         console.print(_HIJACK_WARNING)
+    if report.dnsbl_refused:
+        console.print(_DNSBL_REFUSED_WARNING)
     return report
 
 

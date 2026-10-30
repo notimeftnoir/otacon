@@ -21,19 +21,42 @@ _SPAMHAUS_CATEGORIES: dict[str, str] = {
     "127.0.1.106": "Spamhaus DBL (abused botnet C2)",
 }
 
+# Spamhaus does not answer "not listed" when it declines to answer at all: it
+# returns an address in 127.255.255.0/24 — .252 a typing error in the zone name,
+# .254 a query arriving via a public resolver, .255 too many queries. Matched
+# only against the 127.0.1.x listings, a refusal looked exactly like a clean
+# domain, so a scan from 1.1.1.1 or 8.8.8.8 — which the hijack warning itself
+# recommends — silently scored every listed lookalike as having no reputation
+# hit, and the DBL is the heaviest single weight in the scoring.
+_REFUSAL_PREFIX = "127.255.255."
+
 
 async def check_dnsbl(
     domain: str, dns_resolver: Any, timeout: float = 3.0
-) -> tuple[bool, str | None]:
-    """Queries Spamhaus DBL and SURBL to check if domain is listed on threat lists."""
+) -> tuple[bool, str | None, bool]:
+    """Queries Spamhaus DBL and SURBL for *domain*.
+
+    Returns (listed, source, refused). ``refused`` is True when a list declined
+    to answer, which is not the same as the domain being clean.
+    """
+    refused = False
     dbl_query = f"{domain}.dbl.spamhaus.org"
     try:
         async with asyncio.timeout(timeout):
             records = await _query_dns(dns_resolver, dbl_query, "A")
         for r in records:
             ip = getattr(r, "host", str(r))
+            if ip.startswith(_REFUSAL_PREFIX):
+                _log.warning(
+                    "Spamhaus DBL declined the query for %s (%s) — reputation not checked."
+                    " Scan with a resolver that is not a large public one.",
+                    domain,
+                    ip,
+                )
+                refused = True
+                break
             if ip.startswith("127.0.1."):
-                return True, _SPAMHAUS_CATEGORIES.get(ip, "Spamhaus DBL (listed)")
+                return True, _SPAMHAUS_CATEGORIES.get(ip, "Spamhaus DBL (listed)"), False
     except Exception as exc:
         _log.debug("DBL lookup failed for %s: %r", domain, exc)
 
@@ -43,12 +66,16 @@ async def check_dnsbl(
             records = await _query_dns(dns_resolver, surbl_query, "A")
         for r in records:
             ip = getattr(r, "host", str(r))
+            if ip.startswith(_REFUSAL_PREFIX):
+                _log.warning("SURBL declined the query for %s (%s)", domain, ip)
+                refused = True
+                break
             if ip.startswith("127.0.0.") and ip not in ("127.0.0.1", "127.0.0.254", "127.0.0.255"):
-                return True, "SURBL (listed)"
+                return True, "SURBL (listed)", refused
     except Exception as exc:
         _log.debug("SURBL lookup failed for %s: %r", domain, exc)
 
-    return False, None
+    return False, None, refused
 
 
-__all__ = ["check_dnsbl"]
+__all__ = ["_REFUSAL_PREFIX", "check_dnsbl"]

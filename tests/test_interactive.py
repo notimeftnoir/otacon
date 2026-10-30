@@ -590,7 +590,7 @@ class _FakeResolver:
 
     dns_hijack_detected = False
 
-    def __init__(self, concurrency, check_http, target, check_whois=True) -> None:
+    def __init__(self, concurrency, check_http, target, check_whois=True, check_dnsbl=True) -> None:
         self.target_title = None
 
     async def __aenter__(self) -> _FakeResolver:
@@ -619,7 +619,7 @@ def _patch_scan_deps(monkeypatch, resolver_cls=_FakeResolver) -> None:
         "otacon.interactive.permutations.generate",
         lambda target, exclude=None: _two_fake_perms(),
     )
-    monkeypatch.setattr("otacon._scanner.Resolver", resolver_cls)
+    monkeypatch.setattr("otacon.engine.scanner.Resolver", resolver_cls)
 
 
 @pytest.mark.asyncio

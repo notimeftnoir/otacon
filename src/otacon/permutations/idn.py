@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import idna
 
-from ..core.exceptions import PermutationError
-
 
 def to_ace(fqdn: str) -> str | None:
     """Canonicalises an FQDN to ASCII-Compatible Encoding (Punycode / ACE) per IDNA 2008.
@@ -26,12 +24,9 @@ def idn_squats(homoglyph_variants: set[str]) -> set[str]:
     for variant in homoglyph_variants:
         if variant.isascii():
             continue
-        try:
-            ace = to_ace(variant)
-            if ace and ace.startswith("xn--"):
-                out.add(ace)
-        except PermutationError:
-            continue
+        ace = to_ace(variant)
+        if ace and ace.startswith("xn--"):
+            out.add(ace)
     return out
 
 

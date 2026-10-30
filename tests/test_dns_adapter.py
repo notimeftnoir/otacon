@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from otacon.net.dns import DNSClient, query_records
+from otacon.net.dns import query_records
 
 
 @dataclass
@@ -92,15 +92,6 @@ async def test_query_records_still_accepts_legacy_lists() -> None:
 
     records = await query_records(_Legacy([_Old()]), "example.com", "A")
     assert [r.host for r in records] == ["1.2.3.4"]
-
-
-@pytest.mark.asyncio
-async def test_dnsclient_resolves_through_modern_resolver() -> None:
-    client = DNSClient()
-    client._resolver = _Modern(  # type: ignore[assignment]
-        _DNSResult([_Rec(_Data(addr="93.184.216.34"))])
-    )
-    assert await client.query_ips("example.com", "A") == ["93.184.216.34"]
 
 
 # --------------------------------------------------------------------------

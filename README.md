@@ -68,6 +68,7 @@ everything else goes after it.
 | `0` | Scan completed — nothing at or above `--fail-on`, or `--fail-on` was not passed |
 | `1` | Runtime error (bad input, file I/O) |
 | `2` | Threshold breached — at least one registered variant met it |
+| `3` | Nothing breached, but the scan could not verify that: DNS or probes failed, a reputation list refused to answer, or a domain could not be scanned |
 
 Reports are written with `--json`, `--md`, `--html` and `--csv`; pass as many as
 you like, since every format renders from the same in-memory report.
@@ -174,10 +175,14 @@ unlabelled guess.
 | **Plural** | `shops.com` ← `shop.com` | Singular ↔ plural variation |
 | **WWW-merge** | `wwwexample.com` | Dot dropped between "www" and the domain — easy to misread |
 
-Certificate Transparency discovery runs alongside these: it finds lookalikes
-that already hold a certificate, including ones no permutation rule would
-generate. Those are reported as `ct-log` rather than as a technique, and
-subdomains of your own domain are dropped before scoring.
+Certificate Transparency discovery runs alongside these: it searches crt.sh
+for unexpired certificates naming your brand label (`allegro-zwroty.pl`,
+`klik-proces-allegro.pl`) — lookalikes no permutation rule would generate.
+Those are reported as `ct-log` rather than as a technique. Anything sharing a
+certificate with your own domain is treated as yours and dropped; brand labels
+shorter than four characters are not searched, since `%g%` matches most of the
+internet. Your other brand domains that live on separate certificates will show
+up — add them to `--exclude-file` once.
 
 Every example above is real output, not an illustration. Each variant is
 reported once, under the first technique that produced it, and the original

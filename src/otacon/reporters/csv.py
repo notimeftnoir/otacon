@@ -8,7 +8,9 @@ import re
 
 from ..core.models import ScanReport
 
-_FORMULA_TRIGGER_RE = re.compile(r"^\s*[=+\-@]")
+# OWASP's trigger set: = + - @ and also tab and carriage return, which some
+# spreadsheet apps strip before evaluating what follows.
+_FORMULA_TRIGGER_RE = re.compile(r"^[\t\r]|^\s*[=+\-@]")
 
 
 def _csv_safe(value: str) -> str:
@@ -55,7 +57,7 @@ def to_csv(report: ScanReport) -> str:
                 _csv_safe(r.redirects_to or ""),
                 _csv_safe(r.page_title or ""),
                 r.is_likely_defensive,
-                "; ".join(r.risk_reasons),
+                _csv_safe("; ".join(r.risk_reasons)),
             ]
         )
     return out.getvalue()

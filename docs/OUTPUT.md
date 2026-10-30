@@ -58,26 +58,51 @@ Every score is fully decomposed — you can always answer *"why did this get 92?
 
 ## Scan health
 
-Every JSON report carries two counters alongside the results:
+Every JSON report records how well the scan itself went, alongside the results:
 
 | Field | Meaning |
 |---|---|
-| `dns_queries` | A and AAAA lookups attempted during the scan |
+| `dns_queries` | DNS lookups attempted during the scan — A, AAAA, MX, NS and TXT |
 | `dns_failures` | Of those, how many failed rather than answering |
+| `probe_failures` | Variants whose check raised an error instead of returning a result |
+| `dnsbl_refused` | True when a reputation list declined to answer at all |
+| `degraded` | True when DNS or probe failures reached 20% — a quiet result is not trustworthy |
 
 A domain that does not exist is an *answer*, not a failure, so a healthy scan of
 a typical target sits around 5% even though most variants are unregistered.
 
 The distinction matters because "does not resolve" and "could not be checked"
-produce the same empty result. When failures reach 20% of lookups the terminal
-verdict stops reporting an all-clear and says the scan is inconclusive instead.
-In a pipeline, check the ratio yourself before trusting a quiet report:
+produce the same empty result. When either failure count reaches 20% the
+terminal stops reporting an all-clear and says the scan is inconclusive instead.
 
-```bash
-otacon -q scan example.com --json report.json
-python -c "
-import json; r = json.load(open('report.json'))
-assert r['dns_failures'] / max(r['dns_queries'], 1) < 0.2, 'scan degraded'"
+`dnsbl_refused` is its own flag because a refusal is not a clean bill of health.
+Spamhaus declines queries that arrive through large public resolvers and answers
+`127.255.255.254` rather than "not listed" — scored as clean, that silently
+zeroed the heaviest single weight in the scoring. If you see it, scan from a
+resolver of your own.
+
+In a pipeline, `--fail-on` does this check for you: when nothing crossed the
+threshold but the scan was degraded, a list refused, or a domain could not be
+scanned, it exits **3** rather than 0. Without `--fail-on`, read `degraded` and
+`dnsbl_refused` from the JSON yourself.
+
+`degraded` is written for readers of the file; Otacon recomputes it from the
+counters when it loads a report. Reports written before 2.2.0 carry none of
+these fields and read back as zero/false.
+
+## What the scan looked at
+
+A report records which probes it ran, under `options`:
+
+```json
+"options": { "http": true, "whois": true, "dnsbl": true, "ct": false }
 ```
 
-Reports written before 2.2.0 carry neither field and read back as zero.
+This is what makes two reports comparable. "No MX record" and "MX was never
+checked" produce the same empty field, so `otacon diff` skips any signal the two
+scans did not both gather and says so at the top of its output. The guided
+mode's rescan reads the same field, so re-probing one row never queries a
+registry or a blocklist the scan was told to leave alone.
+
+Reports written before 4.0.0 have no `options` key and read back as a full
+scan, which is how they were already compared.

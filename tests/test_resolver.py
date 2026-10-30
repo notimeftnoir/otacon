@@ -165,37 +165,28 @@ async def test_read_capped_small_body_intact():
 
 
 @pytest.mark.asyncio
-async def test_whois_cache_deduplicates():
-    call_count = 0
+async def test_whois_lookups_share_one_rdap_client():
+    """Every RDAP lookup reuses the scan's client — one TLS session, not one per domain."""
+    clients = []
 
-    async def mock_fetch(domain: str):
-        nonlocal call_count
-        call_count += 1
-        await asyncio.sleep(0)  # yield so the second coroutine can reach _cached_whois
+    async def mock_fetch(domain: str, client=None):
+        clients.append(client)
         return None, None
 
-    perm = Permutation(domain="paypal.com", kind=PermutationType.TYPO)
-
-    with patch("otacon.resolver.fetch_domain_age", side_effect=mock_fetch):
-        async with Resolver() as r:
+    with patch("otacon.net.resolver.fetch_domain_age", side_effect=mock_fetch):
+        async with Resolver(check_http=False) as r:
             with patch.object(r, "_resolve_a", new_callable=AsyncMock, return_value=["1.2.3.4"]):
                 with patch.object(r, "_resolve_mx", new_callable=AsyncMock, return_value=[]):
-                    ssl_ret = (False, None, None, None)
-                    ssl_patch = patch.object(
-                        r, "_check_ssl", new_callable=AsyncMock, return_value=ssl_ret
-                    )
-                    with ssl_patch:
-                        probe = AsyncMock(return_value=(None, None, None, None))
-                        with patch.object(r, "_probe_http", new=probe):
-                            with patch.object(
-                                r,
-                                "_probe_wildcard",
-                                new_callable=AsyncMock,
-                                return_value=frozenset(),
-                            ):
-                                await asyncio.gather(r.check_one(perm), r.check_one(perm))
+                    with patch.object(
+                        r, "_probe_wildcard", new_callable=AsyncMock, return_value=frozenset()
+                    ):
+                        for name in ("paypal.com", "paypa1.com"):
+                            await r.check_one(Permutation(domain=name, kind=PermutationType.TYPO))
+            shared = r._rdap
 
-    assert call_count == 1
+    assert len(clients) == 2
+    assert shared is not None
+    assert all(c is shared for c in clients)
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +244,7 @@ def _patch_network(r: Resolver, *, resolve_ips: list[str]):
         patch.object(r, "_probe_http", new=AsyncMock(return_value=(None, None, None, None)))
     )
     stack.enter_context(
-        patch("otacon.resolver.fetch_domain_age", new=AsyncMock(return_value=(None, None)))
+        patch("otacon.net.resolver.fetch_domain_age", new=AsyncMock(return_value=(None, None)))
     )
     return stack
 
@@ -735,7 +726,7 @@ async def test_check_one_unregistered_domain_skips_probe_and_whois():
             patch.object(r, "_resolve_a", new_callable=AsyncMock, return_value=[]),
             patch.object(r, "_resolve_mx", new_callable=AsyncMock, return_value=[]),
             patch.object(r, "_probe", new_callable=AsyncMock) as mock_probe,
-            patch("otacon.resolver.fetch_domain_age", new_callable=AsyncMock) as mock_whois,
+            patch("otacon.net.resolver.fetch_domain_age", new_callable=AsyncMock) as mock_whois,
         ):
             result = await r.check_one(perm)
     assert result.resolves is False
@@ -753,7 +744,7 @@ async def test_check_one_skips_whois_when_check_whois_is_false():
         with (
             _patch_network(r, resolve_ips=["203.0.113.9"]),
             patch.object(r, "_probe_wildcard", new_callable=AsyncMock, return_value=frozenset()),
-            patch("otacon.resolver.fetch_domain_age", new_callable=AsyncMock) as mock_whois,
+            patch("otacon.net.resolver.fetch_domain_age", new_callable=AsyncMock) as mock_whois,
         ):
             result = await r.check_one(perm)
     assert result.resolves is True
@@ -980,7 +971,7 @@ def test_pinned_http_transport_wires_backend_into_pool():
 async def test_query_ips_returns_hosts_from_records():
     r = Resolver()
     records = [MagicMock(host="1.2.3.4"), MagicMock(host="1.2.3.5")]
-    with patch.object(r._dns, "query", new_callable=AsyncMock, return_value=records):
+    with patch.object(r._dns, "query_dns", new_callable=AsyncMock, return_value=records):
         ips = await r._query_ips("example.com", "A")
     assert ips == ["1.2.3.4", "1.2.3.5"]
 
@@ -988,7 +979,9 @@ async def test_query_ips_returns_hosts_from_records():
 @pytest.mark.asyncio
 async def test_query_ips_swallows_any_exception():
     r = Resolver()
-    with patch.object(r._dns, "query", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+    with patch.object(
+        r._dns, "query_dns", new_callable=AsyncMock, side_effect=RuntimeError("boom")
+    ):
         ips = await r._query_ips("example.com", "AAAA")
     assert ips == []
 
@@ -997,7 +990,7 @@ async def test_query_ips_swallows_any_exception():
 async def test_resolve_mx_returns_hosts_from_records():
     r = Resolver()
     records = [MagicMock(host="mail.example.com")]
-    with patch.object(r._dns, "query", new_callable=AsyncMock, return_value=records):
+    with patch.object(r._dns, "query_dns", new_callable=AsyncMock, return_value=records):
         mx = await r._resolve_mx("example.com")
     assert mx == ["mail.example.com"]
 
@@ -1005,7 +998,9 @@ async def test_resolve_mx_returns_hosts_from_records():
 @pytest.mark.asyncio
 async def test_resolve_mx_swallows_any_exception():
     r = Resolver()
-    with patch.object(r._dns, "query", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+    with patch.object(
+        r._dns, "query_dns", new_callable=AsyncMock, side_effect=RuntimeError("boom")
+    ):
         mx = await r._resolve_mx("example.com")
     assert mx == []
 

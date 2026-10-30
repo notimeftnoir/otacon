@@ -14,7 +14,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from .._asyncutils import run_async
-from ..core.models import DomainResult, Permutation, ScanReport
+from ..core.models import DomainResult, Permutation, ScanOptions, ScanReport
 from ..net.resolver import Resolver
 from ..net.whois import fetch_domain_age, format_age
 from ..reporters import console as reporters
@@ -29,6 +29,9 @@ from .notice import build_takedown_notice
 from .prompts import _QMARK, _STYLE, _confirm
 
 
+# ponytail: test hook — the guided mode's tests patch the otacon.interactive facade
+# (~80 sites), so lookups go through it. Repoint those patches to the real
+# modules and this goes; until then it is confined to triage/.
 def _get_inter(name: str, fallback: Any) -> Any:
     import sys
 
@@ -88,16 +91,31 @@ def _export_result(result: DomainResult, console: Console) -> None:
 
 
 def _rescan_result(
-    result: DomainResult, target: str, check_http: bool, console: Console
+    result: DomainResult,
+    target: str,
+    check_http: bool,
+    console: Console,
+    options: ScanOptions | None = None,
 ) -> DomainResult:
-    """Re-runs a network check for a single variant and returns the updated scored result."""
+    """Re-runs a network check for a single variant and returns the updated scored result.
+
+    *options* are the original scan's: re-probing one row of a ``--no-whois``
+    or ``--no-dnsbl`` scan must not query a registry or a blocklist the
+    operator chose to leave alone.
+    """
+    opts = options or ScanOptions()
     perm = Permutation(domain=result.domain, kind=result.kind, note=result.note)
     console.print(f"[muted]Rescanning {escape(result.domain)}…[/muted]")
 
     resolver_cls = _get_inter("Resolver", Resolver)
 
     async def _run() -> tuple[DomainResult, str | None]:
-        async with resolver_cls(check_http=check_http, target=target) as resolver:
+        async with resolver_cls(
+            check_http=check_http,
+            target=target,
+            check_whois=opts.whois,
+            check_dnsbl=opts.dnsbl,
+        ) as resolver:
             res = await resolver.check_one(perm)
             return res, resolver.target_title
 
@@ -214,7 +232,7 @@ def _handle_allow(ctx: _ActionContext) -> str:
 
 def _handle_rescan(ctx: _ActionContext) -> str:
     rescan_fn = _get_inter("_rescan_result", _rescan_result)
-    updated = rescan_fn(ctx.selected, ctx.target, ctx.check_http, ctx.console)
+    updated = rescan_fn(ctx.selected, ctx.target, ctx.check_http, ctx.console, ctx.report.options)
     for i, r in enumerate(ctx.report.results):
         if r.domain == ctx.selected.domain:
             ctx.report.results[i] = updated

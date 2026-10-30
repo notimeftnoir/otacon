@@ -134,21 +134,6 @@ def is_defensive(result: DomainResult, target: str) -> bool:
     return bool(host and (host == canonical or host.endswith("." + canonical)))
 
 
-def _detect_sinkhole(result: DomainResult) -> None:
-    if is_sinkhole(result):
-        object.__setattr__(result, "is_sinkhole", True)
-
-
-def _detect_parking(result: DomainResult) -> None:
-    if is_parked(result):
-        object.__setattr__(result, "is_parked", True)
-
-
-def _detect_defensive(result: DomainResult, target: str) -> None:
-    if is_defensive(result, target):
-        object.__setattr__(result, "is_likely_defensive", True)
-
-
 __all__ = [
     "_PARKING_IPS",
     "_PARKING_NAMESERVERS",
@@ -157,9 +142,6 @@ __all__ = [
     "_SINKHOLE_IPS",
     "_SINKHOLE_NAMESERVERS",
     "_SINKHOLE_TITLES",
-    "_detect_defensive",
-    "_detect_parking",
-    "_detect_sinkhole",
     "is_defensive",
     "is_parked",
     "is_sinkhole",
