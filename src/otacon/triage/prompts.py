@@ -69,6 +69,9 @@ def _yn_bindings() -> KeyBindings:
 
 def _confirm(message: str) -> bool | None:
     """Displays a stylized y/n confirmation prompt."""
+    # ponytail: test hook — the guided mode's tests patch the otacon.interactive facade
+    # (~80 sites), so lookups go through it. Repoint those patches to the real
+    # modules and this goes; until then it is confined to triage/.
     import sys
 
     mod = sys.modules.get("otacon.interactive")

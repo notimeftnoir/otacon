@@ -143,11 +143,7 @@ def _main(
         _banner(animate=ctx.invoked_subcommand is None)
 
     if ctx.invoked_subcommand is None:
-        import sys
-
-        inter_mod = sys.modules.get("otacon.interactive")
-        inter_run = getattr(inter_mod, "run", _interactive_run) if inter_mod else _interactive_run
-        inter_run(console)
+        _interactive_run(console)
         raise typer.Exit()
 
 

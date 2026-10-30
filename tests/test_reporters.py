@@ -423,7 +423,7 @@ def test_verdict_banner_fresh_label_tracks_age_fresh_days_constant(monkeypatch) 
     """The '<Nd>' label must read AGE_FRESH_DAYS, not a hardcoded '<7d>'."""
     from otacon import scoring
 
-    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 14)
+    monkeypatch.setattr(scoring.engine, "AGE_FRESH_DAYS", 14)
     report = ScanReport(target="example.com", total_permutations=10)
     r = DomainResult(
         domain="exmaple.com",
@@ -465,7 +465,7 @@ def test_verdict_banner_md_with_threats():
 def test_verdict_banner_md_fresh_label_tracks_age_fresh_days_constant(monkeypatch) -> None:
     from otacon import scoring
 
-    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 14)
+    monkeypatch.setattr(scoring.engine, "AGE_FRESH_DAYS", 14)
     report = ScanReport(target="example.com", total_permutations=10)
     r = DomainResult(
         domain="exmaple.com",

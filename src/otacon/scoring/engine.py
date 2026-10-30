@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import sys
 from collections.abc import Iterable
 
 from ..core.models import DomainResult
@@ -21,21 +20,14 @@ AGE_ESTABLISHED_DAYS = 730
 AGE_VETERAN_DAYS = 1825
 
 
-def _threshold(name: str, default: int) -> int:
-    """Reads a threshold off ``otacon.scoring`` so monkeypatching it stays effective."""
-    pkg = sys.modules.get("otacon.scoring")
-    value = getattr(pkg, name, None) if pkg is not None else None
-    return int(value) if value is not None else default
-
-
 def get_age_fresh_days() -> int:
-    """Gets the active AGE_FRESH_DAYS threshold, tracking runtime overrides."""
-    return _threshold("AGE_FRESH_DAYS", AGE_FRESH_DAYS)
+    """The active AGE_FRESH_DAYS, read at call time so an override reaches every caller."""
+    return AGE_FRESH_DAYS
 
 
 def get_age_new_days() -> int:
-    """Gets the active AGE_NEW_DAYS threshold, tracking runtime overrides."""
-    return _threshold("AGE_NEW_DAYS", AGE_NEW_DAYS)
+    """The active AGE_NEW_DAYS, read at call time so an override reaches every caller."""
+    return AGE_NEW_DAYS
 
 
 def count_fresh(results: Iterable[DomainResult]) -> int:
