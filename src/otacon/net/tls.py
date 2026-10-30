@@ -92,7 +92,18 @@ async def probe_ssl(
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
 
+            import sys
+
             conn_fn = asyncio.open_connection
+            res_mod = sys.modules.get("otacon.resolver")
+            if (
+                res_mod
+                and hasattr(res_mod, "asyncio")
+                and hasattr(res_mod.asyncio, "open_connection")
+            ):
+                patched_conn = res_mod.asyncio.open_connection
+                if patched_conn is not asyncio.open_connection:
+                    conn_fn = patched_conn
 
             async with asyncio.timeout(timeout):
                 _reader, writer = await conn_fn(ip, HTTPS_PORT, ssl=ctx, server_hostname=domain)

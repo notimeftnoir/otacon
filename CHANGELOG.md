@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] — 2026-10-31
+
+A major because it takes back what 3.0.0 changed: `otacon` with no arguments
+asks its questions in the terminal again instead of switching to a full-screen
+console. The tree returns to the state just before #72 (2.1.0 plus #71, which
+flags a scan whose DNS layer broke rather than reporting it as clean).
+
+### Removed
+- The full-screen console as the default surface, its start/overview/compare/
+  settings screens, scan history (`~/.otacon`), saved settings and
+  `otacon watch` — all introduced in 3.0.0.
+
+### Restored
+- The guided mode for bare `otacon` (questionary prompts in the same terminal).
+- `otacon tui [domain]` / `otacon tui --from report.json` stays available as an
+  opt-in triage console; nothing opens it unless you ask.
+
 ## [3.0.0] — 2026-10-29
 
 A major because the guided prompts are gone: the triage console is the tool

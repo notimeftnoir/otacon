@@ -1,7 +1,8 @@
 """Abuse / takedown notice text generation.
 
-Kept apart from the console so the notice is a pure function of a result: the
-text can be asserted in tests, and regenerated anywhere, without a screen.
+Separated from the interactive handler so both the questionary triage flow and
+the TUI render the same notice from the same source, and so the text can be
+asserted in tests without driving a prompt.
 """
 
 from __future__ import annotations

@@ -305,57 +305,15 @@ def test_scoring_weights_type_check() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_scanner_generates_through_the_permutation_package() -> None:
-    """The scanner must reach the generator, never the Typer command of the same name.
-
-    `otacon.cli.generate` is the CLI subcommand; `otacon.permutations.generate`
-    builds the variants. The scanner used to pick between them by searching
-    sys.modules, which is why this guard exists; it now imports the module and
-    calls through it, so a test patching that module is seen without a lookup.
-    """
-    import otacon.cli  # noqa: F401  # the name clash only exists once this is imported
-    from otacon.engine import scanner
+def test_scanner_get_generate_fn_avoids_cli_generate_command() -> None:
+    import otacon.cli  # noqa: F401  # ensures otacon.cli is imported and in sys.modules
+    from otacon.engine.scanner import _get_generate_fn
     from otacon.permutations.generator import generate
 
-    assert scanner.permutations.generate is generate
-
-    perms = scanner.permutations.generate("example.com")
+    fn = _get_generate_fn()
+    # Must NOT be the Typer CLI command function
+    assert fn is generate
+    # Must be callable with (domain, exclude=...)
+    perms = fn("example.com")
     assert len(perms) > 0
-    assert all(p.domain != "example.com" for p in perms)
-
-
-def test_patching_the_permutation_module_reaches_the_scanner(monkeypatch) -> None:
-    """What the removed sys.modules search was working around."""
-    from otacon.engine import scanner
-
-    monkeypatch.setattr(scanner.permutations, "generate", lambda target, exclude=None: [])
-    assert scanner.permutations.generate("example.com") == []
-
-
-# ---------------------------------------------------------------------------
-# 11. Developer scripts
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("script", ["render_demo_svg", "render_tui_svg"])
-def test_tools_scripts_still_import(script: str) -> None:
-    """The scripts in tools/ regenerate the README assets and must keep working.
-
-    Nothing else imports them, so a module they depend on can be renamed or
-    deleted and the breakage only surfaces the next time somebody regenerates a
-    screenshot. Executing them here is the cheapest possible guard: it caught
-    render_demo_svg still reaching for `otacon._scanner` after the shim layer
-    went.
-
-    Loaded by path rather than by name: tools/ is not a package and is not on
-    sys.path under CI's bare `pytest` invocation, only under `python -m pytest`.
-    """
-    import importlib.util
-
-    path = Path(__file__).resolve().parent.parent / "tools" / f"{script}.py"
-    assert path.is_file(), f"missing dev script: {path}"
-    spec = importlib.util.spec_from_file_location(script, path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    assert callable(module.main)
+    assert perms[0].domain != "example.com"

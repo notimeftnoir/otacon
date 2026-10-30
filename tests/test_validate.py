@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from otacon.utils.validate import (
+from otacon._validate import (
     first_safe_ip,
     is_valid_domain,
     normalize_domain,
@@ -230,14 +230,14 @@ def test_parse_redirect_returns_none_for_a_malformed_ipv6_authority() -> None:
     A Location header is verbatim attacker output, so the unguarded call was a
     remote crash: one hostile lookalike aborted scoring for the whole target.
     """
-    from otacon.utils.validate import parse_redirect
+    from otacon._validate import parse_redirect
 
     assert parse_redirect("http://[evil") is None
     assert parse_redirect("http://[::1") is None
 
 
 def test_parse_redirect_normalises_host_and_reports_scheme() -> None:
-    from otacon.utils.validate import parse_redirect
+    from otacon._validate import parse_redirect
 
     assert parse_redirect("https://EXAMPLE.com./path") == ("example.com", "https")
     # A relative Location has neither host nor scheme — how same-origin is spotted.

@@ -97,7 +97,7 @@ class Resolver:
             transport=transport,
             timeout=_HTTP_TIMEOUT,
             follow_redirects=False,
-            headers={"User-Agent": "Otacon/2.0 (+domain-monitoring)"},
+            headers={"User-Agent": "Otacon/4.0 (+domain-monitoring)"},
         )
         if self._check_http and self.target:
             self._target_title = await self._fetch_target_title()
@@ -247,7 +247,15 @@ class Resolver:
 
     async def _fetch_whois(self, domain: str) -> tuple[datetime | None, int | None]:
         async with self._whois_sem:
-            return await fetch_domain_age(domain)
+            import sys
+
+            whois_fn = fetch_domain_age
+            mod = sys.modules.get("otacon.resolver")
+            if mod and hasattr(mod, "fetch_domain_age"):
+                val = mod.fetch_domain_age
+                if val is not fetch_domain_age:
+                    whois_fn = val
+            return await whois_fn(domain)
 
     async def _cached_whois(self, domain: str) -> tuple[datetime | None, int | None]:
         if domain not in self._whois_cache:

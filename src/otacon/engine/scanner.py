@@ -6,8 +6,8 @@ import asyncio
 import logging
 import time
 from collections import Counter
-from collections.abc import Callable
 from contextlib import AsyncExitStack
+from typing import Any, cast
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -20,15 +20,14 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from .. import permutations
 from ..core.models import DomainResult, Permutation, ScanReport
-from ..core.types import PermutationType, RiskLevel, ScanPhase
+from ..core.types import PermutationType
 from ..net.resolver import Resolver
+from ..permutations.generator import generate
 from ..reporters.console import build_live_table
 from ..scoring.config import ScoringWeights
 from ..scoring.engine import score
 from .pool import ResourceLimiter
-from .progress import ScanProgress
 
 _log = logging.getLogger("otacon.engine.scanner")
 
@@ -72,6 +71,23 @@ def _variant_summary(perms: list[Permutation]) -> str:
     return f"[ok]✓[/ok] [value]{len(perms)}[/value] lookalikes generated  {parts}"
 
 
+def _get_generate_fn() -> Any:
+    import sys
+
+    for mod_name in ("otacon.interactive", "otacon.cli", "otacon._scanner"):
+        mod = sys.modules.get(mod_name)
+        if mod and hasattr(mod, "permutations") and hasattr(mod.permutations, "generate"):
+            val = mod.permutations.generate
+            if val is not generate:
+                return val
+    mod = sys.modules.get("otacon.permutations")
+    if mod and hasattr(mod, "generate"):
+        val = mod.generate
+        if val is not generate:
+            return val
+    return generate
+
+
 async def run_scan(
     target: str,
     concurrency: int,
@@ -83,49 +99,16 @@ async def run_scan(
     check_whois: bool = True,
     check_dnsbl: bool = True,
     check_ct: bool = True,
-    on_progress: Callable[[ScanProgress], None] | None = None,
-    should_stop: Callable[[], bool] | None = None,
 ) -> ScanReport:
-    """Scans all permutations of target using structured concurrency.
-
-    ``on_progress`` is called with a :class:`ScanProgress` as the scan moves
-    through its stages, and ``should_stop`` lets a front-end end it early: the
-    remaining probes are skipped and the partial report comes back marked
-    ``cancelled`` rather than the call raising, so what was found is kept.
-    """
-    results: list[DomainResult] = []
-    hits: list[DomainResult] = []
-
-    def report_progress(
-        phase: ScanPhase, total: int = 0, latest: DomainResult | None = None
-    ) -> None:
-        if on_progress is None:
-            return
-        on_progress(
-            ScanProgress(
-                phase=phase,
-                done=len(results),
-                total=total,
-                hits=len(hits),
-                dangerous=sum(1 for h in hits if h.risk_level.rank >= RiskLevel.HIGH.rank),
-                dns_queries=int(getattr(resolver_ref["r"], "dns_queries", 0)),
-                dns_failures=int(getattr(resolver_ref["r"], "dns_failures", 0)),
-                latest=latest,
-            )
-        )
-
-    # The resolver does not exist until well after the first progress report,
-    # and the DNS counters live on it.
-    resolver_ref: dict[str, object] = {"r": None}
-
-    report_progress(ScanPhase.GENERATING)
-    # The module is imported, not the function, so a test that patches
-    # otacon.permutations.generate is seen here without any lookup.
-    perms = await asyncio.to_thread(permutations.generate, target, exclude=exclude)
+    """Scans all permutations of target using structured concurrency."""
+    gen_fn = _get_generate_fn()
+    perms = await asyncio.to_thread(gen_fn, target, exclude=exclude)
     if not perms:
         return ScanReport(target=target, total_permutations=0)
 
     safe_concurrency = ResourceLimiter.compute_safe_concurrency(concurrency)
+    results: list[DomainResult] = []
+    hits: list[DomainResult] = []
     progress = _build_progress(console) if show_progress else None
     if progress is not None:
         console.print(_variant_summary(perms))
@@ -140,7 +123,23 @@ async def run_scan(
                 Live(progress, console=console, refresh_per_second=4, transient=True)
             )
 
-        resolver_cls = Resolver
+        def _get_resolver_cls() -> type[Resolver]:
+            import sys
+
+            for mod_name in (
+                "otacon._scanner",
+                "otacon.cli",
+                "otacon.interactive",
+                "otacon.resolver",
+            ):
+                mod = sys.modules.get(mod_name)
+                if mod and hasattr(mod, "Resolver"):
+                    val = mod.Resolver
+                    if val is not Resolver:
+                        return cast(type[Resolver], val)
+            return Resolver
+
+        resolver_cls = _get_resolver_cls()
         try:
             resolver = await stack.enter_async_context(
                 resolver_cls(
@@ -161,12 +160,7 @@ async def run_scan(
                 )
             )
 
-        resolver_ref["r"] = resolver
-        report_progress(ScanPhase.CHECKING, total=len(perms))
-
         if check_ct and hasattr(resolver, "fetch_ct_domains"):
-            # A single slow network call that used to report nothing at all.
-            report_progress(ScanPhase.DISCOVERING, total=len(perms))
             try:
                 ct_domains = await resolver.fetch_ct_domains()
                 existing = {p.domain for p in perms}
@@ -195,10 +189,6 @@ async def run_scan(
             for perm in perms:
 
                 async def _worker(p: Permutation = perm) -> None:
-                    if should_stop is not None and should_stop():
-                        # Returning rather than cancelling: the TaskGroup then
-                        # unwinds normally and the caller keeps what was found.
-                        return
                     raw_result = await resolver.check_one(p)
                     scored = score(raw_result, target, weights, resolver.target_title)
                     results.append(scored)
@@ -208,13 +198,6 @@ async def run_scan(
                             live.update(Group(progress, build_live_table(hits, target, _LIVE_ROWS)))
                     if progress is not None and task_id is not None:
                         progress.update(task_id, advance=1, tally=_tally(hits))
-                    # Lets a non-Rich front-end (the TUI) show everything the
-                    # console reporter draws for itself, the live hits included.
-                    report_progress(
-                        ScanPhase.CHECKING,
-                        total=len(perms),
-                        latest=scored if scored.is_registered else None,
-                    )
 
                 tg.create_task(_worker())
 
@@ -231,7 +214,6 @@ async def run_scan(
         dns_hijack_detected=hijack_detected,
         dns_queries=dns_queries,
         dns_failures=dns_failures,
-        cancelled=should_stop is not None and should_stop(),
     )
 
     if progress is not None:

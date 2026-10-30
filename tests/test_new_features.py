@@ -8,16 +8,16 @@ from __future__ import annotations
 
 import pytest
 
-from otacon.core.models import DomainResult, PermutationType
-from otacon.net.content import (
+from otacon._hashutils import (
     detect_login_form,
     extract_favicon_url,
     mmh3_32,
     shodan_favicon_hash,
 )
-from otacon.net.resolver import HTTPProbeResult, Resolver
+from otacon.models import DomainResult, PermutationType
+from otacon.resolver import HTTPProbeResult, Resolver
 from otacon.scoring import score
-from otacon.utils.theme import RiskLevel
+from otacon.theme import RiskLevel
 
 # ---------------------------------------------------------------------------
 # Feature 1: MurmurHash3 & Web Fingerprinting
@@ -341,8 +341,8 @@ def test_scoring_mail_spoofable() -> None:
 def test_compute_diff() -> None:
     from datetime import UTC, datetime
 
-    from otacon.core.models import ScanReport
     from otacon.diff import compute_diff
+    from otacon.models import ScanReport
 
     t1 = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
     t2 = datetime(2026, 1, 2, 12, 0, tzinfo=UTC)
@@ -414,7 +414,7 @@ def test_cli_diff_subcommand(tmp_path) -> None:
     from typer.testing import CliRunner
 
     from otacon.cli import app
-    from otacon.core.models import DomainResult, ScanReport
+    from otacon.models import DomainResult, ScanReport
 
     runner = CliRunner()
 

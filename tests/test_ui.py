@@ -6,23 +6,11 @@ import random
 from io import StringIO
 
 from rich.console import Console
-from rich.text import Text
 
-from otacon import _splash, reporters
-from otacon.core.models import DomainResult, PermutationType, ScanReport
-from otacon.core.types import RiskLevel
-from otacon.engine import scanner as _scanner
-from otacon.triage.dossier import evidence
-from otacon.ui.caps import GlyphLevel
-from otacon.utils.theme import (
-    BANNER,
-    LOGO_SWEEP,
-    OTACON_THEME,
-    SPOOF_INDEX,
-    WORDMARK,
-    active_palette,
-    banner,
-)
+from otacon import _scanner, _splash, reporters
+from otacon.interactive import _dossier
+from otacon.models import DomainResult, PermutationType, ScanReport
+from otacon.theme import OTACON_THEME, WORDMARK, RiskLevel, gradient, gradient_color
 
 
 def _console(**kw: object) -> tuple[Console, StringIO]:
@@ -44,20 +32,10 @@ def _hit(score: int, level: RiskLevel, **kw: object) -> DomainResult:
 # --- theme ------------------------------------------------------------------
 
 
-def test_the_mark_points_at_the_character_it_is_about() -> None:
-    """The arrow has to land under the homoglyph or the mark explains nothing."""
-    lines = Text.from_markup(BANNER).plain.strip("\n").split("\n")
-    sweep, word, pointer = lines
-    assert word[1 + SPOOF_INDEX] == WORDMARK[SPOOF_INDEX]
-    assert pointer[1 + SPOOF_INDEX] == "↑"
-    assert len(sweep.strip()) == len(LOGO_SWEEP)
-
-
-def test_the_mark_survives_a_terminal_that_cannot_draw_it() -> None:
-    """--ascii has to leave a mark that still reads, not a row of gaps."""
-    plain = Text.from_markup(banner(glyphs=GlyphLevel.ASCII)).plain
-    assert plain.isascii()
-    assert "OTACON" in plain
+def test_gradient_endpoints_match_stops() -> None:
+    assert gradient_color(0.0) == "#00d7af"
+    assert gradient_color(1.0) == "#5f8fff"
+    assert gradient("abc").plain == "abc"
 
 
 # --- splash -----------------------------------------------------------------
@@ -77,8 +55,8 @@ def test_animation_disabled_off_terminal_and_by_env(monkeypatch) -> None:
 
 def test_splash_decodes_to_the_wordmark() -> None:
     rng = random.Random(0)
-    first = _splash._frame(0, rng, active_palette()).plain
-    last = _splash._frame(_splash._FRAMES - 1, rng, active_palette()).plain
+    first = _splash._frame(0, rng).plain
+    last = _splash._frame(_splash._FRAMES - 1, rng).plain
     assert WORDMARK not in first
     assert WORDMARK in last
 
@@ -145,40 +123,21 @@ def test_tally_counts_dangerous_hits() -> None:
 # --- dossier ----------------------------------------------------------------
 
 
-def test_evidence_explains_signals_in_plain_language() -> None:
+def test_dossier_explains_signals_and_never_parses_hostile_markup() -> None:
     r = _hit(
         85,
         RiskLevel.CRITICAL,
         has_mx=True,
         mx_records=["mx.ex85.com"],
         http_status=200,
-        page_title="Login",
+        page_title="[/][link=https://evil.example]Login[/link]",
         ip_addresses=["203.0.113.9"],
     )
-    rows = evidence(r)
-    facts = {label: (fact, meaning) for label, fact, meaning in rows}
-    assert "203.0.113.9" in facts["Online"][0]
-    assert "can send email" in facts["Mail"][1]
-
-
-def test_evidence_never_parses_hostile_markup_from_a_scanned_page() -> None:
-    """A page title is attacker-controlled and must reach the screen verbatim.
-
-    Rich markup in a title (`[link=...]`) would otherwise be interpreted when
-    rendered, letting a scanned site paint its own text into the operator's
-    terminal.
-    """
-    hostile = "[/][link=https://evil.example]Login[/link]"
-    r = _hit(85, RiskLevel.CRITICAL, http_status=200, page_title=hostile)
-    (_label, fact, _meaning) = next(row for row in evidence(r) if row[0] == "Website")
-    assert hostile in fact
-
-    # Text.append takes the string literally, so the markup survives to the screen.
     console, buf = _console()
-    rendered = Text()
-    rendered.append(fact)
-    console.print(rendered)
-    assert hostile in buf.getvalue()
+    console.print(_dossier(r))
+    out = buf.getvalue()
+    assert "[link=https://evil.example]Login[/link]" in out
+    assert "can send email" in out and "203.0.113.9" in out
 
 
 # --- next steps ---------------------------------------------------------------
@@ -188,10 +147,9 @@ def test_next_steps_skip_what_the_user_already_did(monkeypatch) -> None:
     from otacon import cli
 
     console, buf = _console()
+    monkeypatch.setattr(cli, "console", console)
     report = ScanReport(target="example.com", results=[_hit(90, RiskLevel.CRITICAL)])
-    cli._print_next_steps(
-        {"example.com": report}, html_written=True, ci_gated=False, console=console
-    )
+    cli._print_next_steps({"example.com": report}, html_written=True, ci_gated=False)
     out = buf.getvalue()
     assert "--html" not in out
-    assert "triage console" in out and "--fail-on high" in out
+    assert "guided mode" in out and "--fail-on high" in out

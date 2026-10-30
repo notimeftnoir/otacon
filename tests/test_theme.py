@@ -2,7 +2,7 @@
 
 The bug these guard against is not a crash: it is the UI rendering "?" or tofu
 because a codepoint is missing from the reader's terminal font. See
-``otacon.utils.theme.SAFE_GLYPHS``.
+``otacon.theme.SAFE_GLYPHS``.
 """
 
 from __future__ import annotations
@@ -12,17 +12,18 @@ from pathlib import Path
 
 import pytest
 
-from otacon.utils.theme import BANNER, SAFE_GLYPHS
+from otacon.theme import BANNER, SAFE_GLYPHS
 
 # UI modules: everything these print can land in a terminal. Two modules are
 # deliberately excluded from this tuple:
 #  - permutations.py: its non-ASCII is homoglyph *data* (Cyrillic/Greek/Armenian
 #    look-alike letters), not chrome — the tool's whole job is to show these
 #    literally so the analyst sees what the spoof looks like, so it must NOT be
-#    held to SAFE_GLYPHS. (That data does reach a terminal, unescaped, via the
-#    `generate` command — `rich.markup.escape()` there only neutralises `[`/`]`
-#    markup syntax, not Unicode — so this exclusion is a deliberate scope
-#    decision, not a claim that the glyphs are neutralised before they print.)
+#    held to SAFE_GLYPHS. (That data does reach a terminal, unescaped, via
+#    the `generate` command and interactive.py's `_interactive_generate` —
+#    `rich.markup.escape()` there only neutralises `[`/`]` markup syntax, not
+#    Unicode — so this exclusion is a deliberate scope decision, not a claim
+#    that the glyphs are somehow neutralised before they print.)
 #  - reporters/html.py: it never touches a terminal — it renders raw HTML that a
 #    browser paints, and browsers substitute a fallback font per-glyph instead
 #    of showing tofu/'?' the way a fixed-font console does, so the console-font
@@ -33,21 +34,17 @@ from otacon.utils.theme import BANNER, SAFE_GLYPHS
 # packages of the same name — so the guard was checking files nothing rendered.
 _UI_MODULES = (
     "utils/theme.py",
-    "ui/glyphs.py",
-    "ui/tokens.py",
-    "ui/copy.py",
     "reporters/console.py",
+    "interactive.py",
     "cli/main.py",
     "cli/commands/scan.py",
     "cli/commands/generate.py",
     "cli/commands/diff.py",
     "engine/scanner.py",
     "tui/app.py",
-    "tui/widgets.py",
-    "tui/screens/start.py",
-    "tui/screens/results.py",
     "cli/commands/tui.py",
     "triage/dossier.py",
+    "triage/prompts.py",
     "triage/actions.py",
     "_splash.py",
 )

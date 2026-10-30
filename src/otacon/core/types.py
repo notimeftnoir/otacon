@@ -27,23 +27,6 @@ class PermutationType(str, Enum):
     CT_LOG = "ct-log"
 
 
-class ScanPhase(str, Enum):
-    """Which stage of a scan is running.
-
-    These are the stages a scan actually has, which is not the same as the
-    list of checks it performs: DNS, HTTP, TLS, WHOIS and DNSBL all happen
-    together inside one per-domain probe, so they are not stages at all.
-    What the operator waits through is building the candidate list,
-    discovering more of them from Certificate Transparency, and then checking
-    them — and the middle one is a single slow network call that used to
-    report nothing while it ran.
-    """
-
-    GENERATING = "generating"
-    DISCOVERING = "discovering"
-    CHECKING = "checking"
-
-
 class RiskLevel(str, Enum):
     """Risk severity classification for lookalike domain variants."""
 

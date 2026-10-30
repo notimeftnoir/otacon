@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from otacon.core.models import DomainResult, PermutationType
+from otacon.models import DomainResult, PermutationType
 from otacon.scoring import score
-from otacon.utils.theme import RiskLevel
+from otacon.theme import RiskLevel
 
 
 def test_score_unregistered_is_safe() -> None:

@@ -1,6 +1,6 @@
 # Otacon — Architecture & Design Notes
 
-_[← back to the README](../README.md)_ · [Usage](USAGE.md) · [Scoring](SCORING.md) · [Output](OUTPUT.md) · [CI/CD](CI.md) · [FAQ](FAQ.md) · [Design](DESIGN.md) · [UI roadmap](UI-ROADMAP.md)
+_[← back to the README](../README.md)_ · [Usage](USAGE.md) · [Scoring](SCORING.md) · [Output](OUTPUT.md) · [CI/CD](CI.md) · [FAQ](FAQ.md) · [Design](DESIGN.md)
 
 ---
 
@@ -28,9 +28,9 @@ This document explains *why* Otacon is built the way it is. For *how to use it*,
 ```
         ┌──────────────┬──────────────┬──────────────┐
         │  cli/        │  tui/        │  triage/     │   entry points
-        │  scan·tui·   │  Textual     │  evidence·   │
-        │  generate·   │  console     │  notice·     │
-        │  diff        │  (default)   │  rescan      │
+        │  scan·tui·   │  Textual     │  guided      │
+        │  generate·   │  console     │  prompts     │
+        │  diff        │              │              │
         └──────┬───────┴──────┬───────┴──────┬───────┘
                │              │              │
                ▼              │              │
@@ -269,14 +269,10 @@ Memory: under 100 MB peak even for 200+ permutations. We hold all `DomainResult`
 
 ## Future work
 
-Interface work has its own plan in [UI-ROADMAP.md](UI-ROADMAP.md) — the
-design-token layer, the triage console's hierarchy, and the path for users
-who are not security specialists.
+Roadmap items, in rough priority order:
 
-Engine items, in rough priority order:
-
-1. **Page-content fingerprint comparison** — diff the lookalike's HTML against the target to detect cloned login pages
-2. **Async WHOIS batching** — send multiple labels in one connection for TLDs that support it
-3. **Screenshot capture** — opt-in, requires headless browser; useful for legal evidence packs
-4. **Native i18n target support** — generator currently tuned for ASCII labels
-5. **Plugin entrypoint for custom techniques** — `pyproject.toml` entry points, no fork needed
+2. **Page-content fingerprint comparison** — diff the lookalike's HTML against the target to detect cloned login pages
+3. **Async WHOIS batching** — send multiple labels in one connection for TLDs that support it
+4. **Screenshot capture** — opt-in, requires headless browser; useful for legal evidence packs
+5. **Native i18n target support** — generator currently tuned for ASCII labels
+6. **Plugin entrypoint for custom techniques** — `pyproject.toml` entry points, no fork needed

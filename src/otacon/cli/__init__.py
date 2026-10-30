@@ -9,17 +9,16 @@ from pathlib import Path
 
 from .. import permutations, reporters, scoring
 from .._asyncutils import run_async
+from .._scanner import run_scan
 from .._splash import play_intro
-from ..core.models import ScanReport
-from ..core.types import RiskLevel
-from ..engine.scanner import run_scan
-from ..utils.theme import BANNER, OTACON_THEME
-from ..utils.validate import (
+from .._validate import (
     is_valid_domain,
     normalize_domain,
     parse_domain_list,
     safe_cli_path,
 )
+from ..models import ScanReport
+from ..theme import BANNER, OTACON_THEME, RiskLevel
 from .commands.diff import execute_diff
 from .commands.generate import execute_generate
 from .commands.scan import (

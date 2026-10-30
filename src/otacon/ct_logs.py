@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 
-from .utils.validate import is_valid_domain, normalize_domain
+from ._validate import is_valid_domain, normalize_domain
 
 _log = logging.getLogger("otacon.ct_logs")
 

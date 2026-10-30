@@ -8,66 +8,22 @@ calling the action methods directly.
 from __future__ import annotations
 
 import json
-import re
-from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from textual.coordinate import Coordinate
-from textual.widgets import Checkbox, DataTable, OptionList, RadioButton, Static
 
-from otacon import config
 from otacon.core.models import DomainResult, ScanReport
 from otacon.core.types import PermutationType, RiskLevel
-from otacon.triage.verdict import delta, verdict, worst_first
-from otacon.tui.app import OtaconTUI
-from otacon.tui.screens import (
-    CompareScreen,
-    OverviewScreen,
-    ResultsScreen,
-    SettingsScreen,
+from otacon.tui.app import (
+    _LEVEL_COLOR,
+    OtaconTUI,
+    _badges,
+    _level_counts,
+    _risk_bar,
+    _signals,
 )
-from otacon.tui.screens.results import SortMode, column
 from otacon.tui.styles import OTACON_CSS
-from otacon.tui.widgets import (
-    LEVEL_COLOR,
-    LEVELS_DESC,
-    badges,
-    band_cell,
-    gutter,
-    level_counts,
-    risk_bar,
-    signals,
-    tally,
-)
-from otacon.ui.copy import BANDS, FLAGS
-from otacon.ui.emit import rich_theme, textual_vars
-from otacon.ui.tokens import MIDNIGHT, THEMES
-
-# The console lands on the overview now, so a test about the findings table
-# names that explicitly rather than depending on which screen happens to open
-# first. Tests about the overview use the default.
-
-
-def _screen_text(app: OtaconTUI) -> str:
-    """Everything currently composited onto the screen, as plain text.
-
-    Asserting against the composited output rather than a widget's renderable
-    is the difference between "the code built this" and "a reader can see
-    this": anything clipped, scrolled out or covered by an overlay is absent
-    here exactly as it is absent on a terminal.
-    """
-    return "\n".join(
-        "".join(segment.text for segment in strip).rstrip()
-        for strip in app.screen._compositor.render_strips()
-    )
-
-
-def _screen(app: OtaconTUI) -> ResultsScreen:
-    """The results screen the app is currently showing."""
-    screen = app.screen
-    assert isinstance(screen, ResultsScreen)
-    return screen
+from otacon.utils.theme import OTACON_THEME
 
 
 def _result(domain: str, score: int, level: RiskLevel, **kw: object) -> DomainResult:
@@ -105,7 +61,7 @@ def report() -> ScanReport:
     [(0, 0), (6, 0), (13, 1), (50, 4), (99, 8), (100, 8)],
 )
 def test_risk_bar_ramp(score: int, filled: int) -> None:
-    bar = risk_bar(score)
+    bar = _risk_bar(score)
     assert len(bar) == 8
     assert bar.count("█") == filled
 
@@ -121,64 +77,39 @@ def test_badges_lists_every_actionable_flag() -> None:
         has_mx=True,
         is_mail_spoofable=True,
     )
-    assert badges(r) == "DBL FAVICON LOGIN SPOOF"
+    assert _badges(r) == "DBL FAVICON LOGIN SPOOF"
 
 
 def test_badges_prefers_sinkhole_over_parked() -> None:
     r = _result("x.com", 0, RiskLevel.SAFE, is_sinkhole=True, is_parked=True)
-    assert "SINKHOLE" in badges(r)
-    assert "PARKED" not in badges(r)
+    assert "SINKHOLE" in _badges(r)
+    assert "PARKED" not in _badges(r)
 
 
 def test_signals_marks_absent_checks_without_shifting_columns() -> None:
-    present = signals(_result("a.com", 50, RiskLevel.MEDIUM, has_mx=True, has_ssl=True))
-    absent = signals(_result("b.com", 50, RiskLevel.MEDIUM))
+    present = _signals(_result("a.com", 50, RiskLevel.MEDIUM, has_mx=True, has_ssl=True))
+    absent = _signals(_result("b.com", 50, RiskLevel.MEDIUM))
     assert present == "DNS MX SSL ···"
     # Absent checks are dotted rather than blank so the column stays aligned.
     assert absent == "DNS ·· ··· ···"
 
 
 def test_level_counts_ignores_unregistered(report: ScanReport) -> None:
-    counts = level_counts(report)
+    counts = _level_counts(report)
     assert counts[RiskLevel.CRITICAL] == 1
     assert counts[RiskLevel.HIGH] == 1
     assert sum(counts.values()) == 4  # nothere.com is unregistered
 
 
-def test_stylesheet_carries_no_colours_of_its_own() -> None:
-    """The stylesheet must hold design tokens, never literals.
-
-    This replaces an older anti-drift check that asserted styles.py repeated
-    the Rich theme's hexes correctly. Repeating them was the defect: the
-    stylesheet now references $otacon-* variables fed in from one palette, so
-    there is no second copy left to drift. A hex literal reappearing here
-    means someone started a third one.
-    """
-    assert not re.findall(r"#[0-9a-fA-F]{3,8}\b", OTACON_CSS)
-
-
-def test_every_token_the_stylesheet_uses_is_supplied() -> None:
-    """A typo in a $otacon-* name is invisible until something renders wrong."""
-    used = set(re.findall(r"\$(otacon-[a-z0-9-]+)", OTACON_CSS))
-    supplied = set(textual_vars(MIDNIGHT))
-    assert used, "the stylesheet stopped using design tokens"
-    assert used <= supplied, f"undefined tokens: {sorted(used - supplied)}"
-
-
-def test_rich_theme_and_textual_tokens_come_from_one_palette() -> None:
-    """The console and the triage console must agree about what 'critical' is."""
-    for palette in THEMES.values():
-        tokens = textual_vars(palette)
-        theme = rich_theme(palette)
-        for level in RiskLevel:
-            assert tokens[f"otacon-risk-{level.value}"] == palette.tone(level).fg
-        brand = theme.styles["brand"].color
-        assert brand is not None and brand.triplet is not None
-        assert brand.triplet.hex.lower() == palette.brand.lower()
-
-
-def test_level_colours_are_real_colours() -> None:
-    for level, hex_colour in LEVEL_COLOR.items():
+def test_stylesheet_palette_matches_the_rich_theme() -> None:
+    """styles.py repeats the palette as CSS literals; this is the anti-drift check."""
+    for name in ("brand", "ok", "warn", "danger"):
+        colour = OTACON_THEME.styles[name].color
+        assert colour is not None
+        if name == "brand":
+            assert colour.triplet is not None
+            assert colour.triplet.hex.lower() in OTACON_CSS.lower()
+    for level, hex_colour in _LEVEL_COLOR.items():
         assert hex_colour.startswith("#"), level
 
 
@@ -187,84 +118,84 @@ def test_level_colours_are_real_colours() -> None:
 
 @pytest.mark.asyncio
 async def test_opens_on_the_highest_scoring_row(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
+    app = OtaconTUI(report)
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert _screen(app).selected is not None
-        assert _screen(app).selected.domain == "exampl3.com"
+        assert app._selected is not None
+        assert app._selected.domain == "exampl3.com"
 
 
 @pytest.mark.asyncio
 async def test_unregistered_hidden_until_toggled(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
+    app = OtaconTUI(report)
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert [r.domain for r in _screen(app)._rows] == [
+        assert [r.domain for r in app._rows] == [
             "exampl3.com",
             "exmaple.com",
             "exampel.com",
             "exampie.com",
         ]
-        await pilot.press("u")
+        await pilot.press("a")
         await pilot.pause()
-        assert "nothere.com" in [r.domain for r in _screen(app)._rows]
-        await pilot.press("u")
+        assert "nothere.com" in [r.domain for r in app._rows]
+        await pilot.press("a")
         await pilot.pause()
-        assert "nothere.com" not in [r.domain for r in _screen(app)._rows]
+        assert "nothere.com" not in [r.domain for r in app._rows]
 
 
 @pytest.mark.asyncio
 async def test_digit_filters_to_one_level_and_toggles_off(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
+    app = OtaconTUI(report)
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("1")
         await pilot.pause()
-        assert [r.domain for r in _screen(app)._rows] == ["exampl3.com"]
+        assert [r.domain for r in app._rows] == ["exampl3.com"]
         await pilot.press("1")  # same key lifts the filter
         await pilot.pause()
-        assert len(_screen(app)._rows) == 4
+        assert len(app._rows) == 4
 
 
 @pytest.mark.asyncio
 async def test_zero_clears_an_active_level_filter(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
+    app = OtaconTUI(report)
     async with app.run_test() as pilot:
         await pilot.press("2")
         await pilot.pause()
-        assert len(_screen(app)._rows) == 1
+        assert len(app._rows) == 1
         await pilot.press("0")
         await pilot.pause()
-        assert len(_screen(app)._rows) == 4
+        assert len(app._rows) == 4
 
 
 @pytest.mark.asyncio
 async def test_search_narrows_rows_and_escape_restores_them(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
+    app = OtaconTUI(report)
     async with app.run_test() as pilot:
         await pilot.press("slash")
         for ch in "exampe":
             await pilot.press(ch)
         await pilot.pause()
-        assert [r.domain for r in _screen(app)._rows] == ["exampel.com"]
+        assert [r.domain for r in app._rows] == ["exampel.com"]
         await pilot.press("escape")
         await pilot.pause()
-        assert len(_screen(app)._rows) == 4
+        assert len(app._rows) == 4
 
 
 @pytest.mark.asyncio
 async def test_navigation_moves_the_dossier(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
+    app = OtaconTUI(report)
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("j")
         await pilot.pause()
-        assert _screen(app).selected is not None
-        assert _screen(app).selected.domain == "exmaple.com"
+        assert app._selected is not None
+        assert app._selected.domain == "exmaple.com"
         await pilot.press("k")
         await pilot.pause()
-        assert _screen(app).selected is not None
-        assert _screen(app).selected.domain == "exampl3.com"
+        assert app._selected is not None
+        assert app._selected.domain == "exampl3.com"
 
 
 @pytest.mark.asyncio
@@ -272,12 +203,12 @@ async def test_takedown_overlay_shows_and_escape_dismisses(
     report: ScanReport, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    app = OtaconTUI(report, landing="results")
+    app = OtaconTUI(report)
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("t")
         await pilot.pause()
-        notice = _screen(app).query_one("#notice")
+        notice = app.query_one("#notice")
         assert notice.has_class("visible")
         written = tmp_path / "takedown-exampl3_com.txt"
         assert written.is_file()
@@ -292,7 +223,7 @@ async def test_export_writes_a_single_result_report(
     report: ScanReport, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    app = OtaconTUI(report, landing="results")
+    app = OtaconTUI(report)
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("e")
@@ -311,20 +242,20 @@ async def test_actions_are_inert_when_the_filter_matches_nothing(
 ) -> None:
     """An empty row set must not raise or write a file named after nothing."""
     monkeypatch.chdir(tmp_path)
-    app = OtaconTUI(report, landing="results")
+    app = OtaconTUI(report)
     async with app.run_test() as pilot:
         await pilot.press("slash")
         for ch in "zzzz":
             await pilot.press(ch)
         await pilot.pause()
-        assert _screen(app)._rows == []
-        assert _screen(app).selected is None
+        assert app._rows == []
+        assert app._selected is None
         await pilot.press("escape")
         await pilot.press("5")  # no SAFE registered rows in the fixture
         await pilot.pause()
-        _screen(app).action_export()
-        _screen(app).action_takedown()
-        _screen(app).action_whois()
+        app.action_export()
+        app.action_takedown()
+        app.action_whois()
         await pilot.pause()
         assert list(tmp_path.iterdir()) == []
 
@@ -339,677 +270,9 @@ async def test_unsafe_export_filename_is_refused(
         target="example.com",
         results=[_result("nul", 50, RiskLevel.MEDIUM)],
     )
-    app = OtaconTUI(hostile, landing="results")
+    app = OtaconTUI(hostile)
     async with app.run_test() as pilot:
         await pilot.pause()
-        _screen(app).action_export()
+        app.action_export()
         await pilot.pause()
         assert list(tmp_path.iterdir()) == []
-
-
-# ── hierarchy: the table gutter, bands and tally ────────────────────────
-
-
-def test_gutter_is_one_cell_of_ordered_ink() -> None:
-    """The eight-cell bar it replaces painted one slab down a real scan.
-
-    Scores inside a band rarely differ enough to change a bar's length, so
-    thirty rows of `████░░░░` separated nothing while costing the width that
-    DOMAIN and FLAGS needed. One glyph gives an edge per row, and the ramp is
-    ordered by ink so it survives `mono` and a greyscale screenshot.
-    """
-    marks = [gutter(level).plain for level in LEVELS_DESC]
-    assert marks == ["█", "▓", "▒", "░", "○"]
-    assert all(len(m) == 1 for m in marks)
-
-
-def test_band_label_prints_once_per_run() -> None:
-    """Naming each run where it starts is what shows where 'act now' ends."""
-    assert band_cell(RiskLevel.HIGH, first_of_band=True).plain == "HIGH"
-    assert band_cell(RiskLevel.HIGH, first_of_band=False).plain == ""
-
-
-def test_tally_is_labelled_by_default(report: ScanReport) -> None:
-    """The bare glyph ramp it replaces had no legend anywhere on screen."""
-    assert "CRIT" in tally(report).plain
-    assert "HIGH" in tally(report).plain
-
-
-def test_tally_falls_back_to_glyphs_when_labels_will_not_fit(report: ScanReport) -> None:
-    bare = tally(report, labelled=False).plain
-    assert "CRIT" not in bare
-    assert "█" in bare
-
-
-@pytest.mark.asyncio
-async def test_table_shows_a_band_label_at_each_severity_change(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        table = app.screen.query_one("#results", DataTable)
-        bands = [
-            table.get_cell_at(Coordinate(row, column("band"))).plain
-            for row in range(table.row_count)
-        ]
-    # One label per populated band, in descending order, never repeated.
-    assert [b for b in bands if b] == ["CRIT", "HIGH", "MED", "LOW"]
-
-
-@pytest.mark.asyncio
-async def test_focus_mode_dims_everything_below_the_worst_band(report: ScanReport) -> None:
-    """Two rows worth acting on should stop competing with thirty that are not."""
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("f")
-        await pilot.pause()
-        table = app.screen.query_one("#results", DataTable)
-        styles = [
-            table.get_cell_at(Coordinate(row, column("domain"))).style
-            for row in range(table.row_count)
-        ]
-    # The critical row keeps its colour; everything under it is dimmed.
-    assert MIDNIGHT.dim not in str(styles[0])
-    assert all(MIDNIGHT.dim in str(s) for s in styles[1:])
-
-
-@pytest.mark.asyncio
-async def test_bars_toggle_restores_the_full_ramp(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        table = app.screen.query_one("#results", DataTable)
-        assert table.get_cell_at(Coordinate(0, column("risk"))).plain.strip().startswith("█ ")
-        await pilot.press("b")
-        await pilot.pause()
-        table = app.screen.query_one("#results", DataTable)
-        assert risk_bar(95) in table.get_cell_at(Coordinate(0, column("risk"))).plain
-
-
-# ── the state that used to vanish with the toast ────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_status_bar_keeps_the_active_filter_on_screen(report: ScanReport) -> None:
-    """A toast said this and then disappeared while still filtering."""
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        status = app.screen.query_one("#statusbar", Static)
-        assert "all levels" in status.render().plain
-        await pilot.press("1")
-        await pilot.pause()
-        text = app.screen.query_one("#statusbar", Static).render().plain
-        assert "CRIT only" in text
-        assert "1 of 4 registered" in text
-
-
-@pytest.mark.asyncio
-async def test_status_bar_points_at_the_help_overlay(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        assert "? for help" in app.screen.query_one("#statusbar", Static).render().plain
-
-
-# ── the glossary the console never had ──────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_help_overlay_explains_every_flag_and_band(report: ScanReport) -> None:
-    """Four characters in a table cell are not an explanation on their own."""
-    app = OtaconTUI(report, landing="results")
-    # Tall enough that the whole glossary is on screen: the assertion is that a
-    # reader can see it, so anything scrolled out would rightly fail here.
-    async with app.run_test(size=(150, 110)) as pilot:
-        await pilot.pause()
-        await pilot.press("question_mark")
-        await pilot.pause()
-        panel = app.screen.query_one("#help", Static)
-        assert panel.has_class("visible")
-        rendered = _screen_text(app)
-    for term in FLAGS.values():
-        assert term.short in rendered
-    for level, span, _why in BANDS:
-        assert span in rendered, level
-
-
-@pytest.mark.asyncio
-async def test_escape_closes_the_help_overlay(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("question_mark")
-        await pilot.pause()
-        await pilot.press("escape")
-        await pilot.pause()
-        assert not app.screen.query_one("#help", Static).has_class("visible")
-
-
-# ── the dossier's alignment bug ─────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_dossier_keeps_long_values_in_their_own_column(report: ScanReport) -> None:
-    """A flat Text wrapped long values back to column zero.
-
-    That broke the label/value grid on exactly the rows carrying the most
-    evidence — IP lists and redirect URLs — so the pane is a real grid now.
-    """
-    long_ips = ["203.0.113.10", "203.0.113.11", "2a06:98c1:3120::b", "198.51.100.77"]
-    report.results[0] = report.results[0].model_copy(update={"ip_addresses": long_ips})
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        lines = _screen_text(app).splitlines()
-    label_line = next(i for i, line in enumerate(lines) if "Online" in line)
-    # The label owns the left column; the value and its continuation are indented
-    # past it rather than starting at the margin.
-    for continuation in lines[label_line + 1 : label_line + 3]:
-        if continuation.strip():
-            assert continuation.startswith(" " * 4), continuation
-
-
-@pytest.mark.asyncio
-async def test_dossier_offers_actions_for_the_selected_row(report: ScanReport) -> None:
-    """The pane's lower half was dead space on a short evidence list."""
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 60)) as pilot:
-        await pilot.pause()
-        body = _screen_text(app)
-    assert "WHAT YOU CAN DO" in body
-    # A critical row is worth a takedown notice; the offer says so in words.
-    assert "abuse notice" in body
-
-
-def test_no_screen_hard_codes_a_colour() -> None:
-    """Phase 0 moved the palette into ui/; this keeps it from leaking back.
-
-    The stylesheet has its own guard, but the screens build Rich styles in
-    Python, and five hex literals survived there — invisible to a check that
-    only reads the CSS. Every colour must come from the active palette or the
-    themes stop meaning anything.
-    """
-    root = Path(__file__).resolve().parent.parent / "src" / "otacon" / "tui"
-    offenders = {
-        path.relative_to(root).as_posix(): sorted(
-            set(re.findall(r'"#[0-9a-fA-F]{3,8}"', path.read_text(encoding="utf-8")))
-        )
-        for path in root.rglob("*.py")
-    }
-    assert not {k: v for k, v in offenders.items() if v}
-
-
-# ── the overview: the screen a scan now lands on ────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_a_report_opens_on_the_overview_not_the_table(report: ScanReport) -> None:
-    """Dropping a reader into 240 rows is fine for an analyst and a wall for
-    everybody else. The console answers 'am I in trouble' first now."""
-    app = OtaconTUI(report)
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        assert isinstance(app.screen, OverviewScreen)
-        shown = _screen_text(app)
-    assert verdict(report).headline in shown
-
-
-@pytest.mark.asyncio
-async def test_overview_names_the_rows_worth_opening_first(report: ScanReport) -> None:
-    app = OtaconTUI(report)
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        shown = _screen_text(app)
-    assert "WHAT TO DO FIRST" in shown
-    worst = worst_first(report)[0]
-    assert worst.domain in shown
-    # In words, not in four-character markers.
-    assert "cloned favicon" in shown
-
-
-@pytest.mark.asyncio
-async def test_enter_opens_the_full_table(report: ScanReport) -> None:
-    app = OtaconTUI(report)
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-        assert isinstance(app.screen, ResultsScreen)
-
-
-@pytest.mark.asyncio
-async def test_a_clean_scan_does_not_open_an_empty_table() -> None:
-    """Nothing registered means the table's default filter matches nothing,
-    so following the one instruction on screen would land on a dead end."""
-    clean = ScanReport(
-        target="example.com",
-        total_permutations=200,
-        results=[DomainResult(domain="nothere.com", kind=PermutationType.TYPO)],
-    )
-    app = OtaconTUI(clean)
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        assert "All clear" in _screen_text(app)
-        await pilot.press("enter")
-        await pilot.pause()
-        assert "nothere.com" in _screen_text(app)
-
-
-@pytest.mark.asyncio
-async def test_overview_reports_what_changed_since_the_last_scan(report: ScanReport) -> None:
-    earlier = report.model_copy(
-        update={
-            "started_at": report.started_at - timedelta(days=4),
-            "results": [DomainResult(domain=r.domain, kind=r.kind) for r in report.results],
-        }
-    )
-    app = OtaconTUI(report)
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await app.push_screen(OverviewScreen(report, delta(earlier, report)))
-        await pilot.pause()
-        shown = _screen_text(app)
-    assert "SINCE YOUR LAST SCAN" in shown
-    assert "newly registered" in shown
-
-
-@pytest.mark.asyncio
-async def test_overview_says_nothing_when_nothing_changed(report: ScanReport) -> None:
-    """Re-running on a quiet week must not invent news."""
-    app = OtaconTUI(report)
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await app.push_screen(OverviewScreen(report, delta(report, report)))
-        await pilot.pause()
-        assert "SINCE YOUR LAST SCAN" not in _screen_text(app)
-
-
-# ── start screen: presets ───────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_presets_drive_the_switches_underneath(tmp_path: Path) -> None:
-    """The switches stay the single source of truth, so opening Advanced
-    always shows what the preset actually selected."""
-    app = OtaconTUI()
-    async with app.run_test(size=(110, 44)) as pilot:
-        await pilot.pause()
-        screen = app.screen
-
-        def switches() -> dict[str, bool]:
-            return {c.id.removeprefix("opt-"): c.value for c in screen.query(Checkbox) if c.id}
-
-        # Thorough is selected on open: a preset must never quietly make a scan
-        # less thorough than the tool was before presets existed.
-        assert all(switches().values())
-        screen.query_one("#preset-0", RadioButton).value = True
-        await pilot.pause()
-        assert not any(switches().values())
-        screen.query_one("#preset-1", RadioButton).value = True
-        await pilot.pause()
-        assert switches() == {
-            "check_http": True,
-            "check_whois": False,
-            "check_dnsbl": True,
-            "check_ct": False,
-        }
-
-
-# ── working more than one row at a time ─────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_sort_cycles_through_the_orders(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        screen = app.screen
-        assert isinstance(screen, ResultsScreen)
-        assert [r.domain for r in screen._rows] == [
-            "exampl3.com",
-            "exmaple.com",
-            "exampel.com",
-            "exampie.com",
-        ]
-        await pilot.press("s")
-        await pilot.pause()
-        assert screen._sort is SortMode.DOMAIN
-        assert [r.domain for r in screen._rows] == sorted(r.domain for r in screen._rows)
-
-
-@pytest.mark.asyncio
-async def test_band_labels_only_appear_while_sorted_by_risk(report: ScanReport) -> None:
-    """Under any other order they would mark runs that are not runs."""
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("s")
-        await pilot.pause()
-        table = app.screen.query_one("#results", DataTable)
-        bands = [
-            table.get_cell_at(Coordinate(row, column("band"))).plain
-            for row in range(table.row_count)
-        ]
-    assert not any(bands)
-
-
-@pytest.mark.asyncio
-async def test_space_marks_a_row_and_moves_on(report: ScanReport) -> None:
-    """Marking a run of rows should be one key held down, not two alternating."""
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        screen = app.screen
-        assert isinstance(screen, ResultsScreen)
-        await pilot.press("space")
-        await pilot.pause()
-        assert [r.domain for r in screen.marked] == ["exampl3.com"]
-        await pilot.press("space")
-        await pilot.pause()
-        assert [r.domain for r in screen.marked] == ["exampl3.com", "exmaple.com"]
-
-
-@pytest.mark.asyncio
-async def test_marks_survive_a_filter_but_actions_do_not_reach_hidden_rows(
-    report: ScanReport,
-) -> None:
-    """Acting on rows hidden behind a filter is how a bulk action surprises you."""
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        screen = app.screen
-        assert isinstance(screen, ResultsScreen)
-        await pilot.press("v")
-        await pilot.pause()
-        assert len(screen.marked) == 4
-        await pilot.press("1")  # critical only
-        await pilot.pause()
-        assert [r.domain for r in screen.marked] == ["exampl3.com"]
-        assert len(screen._selected) == 4  # the marks themselves are untouched
-
-
-@pytest.mark.asyncio
-async def test_an_action_falls_back_to_the_row_under_the_cursor(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        screen = app.screen
-        assert isinstance(screen, ResultsScreen)
-        assert [r.domain for r in screen.targets] == ["exampl3.com"]
-
-
-@pytest.mark.asyncio
-async def test_bulk_writes_are_armed_before_they_happen(
-    report: ScanReport, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A dozen rows is a dozen files in the working directory, which is worth
-    a sentence naming the number first."""
-    monkeypatch.chdir(tmp_path)
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("v")
-        await pilot.pause()
-        await pilot.press("t")
-        await pilot.pause()
-        assert app.screen.query_one("#notice", Static).has_class("visible")
-        assert not list(tmp_path.glob("takedown-*.txt"))
-        await pilot.press("t")
-        await pilot.pause()
-        assert len(list(tmp_path.glob("takedown-*.txt"))) == 4
-
-
-@pytest.mark.asyncio
-async def test_escape_cancels_an_armed_bulk_write(
-    report: ScanReport, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("v")
-        await pilot.press("t")
-        await pilot.pause()
-        await pilot.press("escape")
-        await pilot.pause()
-        await pilot.press("t")
-        await pilot.pause()
-        # Disarmed: the second `t` arms again rather than writing.
-        assert not list(tmp_path.glob("takedown-*.txt"))
-
-
-@pytest.mark.asyncio
-async def test_a_single_row_needs_no_confirmation(
-    report: ScanReport, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("t")
-        await pilot.pause()
-        assert len(list(tmp_path.glob("takedown-*.txt"))) == 1
-
-
-@pytest.mark.asyncio
-async def test_export_view_writes_what_the_filter_shows(
-    report: ScanReport, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Having narrowed a scan to the rows that matter, handing that set on
-    should not mean doing it again by hand."""
-    monkeypatch.chdir(tmp_path)
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("1")  # critical only
-        await pilot.pause()
-        await pilot.press("x")
-        await pilot.pause()
-    written = json.loads((tmp_path / "example_com-view.json").read_text(encoding="utf-8"))
-    assert [r["domain"] for r in written["results"]] == ["exampl3.com"]
-
-
-@pytest.mark.asyncio
-async def test_status_bar_reports_the_marks_and_the_order(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("v")
-        await pilot.pause()
-        status = app.screen.query_one("#statusbar", Static).render().plain
-    assert "4 marked" in status
-    assert "by risk" in status
-
-
-def test_the_palette_only_offers_commands_the_screen_can_run() -> None:
-    """A palette entry that does nothing is worse than no palette entry."""
-    from otacon.tui.commands import _COMMANDS
-
-    for _title, _blurb, action in _COMMANDS:
-        assert hasattr(ResultsScreen, f"action_{action}"), action
-
-
-@pytest.mark.asyncio
-async def test_a_refresh_keeps_the_row_under_the_cursor(report: ScanReport) -> None:
-    """Rebuilding the table used to send the cursor back to row one.
-
-    That threw an operator to the top every time a WHOIS answer or a re-check
-    landed, and it made `space` toggle one row on and off instead of walking
-    down the list — the mark moved the cursor, the refresh moved it back.
-    """
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        screen = app.screen
-        assert isinstance(screen, ResultsScreen)
-        table = screen.query_one("#results", DataTable)
-        table.move_cursor(row=2)
-        await pilot.pause()
-        here = screen.selected
-        assert here is not None
-        screen.refresh_rows()
-        await pilot.pause()
-        assert screen.selected is not None
-        assert screen.selected.domain == here.domain
-
-
-# ── what changed since last time ────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_compare_groups_changes_under_their_own_headings(report: ScanReport) -> None:
-    """Three questions — what is new, what got worse, what went away — should
-    be three headings rather than one list to read through."""
-    earlier = report.model_copy(
-        update={
-            "started_at": report.started_at - timedelta(days=4),
-            "results": [DomainResult(domain=r.domain, kind=r.kind) for r in report.results],
-        }
-    )
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        await app.push_screen(CompareScreen(report, earlier))
-        await pilot.pause()
-        shown = _screen_text(app)
-    assert "NEWLY REGISTERED" in shown
-    assert "exampl3.com" in shown
-    assert "compared with 4d ago" in shown
-
-
-@pytest.mark.asyncio
-async def test_compare_says_so_when_nothing_moved(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        await app.push_screen(CompareScreen(report, report))
-        await pilot.pause()
-        shown = _screen_text(app)
-    assert "Nothing moved" in shown
-    assert "NEWLY REGISTERED" not in shown
-
-
-@pytest.mark.asyncio
-async def test_compare_explains_itself_on_a_first_scan(report: ScanReport) -> None:
-    """An empty screen would read as a failure rather than as a first run."""
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        await app.push_screen(CompareScreen(report, None))
-        await pilot.pause()
-        shown = _screen_text(app)
-    assert "first scan of this target" in shown
-
-
-@pytest.mark.asyncio
-async def test_c_opens_the_comparison_and_escape_returns(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("c")
-        await pilot.pause()
-        assert isinstance(app.screen, CompareScreen)
-        await pilot.press("escape")
-        await pilot.pause()
-        assert isinstance(app.screen, ResultsScreen)
-
-
-# ── settings, the allow-list and the watchlist ──────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_allowing_a_row_keeps_it_out_of_future_scans(report: ScanReport) -> None:
-    """It used to last one session, so a defensive registration of your own
-    had to be dismissed again every week."""
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("a")
-        await pilot.pause()
-    assert "exampl3.com" in config.target("example.com").allowed
-
-
-@pytest.mark.asyncio
-async def test_allowing_many_rows_is_confirmed_first(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(150, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("v")
-        await pilot.press("a")
-        await pilot.pause()
-        assert app.screen.query_one("#notice", Static).has_class("visible")
-        assert config.target("example.com").allowed == []
-        await pilot.press("a")
-        await pilot.pause()
-    assert len(config.target("example.com").allowed) == 4
-
-
-@pytest.mark.asyncio
-async def test_settings_screen_lists_and_forgets_an_allowed_domain(
-    report: ScanReport,
-) -> None:
-    config.allow("example.com", "shop.example.com")
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("comma")
-        await pilot.pause()
-        assert isinstance(app.screen, SettingsScreen)
-        assert "shop.example.com" in _screen_text(app)
-
-        allow_list = app.screen.query_one("#allow-list", OptionList)
-        allow_list.focus()
-        allow_list.highlighted = 0
-        await pilot.pause()
-        await pilot.press("d")
-        await pilot.pause()
-    assert config.target("example.com").allowed == []
-
-
-@pytest.mark.asyncio
-async def test_settings_screen_toggles_the_watchlist(report: ScanReport) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("comma")
-        await pilot.pause()
-        options = app.screen.query_one("#settings-list", OptionList)
-        options.focus()
-        options.highlighted = 4  # "Watch example.com"
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-    assert config.watched() == ["example.com"]
-
-
-@pytest.mark.asyncio
-async def test_settings_screen_cycles_a_preference_and_stores_it(
-    report: ScanReport,
-) -> None:
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("comma")
-        await pilot.pause()
-        options = app.screen.query_one("#settings-list", OptionList)
-        options.focus()
-        options.highlighted = 0  # theme
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-    assert config.settings().theme != "midnight"
-
-
-@pytest.mark.asyncio
-async def test_settings_screen_says_so_when_nothing_can_be_kept(
-    report: ScanReport, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A screen that silently discards every change is worse than no screen."""
-    monkeypatch.setenv("OTACON_NO_CONFIG", "1")
-    app = OtaconTUI(report, landing="results")
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        await pilot.press("comma")
-        await pilot.pause()
-        assert "OTACON_NO_CONFIG" in _screen_text(app)
