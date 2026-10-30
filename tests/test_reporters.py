@@ -5,28 +5,23 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from io import StringIO
 
-from rich.console import Console
-
-from otacon.core.models import DomainResult, PermutationType, ScanReport
+from otacon.models import DomainResult, PermutationType, ScanReport
 from otacon.reporters import (
     _age_cell,
     _check,
     _domain_cell,
-    _flags_cell,
     _http_cell,
+    _redirect_host,
     _risk_bar,
     _verdict_banner,
     _verdict_banner_md,
-    _why_section,
     build_live_table,
     render_table,
     to_csv,
     to_json,
     to_markdown,
 )
-from otacon.ui.copy import FLAGS
-from otacon.utils.theme import RiskLevel
-from otacon.utils.validate import redirect_host
+from otacon.theme import GLYPH_DEFENSIVE, RiskLevel
 
 
 def test_to_markdown_no_threats_contains_clear_message() -> None:
@@ -104,72 +99,46 @@ def test_http_cell_500():
 
 
 def test_redirect_host_extracts_netloc():
-    assert redirect_host("https://www.google.com/search?q=1") == "www.google.com"
+    assert _redirect_host("https://www.google.com/search?q=1") == "www.google.com"
 
 
 def test_redirect_host_fallback_for_bare_string():
-    assert redirect_host("not-a-url") == "not-a-url"
+    assert _redirect_host("not-a-url") == "not-a-url"
 
 
 def test_redirect_host_empty_string():
-    assert redirect_host("") == ""
+    assert _redirect_host("") == ""
 
 
-def _grid_text(grid) -> str:
-    """Flattens a Rich renderable to text, for asserting on what it says."""
-    console = Console(file=StringIO(), force_terminal=False, width=120)
-    with console.capture() as captured:
-        console.print(grid)
-    return captured.get()
-
-
-def test_domain_cell_is_just_the_name_now():
-    """Technique, badges and title moved to columns and to the section below.
-
-    Crammed into a column two dozen characters wide they wrapped across three
-    lines each, so twelve findings filled a screen and a half.
-    """
+def test_domain_cell_contains_domain_and_technique():
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
-    assert _domain_cell(r).plain == "googel.com"
+    cell = _domain_cell(r)
+    assert "googel.com" in cell.plain
+    assert "typo" in cell.plain
 
 
-def test_flags_cell_uses_the_spelling_every_surface_uses():
-    r = DomainResult(
-        domain="googel.com",
-        kind=PermutationType.TYPO,
-        dnsbl_listed=True,
-        has_login_form=True,
-        risk_level=RiskLevel.CRITICAL,
-    )
-    assert _flags_cell(r).plain == "DBL LOGIN"
-
-
-def test_flags_cell_is_empty_when_there_is_nothing_to_flag():
-    assert _flags_cell(DomainResult(domain="a.com", kind=PermutationType.TYPO)).plain == ""
-
-
-def test_defensive_rows_are_flagged_rather_than_annotated():
-    """The redirect target used to ride in the domain cell behind a bare "»",
-    which wrapped the column and explained nothing. Flags says OURS instead."""
+def test_domain_cell_defensive_shows_flag_and_host():
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
         redirects_to="https://google.com/",
         is_likely_defensive=True,
     )
-    assert _domain_cell(r).plain == "googel.com"
-    assert _flags_cell(r).plain == "OURS"
+    cell = _domain_cell(r)
+    assert GLYPH_DEFENSIVE in cell.plain
+    assert "google.com" in cell.plain
 
 
-def test_non_defensive_rows_carry_no_flag():
+def test_domain_cell_non_defensive_no_flag():
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
-    assert _flags_cell(r).plain == ""
+    cell = _domain_cell(r)
+    assert GLYPH_DEFENSIVE not in cell.plain
 
 
 def _make_console(no_color: bool = True):
     from rich.console import Console
 
-    from otacon.utils.theme import OTACON_THEME
+    from otacon.theme import OTACON_THEME
 
     buf = StringIO()
     return Console(file=buf, no_color=no_color, theme=OTACON_THEME, width=120), buf
@@ -204,11 +173,7 @@ def test_render_table_shows_defensive_flag():
     report.results.append(r)
     console, buf = _make_console()
     render_table(report, console)
-    out = buf.getvalue()
-    # The marker and the sentence that explains it, in words rather than a
-    # glyph with a footnote.
-    assert FLAGS["defensive"].short in out
-    assert FLAGS["defensive"].meaning in out
+    assert GLYPH_DEFENSIVE in buf.getvalue()
 
 
 def test_render_table_no_defensive_flag_when_not_defensive():
@@ -223,9 +188,7 @@ def test_render_table_no_defensive_flag_when_not_defensive():
     report.results.append(r)
     console, buf = _make_console()
     render_table(report, console)
-    out = buf.getvalue()
-    assert FLAGS["defensive"].short not in out
-    assert FLAGS["defensive"].meaning not in out
+    assert GLYPH_DEFENSIVE not in buf.getvalue()
 
 
 def test_render_table_shows_risk_bar_characters():
@@ -324,46 +287,49 @@ def test_json_export_includes_created_at():
 # ---------------------------------------------------------------------------
 
 
-def test_why_section_shows_the_page_title_for_dangerous_rows():
+def test_domain_cell_shows_page_title_for_high_risk():
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
         page_title="Sign in to Google",
         risk_level=RiskLevel.HIGH,
     )
-    section = _why_section([r])
-    assert section is not None
-    assert "Sign in to Google" in _grid_text(section)
+    cell = _domain_cell(r)
+    assert "Sign in to Google" in cell.plain
 
 
-def test_why_section_covers_critical_rows_too():
+def test_domain_cell_shows_page_title_for_critical_risk():
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
         page_title="Verify your account",
         risk_level=RiskLevel.CRITICAL,
     )
-    section = _why_section([r])
-    assert section is not None
-    assert "Verify your account" in _grid_text(section)
+    cell = _domain_cell(r)
+    assert "Verify your account" in cell.plain
 
 
-def test_why_section_leaves_medium_rows_out():
+def test_domain_cell_hides_page_title_for_medium_risk():
     r = DomainResult(
         domain="googel.com",
         kind=PermutationType.TYPO,
         page_title="Some page",
         risk_level=RiskLevel.MEDIUM,
     )
-    assert _why_section([r]) is None
+    cell = _domain_cell(r)
+    assert "Some page" not in cell.plain
 
 
-def test_why_section_is_absent_when_nothing_is_dangerous():
-    """Printing an empty "Why these matter" under a clean table says nothing."""
-    harmless = DomainResult(
-        domain="googel.com", kind=PermutationType.TYPO, risk_level=RiskLevel.LOW
+def test_domain_cell_no_title_no_extra_line():
+    r = DomainResult(
+        domain="googel.com",
+        kind=PermutationType.TYPO,
+        page_title=None,
+        risk_level=RiskLevel.HIGH,
     )
-    assert _why_section([harmless]) is None
+    cell = _domain_cell(r)
+    # Only domain + newline + technique — no third line
+    assert cell.plain == "googel.com\ntypo"
 
 
 def test_json_export_includes_page_title():
@@ -457,7 +423,7 @@ def test_verdict_banner_fresh_label_tracks_age_fresh_days_constant(monkeypatch) 
     """The '<Nd>' label must read AGE_FRESH_DAYS, not a hardcoded '<7d>'."""
     from otacon import scoring
 
-    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 14)
+    monkeypatch.setattr(scoring.engine, "AGE_FRESH_DAYS", 14)
     report = ScanReport(target="example.com", total_permutations=10)
     r = DomainResult(
         domain="exmaple.com",
@@ -499,7 +465,7 @@ def test_verdict_banner_md_with_threats():
 def test_verdict_banner_md_fresh_label_tracks_age_fresh_days_constant(monkeypatch) -> None:
     from otacon import scoring
 
-    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 14)
+    monkeypatch.setattr(scoring.engine, "AGE_FRESH_DAYS", 14)
     report = ScanReport(target="example.com", total_permutations=10)
     r = DomainResult(
         domain="exmaple.com",
@@ -563,9 +529,7 @@ def test_build_live_table_returns_table_with_columns():
     hits = [_make_hit("exmaple.com", 40, RiskLevel.MEDIUM)]
     table = build_live_table(hits, "example.com")
     assert isinstance(table, Table)
-    # Risk, Domain, Tech, Age, Signals, Flags — the same six the triage
-    # console shows, in the same order.
-    assert len(table.columns) == 6
+    assert len(table.columns) == 7
 
 
 def test_build_live_table_empty_hits_has_no_rows():
@@ -581,15 +545,15 @@ def test_build_live_table_sorts_by_score_descending():
     ]
     table = build_live_table(hits, "example.com")
     assert table.row_count == 3
-    # Domain is the second column now: Risk leads, as it does in the console.
-    first_cell = table.columns[1]._cells[0]
+    # Rich Table stores cells as renderables; extract plain text from first column
+    first_cell = table.columns[0]._cells[0]
     assert "crit.com" in (first_cell.plain if hasattr(first_cell, "plain") else str(first_cell))
 
 
 def test_build_live_table_includes_domain_name():
     hits = [_make_hit("evil-example.com", 60, RiskLevel.HIGH)]
     table = build_live_table(hits, "example.com")
-    cell = table.columns[1]._cells[0]
+    cell = table.columns[0]._cells[0]
     text = cell.plain if hasattr(cell, "plain") else str(cell)
     assert "evil-example.com" in text
 
@@ -663,14 +627,30 @@ def test_to_csv_neutralizes_formula_in_domain() -> None:
     assert "'=cmd|" in row
 
 
+def test_to_csv_neutralizes_a_tab_prefixed_title() -> None:
+    """Some spreadsheet apps strip a leading tab and then evaluate what follows."""
+    r = _make_hit("evil.com", 70, RiskLevel.HIGH)
+    r.page_title = "\t=1+1"
+    csv_text = to_csv(ScanReport(target="example.com", total_permutations=1, results=[r]))
+    assert "'\t=1+1" in csv_text
+
+
+def test_to_csv_neutralizes_formula_in_notes() -> None:
+    """Reasons quote remote data (a DNSBL source, a redirect host), so they are untrusted too."""
+    r = _make_hit("evil.com", 70, RiskLevel.HIGH)
+    r.risk_reasons = ["=HYPERLINK(1)", "listed"]
+    csv_text = to_csv(ScanReport(target="example.com", total_permutations=1, results=[r]))
+    assert "'=HYPERLINK(1); listed" in csv_text
+
+
 # ---------------------------------------------------------------------------
 # Aggregate JSON
 # ---------------------------------------------------------------------------
 
 
 def _make_report_with_results(domain: str, results=()) -> ScanReport:
-    from otacon.core.models import DomainResult, PermutationType, ScanReport
-    from otacon.utils.theme import RiskLevel
+    from otacon.models import DomainResult, PermutationType, ScanReport
+    from otacon.theme import RiskLevel
 
     r = ScanReport(target=domain, total_permutations=10)
     for kwargs in results:
@@ -689,7 +669,7 @@ def _make_report_with_results(domain: str, results=()) -> ScanReport:
 def test_aggregate_json_top_level_keys() -> None:
     import json
 
-    from otacon.core.models import ScanReport
+    from otacon.models import ScanReport
     from otacon.reporters import aggregate_json
 
     reports = {"github.com": ScanReport(target="github.com", total_permutations=5)}
@@ -700,7 +680,7 @@ def test_aggregate_json_top_level_keys() -> None:
 def test_aggregate_json_domain_keys_match_input() -> None:
     import json
 
-    from otacon.core.models import ScanReport
+    from otacon.models import ScanReport
     from otacon.reporters import aggregate_json
 
     reports = {
@@ -715,7 +695,7 @@ def test_aggregate_json_summary_counts() -> None:
     import json
 
     from otacon.reporters import aggregate_json
-    from otacon.utils.theme import RiskLevel
+    from otacon.theme import RiskLevel
 
     reports = {
         "a.com": _make_report_with_results(
@@ -912,15 +892,17 @@ def test_aggregate_json_summary_includes_low_count() -> None:
     assert payload["summary"]["low"] == 1
 
 
-def test_hostile_page_title_renders_verbatim() -> None:
-    """A page title containing markup brackets must not gain a backslash.
+def test_domain_cell_renders_bracketed_page_title_verbatim() -> None:
+    """A hostile page title containing markup brackets must not gain a backslash.
 
     rich.Text.append takes literal text and never parses console markup, so
     passing the title through rich.markup.escape rendered the escape character
-    itself, leaking a stray backslash into the output. The title is
-    attacker-controlled, so this guard moved with it when the page title left
-    the domain cell for the why section.
+    itself, leaking a stray backslash into the results table.
     """
+    from rich.console import Console
+
+    from otacon.reporters import _domain_cell
+
     result = DomainResult(
         domain="exampl3.com",
         kind=PermutationType.TYPO,
@@ -928,96 +910,8 @@ def test_hostile_page_title_renders_verbatim() -> None:
         page_title="[b] domain for sale",
         risk_level=RiskLevel.CRITICAL,
     )
-    section = _why_section([result])
-    assert section is not None
-    rendered = _grid_text(section)
+    console = Console(file=StringIO(), force_terminal=False, width=120)
+    console.print(_domain_cell(result))
+    rendered = console.file.getvalue()
     assert "[b] domain for sale" in rendered
     assert r"\[b]" not in rendered
-
-
-# ── one vocabulary, one glyph budget ────────────────────────────────────
-
-
-def test_the_console_and_the_triage_console_spell_flags_the_same() -> None:
-    """They used to disagree three ways: `[cloned-favicon]` here, `FAVICON`
-    there and `cloned favicon` in the HTML, for one finding."""
-    from otacon.tui.widgets import badges
-
-    r = DomainResult(
-        domain="a.com",
-        kind=PermutationType.TYPO,
-        dnsbl_listed=True,
-        favicon_matches_target=True,
-        has_login_form=True,
-        risk_level=RiskLevel.CRITICAL,
-    )
-    assert _flags_cell(r).plain == badges(r)
-
-
-def test_the_table_degrades_to_ascii(monkeypatch) -> None:
-    """A terminal that cannot draw U+2588 was shown a bar made of them."""
-    from otacon.ui.caps import GlyphLevel
-    from otacon.utils import theme
-
-    monkeypatch.setattr(theme, "_glyphs", GlyphLevel.ASCII)
-    try:
-        assert _risk_bar(50, "ok").plain.isascii()
-        assert _check(True).plain.isascii()
-        assert _check(False).plain.isascii()
-        report = ScanReport(
-            target="example.com",
-            total_permutations=10,
-            results=[
-                DomainResult(
-                    domain="a.com",
-                    kind=PermutationType.TYPO,
-                    resolves=True,
-                    ip_addresses=["1.2.3.4"],
-                    risk_score=90,
-                    risk_level=RiskLevel.CRITICAL,
-                )
-            ],
-        )
-        console, buf = _make_console()
-        render_table(report, console)
-        assert buf.getvalue().isascii()
-    finally:
-        theme.set_glyphs(GlyphLevel.FULL)
-
-
-# ── --top ───────────────────────────────────────────────────────────────
-
-
-def _many(count: int) -> ScanReport:
-    return ScanReport(
-        target="example.com",
-        total_permutations=count,
-        results=[
-            DomainResult(
-                domain=f"d{i}.com",
-                kind=PermutationType.TYPO,
-                resolves=True,
-                ip_addresses=["1.2.3.4"],
-                risk_score=count - i,
-                risk_level=RiskLevel.MEDIUM,
-            )
-            for i in range(count)
-        ],
-    )
-
-
-def test_top_keeps_the_riskiest_rows_and_says_what_it_hid() -> None:
-    """A busy brand returns a hundred registered lookalikes; the first handful
-    are the ones anybody acts on."""
-    console, buf = _make_console()
-    render_table(_many(20), console, top=3)
-    out = buf.getvalue()
-    assert "d0.com" in out and "d2.com" in out
-    assert "d9.com" not in out
-    assert "+17 more" in out
-
-
-def test_top_is_inert_when_there_is_nothing_to_hide() -> None:
-    console, buf = _make_console()
-    render_table(_many(3), console, top=10)
-    assert "more below the top" not in buf.getvalue()

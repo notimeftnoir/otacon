@@ -92,19 +92,6 @@ def parse_redirect(url: str) -> tuple[str, str] | None:
     return (parsed.hostname or "").lower().rstrip("."), parsed.scheme
 
 
-def redirect_host(url: str) -> str:
-    """The hostname a redirect points at, falling back to the raw value.
-
-    Both reporters need this and both had their own copy; the fallback matters
-    because a Location header is whatever the remote server sent, and an
-    unparseable one is still worth showing rather than dropping.
-    """
-    parsed = parse_redirect(url)
-    if parsed is None:
-        return url
-    return parsed[0] or url
-
-
 def safe_relative_path(filename: str, base: str | None = None) -> str | None:
     """Validates that a path is strictly relative and contained within base directory."""
     if not filename or "\x00" in filename:
@@ -127,7 +114,11 @@ def safe_relative_path(filename: str, base: str | None = None) -> str | None:
 
 
 def safe_cli_path(filename: str) -> str | None:
-    """Validates CLI paths, allowing absolute or relative paths without directory escapes."""
+    """Resolves an output path the operator typed, refusing NUL bytes and Windows device names.
+
+    Any directory is allowed — the operator chose it on their own command line.
+    This is not a containment check; use ``safe_relative_path`` for that.
+    """
     if not filename or "\x00" in filename:
         return None
     candidate = Path(filename)

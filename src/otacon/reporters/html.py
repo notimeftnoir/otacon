@@ -10,22 +10,17 @@ from ..core.models import DomainResult, ScanReport
 from ..core.types import RiskLevel
 from ..net.whois import format_age
 from ..scoring.engine import count_fresh, get_age_fresh_days, get_age_new_days
-from ..ui.emit import html_vars
-from ..utils.theme import (
-    GLYPH_DEFENSIVE,
-    HOMOGLYPH,
-    LOGO_SWEEP,
-    SPOOF_INDEX,
-    TAGLINE,
-    WORDMARK,
-    active_palette,
-)
-from ..utils.validate import redirect_host
+from ..utils.theme import GLYPH_DEFENSIVE, LOGO_DOTS_BOT, LOGO_DOTS_TOP
+from ..utils.validate import parse_redirect
 
-# Everything below the :root block is layout; the colours are generated from
-# the active palette by ui.emit.html_vars, so the report themes with the rest
-# of the tool instead of carrying its own third copy of the palette.
-_CSS_BODY = """
+_CSS = """
+:root {
+    --bg:#0d0d0d; --surface:#151515; --surface2:#1e1e1e;
+    --border:#00875f; --brand:#00d7af;
+    --ok:#5fd700; --info:#5fafff; --warn:#ffd700;
+    --danger:#ff5f5f; --crit-fg:#fff; --crit-bg:#870000;
+    --muted:#8a8a8a; --field:#afafaf; --value:#fff;
+}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--value);font-family:'Courier New',monospace;
      margin:0;padding:2em;line-height:1.5}
@@ -39,8 +34,7 @@ a{color:var(--info)}
 .muted{color:var(--muted)}
 .field{color:var(--field)}
 .value{color:var(--value)}
-.logo{color:var(--muted);white-space:pre;font-size:.9em;margin:0}
-.dim{color:var(--dim)}
+.logo{color:var(--brand);white-space:pre;font-size:.9em;margin:0}
 header{border-bottom:1px solid var(--border);padding-bottom:1em;margin-bottom:1.5em}
 .meta{color:var(--muted);font-size:.9em;margin-top:.5em}
 .verdict{font-size:1.05em;margin-bottom:1.5em;padding:.6em 1em;
@@ -147,17 +141,13 @@ _CSP = (
     "form-action 'none';"
 )
 
-
-def _level_colors() -> dict[RiskLevel, str]:
-    """Chart colours for the active palette, so SVG and table cannot disagree."""
-    palette = active_palette()
-    return {level: palette.tone(level).fg for level in RiskLevel}
-
-
-def _css() -> str:
-    """The stylesheet: palette-derived custom properties, then the layout."""
-    return f":root{{{html_vars(active_palette())}}}" + _CSS_BODY
-
+_LEVEL_COLOR: dict[RiskLevel, str] = {
+    RiskLevel.SAFE: "#5fd700",
+    RiskLevel.LOW: "#5fafff",
+    RiskLevel.MEDIUM: "#ffd700",
+    RiskLevel.HIGH: "#ff5f5f",
+    RiskLevel.CRITICAL: "#ff0000",
+}
 
 _LEVEL_CLASS: dict[RiskLevel, str] = {
     RiskLevel.SAFE: "ok",
@@ -166,22 +156,6 @@ _LEVEL_CLASS: dict[RiskLevel, str] = {
     RiskLevel.HIGH: "danger",
     RiskLevel.CRITICAL: "critical",
 }
-
-
-def _logo() -> str:
-    """The brand mark, monochrome, matching what the terminal draws.
-
-    The homoglyph is picked out by weight rather than hue so the mark reads
-    the same in a dark browser, a light one and a printout.
-    """
-    letters = "".join(
-        f'<span class="value">{ch}</span>'
-        if i == SPOOF_INDEX
-        else f'<span class="muted">{ch}</span>'
-        for i, ch in enumerate(WORDMARK)
-    )
-    pointer = f"{'&nbsp;' * (1 + SPOOF_INDEX)}\u2191 {HOMOGLYPH} &middot; {TAGLINE}"
-    return f'<span class="dim">{LOGO_SWEEP}</span>\n{letters}\n<span class="dim">{pointer}</span>'
 
 
 def _h(text: str) -> str:
@@ -220,7 +194,7 @@ def _age_cell(age_days: int | None) -> str:
 
 
 def _risk_cell(score: int, level: RiskLevel) -> str:
-    color = _level_colors()[level]
+    color = _LEVEL_COLOR[level]
     cls = _LEVEL_CLASS[level]
     bar = (
         f'<div style="background:{color};width:{score}%;height:6px;border-radius:3px;'
@@ -265,7 +239,8 @@ def _domain_cell(r: DomainResult) -> str:
         f'<br><span class="technique">{_h(r.kind.value)}</span>',
     ]
     if r.is_likely_defensive and r.redirects_to:
-        host = redirect_host(r.redirects_to)
+        parsed = parse_redirect(r.redirects_to)
+        host = (parsed[0] if parsed else "") or r.redirects_to
         parts.append(f'<span class="defensive"> {GLYPH_DEFENSIVE} {_h(host)}</span>')
     if r.page_title:
         parts.append(f'<br><span class="page-title">"{_h(r.page_title)}"</span>')
@@ -290,7 +265,7 @@ def _chart_svg(rows: list[DomainResult]) -> str:
         '<svg viewBox="0 0 600 20" class="risk-chart" role="img" aria-label="Risk Distribution">'
     ]
     x = 0.0
-    for level, color in _level_colors().items():
+    for level, color in _LEVEL_COLOR.items():
         cnt = counts[level]
         if cnt > 0:
             width = (cnt / total) * 600.0
@@ -302,7 +277,7 @@ def _chart_svg(rows: list[DomainResult]) -> str:
     svg_parts.append("</svg>")
 
     legend_items = []
-    for level, color in _level_colors().items():
+    for level, color in _LEVEL_COLOR.items():
         cnt = counts[level]
         if cnt > 0:
             legend_items.append(
@@ -427,7 +402,12 @@ def to_html(report: ScanReport) -> str:
     if defensive:
         footer_parts.append(f'<span class="warn">{GLYPH_DEFENSIVE} {defensive} defensive</span>')
 
-    logo = _logo()
+    logo = (
+        f" {LOGO_DOTS_TOP}\n"
+        '   OTAC<span class="brand">\u041e</span>N'
+        '  <span class="muted">[0x041E] homoglyph target</span>\n'
+        f' {LOGO_DOTS_BOT}  <span class="muted">domain impersonation detector</span>'
+    )
     meta_line = (
         f'<span class="field">Target:</span> <span class="value">{target}</span> &nbsp;'
         f'<span class="field">Date:</span> <span class="value">{started}</span> &nbsp;'
@@ -449,7 +429,7 @@ def to_html(report: ScanReport) -> str:
   <meta http-equiv="Content-Security-Policy" content="{_CSP}">
   <meta name="referrer" content="no-referrer">
   <title>Otacon — {target}</title>
-  <style>{_css()}</style>
+  <style>{_CSS}</style>
 </head>
 <body>
   <header>
@@ -513,7 +493,13 @@ def aggregate_html(reports: dict[str, ScanReport]) -> str:
             f"{_table_html(rows, prefix=f'f-{safe_dom}')}"
         )
 
-    logo = _logo()
+    logo = (
+        f" {LOGO_DOTS_TOP}\n"
+        '   OTAC<span class="brand">\u041e</span>N'
+        '  <span class="muted">[0x041E] homoglyph target</span>\n'
+        f" {LOGO_DOTS_BOT}"
+        '  <span class="muted">domain impersonation detector</span>'
+    )
     meta_line = (
         f'<span class="field">Date:</span> <span class="value">{started}</span>'
         f' &nbsp; <span class="field">Domains:</span>'
@@ -534,7 +520,7 @@ def aggregate_html(reports: dict[str, ScanReport]) -> str:
   <meta http-equiv="Content-Security-Policy" content="{_CSP}">
   <meta name="referrer" content="no-referrer">
   <title>Otacon — Multi-domain Scan</title>
-  <style>{_css()}
+  <style>{_CSS}
 h2{{{h2_style}}}</style>
 </head>
 <body>

@@ -15,14 +15,14 @@ import sys
 from rich.console import Console
 from rich.terminal_theme import TerminalTheme
 
+from otacon import reporters
 from otacon._asyncutils import run_async
-from otacon.engine.scanner import run_scan
-from otacon.reporters import console as reporters
-from otacon.utils.theme import BANNER, OTACON_THEME
+from otacon._scanner import run_scan
+from otacon.theme import BANNER, OTACON_THEME
 
 _ROWS = 10
 
-# Matches the banner SVG and the terminal palette in utils/theme.py.
+# Matches the banner SVG and the terminal palette in theme.py.
 OTACON_TERMINAL = TerminalTheme(
     (10, 10, 12),
     (242, 242, 242),

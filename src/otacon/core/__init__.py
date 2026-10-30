@@ -17,19 +17,16 @@ from .exceptions import (
     ValidationError,
     WhoisError,
 )
-from .models import DomainResult, NetworkSignals, Permutation, RiskAssessment, ScanReport
+from .models import DomainResult, Permutation, ScanOptions, ScanReport
 from .schemas import (
-    CTLogEntrySchema,
     DomainResultSchema,
     PermutationSchema,
+    ScanOptionsSchema,
     ScanReportSchema,
-    ScoringWeightsSchema,
-    WhoisResultSchema,
 )
 from .types import DomainName, IPAddress, PermutationType, PortNumber, RiskLevel
 
 __all__ = [
-    "CTLogEntrySchema",
     "ConfigurationError",
     "DNSResolutionError",
     "DomainName",
@@ -37,7 +34,6 @@ __all__ = [
     "DomainResultSchema",
     "HTTPProbeError",
     "IPAddress",
-    "NetworkSignals",
     "OtaconError",
     "Permutation",
     "PermutationError",
@@ -46,16 +42,15 @@ __all__ = [
     "PortNumber",
     "ReportExportError",
     "ResolutionError",
-    "RiskAssessment",
     "RiskLevel",
     "SSRFBlockedError",
+    "ScanOptions",
+    "ScanOptionsSchema",
     "ScanReport",
     "ScanReportSchema",
     "ScoringError",
-    "ScoringWeightsSchema",
     "SecurityError",
     "TLSProbeError",
     "ValidationError",
     "WhoisError",
-    "WhoisResultSchema",
 ]

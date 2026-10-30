@@ -57,7 +57,7 @@ otacon scan example.com --fail-on high    # CI gate: exit 2 on high or critical
 otacon tui example.com                    # scan, then triage in the console
 otacon tui --from report.json             # reopen a saved report
 otacon generate example.com -o list.txt   # offline wordlist, no network traffic
-otacon                                    # the triage console (no arguments)
+otacon                                    # guided interactive mode
 ```
 
 Global flags (`--quiet`, `--debug`, `--version`) go **before** the subcommand;
@@ -68,6 +68,7 @@ everything else goes after it.
 | `0` | Scan completed — nothing at or above `--fail-on`, or `--fail-on` was not passed |
 | `1` | Runtime error (bad input, file I/O) |
 | `2` | Threshold breached — at least one registered variant met it |
+| `3` | Nothing breached, but the scan could not verify that: DNS or probes failed, a reputation list refused to answer, or a domain could not be scanned |
 
 Reports are written with `--json`, `--md`, `--html` and `--csv`; pass as many as
 you like, since every format renders from the same in-memory report.
@@ -140,12 +141,9 @@ explanation of what it means, then the full scoring breakdown. Arrows or
 abuse notice, and export the selected row. Full key map in
 [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md#triage-console-otacon-tui).
 
-Running `otacon` with no arguments opens it directly: name a target, choose how
-deep to look, and the scan runs inside the console. Every scan is kept, so the
-start screen lists what you looked at before and reopens any of it offline.
-
-`--from` reads a report from anywhere on disk, so a nightly `otacon -q scan` in
-CI can be triaged by hand the next morning without touching the network.
+`--from` makes it a reader for anything already on disk, so a nightly
+`otacon -q scan` in CI can be triaged by hand the next morning without
+touching the network again.
 
 ---
 
@@ -177,10 +175,14 @@ unlabelled guess.
 | **Plural** | `shops.com` ← `shop.com` | Singular ↔ plural variation |
 | **WWW-merge** | `wwwexample.com` | Dot dropped between "www" and the domain — easy to misread |
 
-Certificate Transparency discovery runs alongside these: it finds lookalikes
-that already hold a certificate, including ones no permutation rule would
-generate. Those are reported as `ct-log` rather than as a technique, and
-subdomains of your own domain are dropped before scoring.
+Certificate Transparency discovery runs alongside these: it searches crt.sh
+for unexpired certificates naming your brand label (`allegro-zwroty.pl`,
+`klik-proces-allegro.pl`) — lookalikes no permutation rule would generate.
+Those are reported as `ct-log` rather than as a technique. Anything sharing a
+certificate with your own domain is treated as yours and dropped; brand labels
+shorter than four characters are not searched, since `%g%` matches most of the
+internet. Your other brand domains that live on separate certificates will show
+up — add them to `--exclude-file` once.
 
 Every example above is real output, not an illustration. Each variant is
 reported once, under the first technique that produced it, and the original
@@ -212,8 +214,8 @@ for why that matters when you read a report.
 | Defensive-registration flag | ✓ `»` on redirect-to-original | ✗ |
 | CI/CD exit code gating | ✓ `--fail-on` | ✗ |
 | Self-contained HTML report | ✓ dark theme, zero JS, pure-CSS filters, SVG charts, defanged IOCs | partial (`--format html`) |
-| Keyboard triage console | ✓ the default surface: filter by risk, search, live dossier, open (OPSEC safe) / whois / takedown / rescan / allow | ✗ |
-| Scan memory | ✓ every scan kept on disk, reopened offline | ✗ |
+| Interactive post-scan triage | ✓ open (OPSEC safe) / whois / takedown / rescan / allow | ✗ |
+| Keyboard triage console (`otacon tui`) | ✓ filter by risk, search, live dossier pane | ✗ |
 | Automated abuse takedown notice | ✓ formatted draft with technical evidence | ✗ |
 | Permutation techniques | 12 (with regional combosquatting for `.pl`, `.de`, `.fr`) | 13+ |
 | Visual screenshots of pages | ✗ | ✓ |

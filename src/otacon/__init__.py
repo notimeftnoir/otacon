@@ -25,9 +25,7 @@ from .core.exceptions import (
 )
 from .core.models import (
     DomainResult,
-    NetworkSignals,
     Permutation,
-    RiskAssessment,
     ScanReport,
 )
 from .core.types import PermutationType, RiskLevel
@@ -38,23 +36,19 @@ from .scoring.engine import count_fresh, score
 try:
     __version__ = version("otacon")
 except PackageNotFoundError:
-    # Only reached from a source tree with no installed metadata. Keep it in
-    # step with pyproject.toml, or that tree reports the previous release.
-    __version__ = "3.0.0"
+    __version__ = "4.0.0"
 
 __all__ = [
     "ConfigurationError",
     "DNSResolutionError",
     "DomainResult",
     "HTTPProbeError",
-    "NetworkSignals",
     "OtaconError",
     "Permutation",
     "PermutationError",
     "PermutationType",
     "ReportExportError",
     "ResolutionError",
-    "RiskAssessment",
     "RiskLevel",
     "SSRFBlockedError",
     "ScanReport",

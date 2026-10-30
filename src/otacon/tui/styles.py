@@ -1,27 +1,22 @@
-"""Textual CSS for the Otacon triage console.
+"""Textual CSS for the Otacon TUI.
 
 Held as a string rather than a .tcss file so the stylesheet ships with the
 wheel without any package-data plumbing.
 
-Every colour arrives as an ``$otacon-*`` design token from
-:func:`otacon.ui.emit.textual_vars`, fed in through
-``OtaconTUI.get_css_variables``. This file used to repeat the palette as hex
-literals and needed a test to catch the two copies drifting apart; with the
-literals gone there is nothing left to drift, and the console gains every
-theme for free.
-
 Design intent: a dense instrument panel, not a document. Square borders, no
-rounded corners, no gradients behind text, one accent used sparingly, and risk
-expressed by hue *and* by glyph density so the left rail reads correctly even
-with no colour at all.
+rounded corners, no gradients behind text, one accent colour used sparingly, and
+risk expressed by hue so a glance at the left rail reads the whole picture. The
+palette is the same semantic set as OTACON_THEME in utils/theme.py — kept in
+these literals because Textual CSS cannot read Python constants, and asserted
+equal by tests/test_tui.py so the two cannot drift.
 """
 
 from __future__ import annotations
 
 OTACON_CSS = """
 Screen {
-    background: $otacon-bg;
-    color: $otacon-body;
+    background: #0a0e0f;
+    color: #d0d0d0;
     layers: base overlay;
 }
 
@@ -29,8 +24,8 @@ Screen {
 
 #masthead {
     height: 3;
-    background: $otacon-surface;
-    border-bottom: solid $otacon-line;
+    background: #0d1214;
+    border-bottom: solid #1c2628;
     padding: 0 1;
 }
 
@@ -54,7 +49,7 @@ Screen {
 
 #rail {
     width: 2fr;
-    border-left: solid $otacon-line;
+    border-left: solid #1c2628;
 }
 
 /* The rail takes two thirds: its columns are fixed-width, and FLAGS — the
@@ -67,51 +62,39 @@ Screen {
 }
 
 #dossier-empty {
-    color: $otacon-dim;
+    color: #5a5a5a;
     text-align: center;
     padding: 4 0;
 }
 
 DataTable {
     height: 1fr;
-    background: $otacon-bg;
+    background: #0a0e0f;
     scrollbar-size-vertical: 1;
 }
 
 DataTable > .datatable--header {
-    background: $otacon-surface;
-    color: $otacon-muted;
+    background: #0d1214;
+    color: #8a8a8a;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
-    background: $otacon-select;
-    color: $otacon-strong;
+    background: #16302b;
+    color: #ffffff;
     text-style: bold;
 }
 
 DataTable > .datatable--hover {
-    background: $otacon-raised;
-}
-
-/* ── status bar: what the transient toasts used to say, but permanently ── */
-
-/* Height 2, not 1: border-top occupies a row of the box, so a one-row
-   widget with a border has nowhere left to draw its text. */
-#statusbar {
-    height: 2;
-    background: $otacon-surface;
-    color: $otacon-muted;
-    border-top: solid $otacon-line;
-    padding: 0 1;
+    background: #121a1b;
 }
 
 /* ── filter bar ────────────────────────────────────────────────────────── */
 
 #filterbar {
-    height: 2;
-    background: $otacon-surface;
-    border-top: solid $otacon-line;
+    height: 1;
+    background: #0d1214;
+    border-top: solid #1c2628;
     padding: 0 1;
     display: none;
 }
@@ -121,8 +104,8 @@ DataTable > .datatable--hover {
 }
 
 Input {
-    background: $otacon-surface;
-    color: $otacon-strong;
+    background: #0d1214;
+    color: #ffffff;
     border: none;
     height: 1;
     padding: 0;
@@ -137,12 +120,12 @@ Input:focus {
 .verdict {
     height: auto;
     padding: 0 0 1 0;
-    border-bottom: solid $otacon-line;
+    border-bottom: solid #1c2628;
     margin-bottom: 1;
 }
 
 .section-label {
-    color: $otacon-brand-dim;
+    color: #00875f;
     text-style: bold;
     margin-top: 1;
 }
@@ -152,8 +135,8 @@ Input:focus {
     width: 80%;
     height: 80%;
     offset: 10% 10%;
-    background: $otacon-surface;
-    border: solid $otacon-brand;
+    background: #0d1214;
+    border: solid #00d7af;
     padding: 1 2;
     overflow-y: auto;
     display: none;
@@ -163,206 +146,20 @@ Input:focus {
     display: block;
 }
 
-/* ── help overlay ──────────────────────────────────────────────────────── */
-
-#help {
-    layer: overlay;
-    width: 86%;
-    height: 86%;
-    offset: 7% 7%;
-    background: $otacon-surface;
-    border: solid $otacon-accent;
-    padding: 1 2;
-    overflow-y: auto;
-    display: none;
-}
-
-#help.visible {
-    display: block;
-}
-
-/* ── overview: the screen a finished scan lands on ─────────────────────── */
-
-#overview {
-    width: 1fr;
-    height: 1fr;
-    padding: 1 4;
-}
-
-/* Capped rather than centred: the rest of the console is a left-aligned
-   instrument panel, and a centred column on a wide terminal reads as a
-   different application. */
-#overview-body {
-    height: auto;
-    max-width: 96;
-}
-
-/* ── compare: what moved since last time ───────────────────────────────── */
-
-#compare {
-    width: 1fr;
-    height: 1fr;
-    padding: 1 4;
-}
-
-#compare-body {
-    height: auto;
-    max-width: 96;
-}
-
-/* ── settings, allow-list and watchlist ────────────────────────────────── */
-
-#settings {
-    width: 1fr;
-    height: 1fr;
-    padding: 1 4;
-}
-
-#settings-note {
-    padding-bottom: 1;
-}
-
-#settings OptionList {
-    background: $otacon-bg;
-    border: none;
-    height: auto;
-    padding: 0;
-}
-
-#settings OptionList:focus {
-    border: none;
-}
-
-#settings OptionList > .option-list--option-highlighted {
-    background: $otacon-select;
-    color: $otacon-strong;
-    text-style: bold;
-}
-
-/* ── start screen ──────────────────────────────────────────────────────── */
-
-#preset-label {
-    color: $otacon-brand-dim;
-    text-style: bold;
-    padding-top: 1;
-}
-
-#setup RadioSet {
-    background: $otacon-surface;
-    border: none;
-    height: auto;
-    padding: 0;
-    margin-bottom: 1;
-}
-
-#setup RadioSet:focus {
-    border: none;
-}
-
-#setup RadioButton {
-    background: $otacon-surface;
-    padding: 0;
-}
-
-#setup Collapsible {
-    background: $otacon-surface;
-    border: none;
-    padding: 0;
-}
-
-#setup CollapsibleTitle {
-    color: $otacon-muted;
-    padding: 0;
-}
-
-#setup CollapsibleTitle:hover {
-    color: $otacon-brand;
-    background: $otacon-surface;
-}
-
-#setup {
-    width: 68;
-    height: auto;
-    padding: 2 3;
-    background: $otacon-surface;
-    border: solid $otacon-line;
-}
-
-#setup-brand {
-    text-style: bold;
-    padding-bottom: 1;
-}
-
-#setup-help {
-    color: $otacon-muted;
-    padding-bottom: 1;
-}
-
-#setup #target {
-    border: solid $otacon-line;
-    height: 3;
-    padding: 0 1;
-    margin-bottom: 1;
-}
-
-#setup #target:focus {
-    border: solid $otacon-brand;
-}
-
-#setup Checkbox {
-    background: $otacon-surface;
-    border: none;
-    height: 1;
-    padding: 0;
-}
-
-#setup Checkbox:focus {
-    text-style: bold;
-}
-
-#setup-status {
-    height: auto;
-    padding-top: 1;
-}
-
-#setup-progress {
-    padding-top: 1;
-}
-
-#recent-label {
-    color: $otacon-brand-dim;
-    text-style: bold;
-    padding-top: 1;
-}
-
-#recent {
-    height: auto;
-    max-height: 9;
-    background: $otacon-surface;
-    border: none;
-    padding: 0;
-}
-
-#recent > .option-list--option-highlighted {
-    background: $otacon-select;
-    color: $otacon-strong;
-    text-style: bold;
-}
-
 Footer {
-    background: $otacon-surface;
-    color: $otacon-muted;
+    background: #0d1214;
+    color: #8a8a8a;
 }
 
 Footer > .footer--key {
-    background: $otacon-select;
-    color: $otacon-brand;
+    background: #16302b;
+    color: #00d7af;
     text-style: bold;
 }
 
 Toast {
-    background: $otacon-surface;
-    border: solid $otacon-brand;
+    background: #0d1214;
+    border: solid #00d7af;
 }
 """
 

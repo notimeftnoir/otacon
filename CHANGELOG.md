@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] — 2026-10-31
+
+A major because it takes back what 3.0.0 changed: `otacon` with no arguments
+asks its questions in the terminal again instead of switching to a full-screen
+console. The tree returns to the state just before #72 (2.1.0 plus #71, which
+flags a scan whose DNS layer broke rather than reporting it as clean).
+
+### Removed
+- The full-screen console as the default surface, its start/overview/compare/
+  settings screens, scan history (`~/.otacon`), saved settings and
+  `otacon watch` — all introduced in 3.0.0.
+
+### Restored
+- The guided mode for bare `otacon` (questionary prompts in the same terminal).
+- `otacon tui [domain]` / `otacon tui --from report.json` stays available as an
+  opt-in triage console; nothing opens it unless you ask.
+
+### Changed
+- **`--fail-on` exits `3`** when nothing crossed the threshold but the result
+  is unverified: the scan was degraded, Spamhaus/SURBL refused the resolver, or
+  a domain could not be scanned. It used to exit `0` — a run in which every DNS
+  lookup failed passed a `--fail-on low` gate as clean. A breach still exits `2`.
+- **Certificate Transparency finds lookalikes instead of your own domains.** It
+  searched certificates *of the target*, so everything it returned was the
+  brand's own infrastructure — `facebook.net` and `messenger.com` came back as
+  lookalikes of `facebook.com`, the latter scored HIGH. It now searches crt.sh
+  for certificates naming the brand label and uses the target's own
+  certificates only as an exclusion list. Labels under four characters are not
+  searched.
+- The JSON report gains `degraded`, `probe_failures`, `dnsbl_refused` and
+  `options` (which probes ran). `degraded` is recomputed on load, never trusted
+  from the file.
+
+### Fixed
+Ported from #79, which was written against the 3.0.0 tree:
+- A probe that raised returned a blank row, read as "not registered". Probe
+  failures are now counted and feed `degraded`; DNS failures on MX, NS and TXT
+  are counted too, not only A/AAAA.
+- Spamhaus answers `127.255.255.x` when it refuses a query (e.g. via 1.1.1.1);
+  that read as "not listed" and silently zeroed the heaviest weight. Now
+  detected, warned about, and carried on the report.
+- RFC 7505 null MX (`MX 0 .`) scored +25 as "ready for email phishing". It now
+  counts as registration but not as mail capability.
+- `otacon diff` between a full and a `--no-http` scan reported every live site
+  as having lost its certificate; it now compares only what both scans checked
+  and says what it skipped. The guided rescan honours `--no-whois`/`--no-dnsbl`.
+- The HTTP pool held a third of the connections a probe needs, so probes queued
+  and a pool timeout read as "serves nothing"; RDAP reuses one client per scan.
+- The abuse notice left the raw domain live in its prose three times; raw values
+  now sit in one machine-readable block.
+- SPF records are sanitised like every other remote string.
+- CSV export neutralises formulas in the Notes column and tab/CR-prefixed cells.
+- CI installs the built wheel into a clean venv and runs it.
+
+### Removed
+- Dead code: `NetworkSignals`, `RiskAssessment`, `net.dns.DNSClient`, three
+  unused Pydantic schemas, the `_detect_*` classifier helpers, a WHOIS cache
+  that could never hit, the `unittest.mock` sniffing inside the DNS query path,
+  and the `except TypeError` retry chains that existed only for a stale test
+  double — had they fired, they would have silently dropped `--no-dnsbl` and
+  `--no-ct`.
+
 ## [3.0.0] — 2026-10-29
 
 A major because the guided prompts are gone: the triage console is the tool

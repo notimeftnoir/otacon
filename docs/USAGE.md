@@ -5,7 +5,7 @@ _[← back to the README](../README.md)_ · [Usage](USAGE.md) · [Scoring](SCORI
 ---
 
 ```bash
-otacon                                        # the triage console
+otacon                                        # interactive mode (guided prompts)
 otacon scan example.com                       # one-shot scan, all signals
 otacon scan example.com --no-http             # DNS only — faster, fewer signals
 otacon scan example.com --all                 # include unregistered variants
@@ -108,6 +108,7 @@ otacon scan example.com --weights-file weights.json
 | `0` | Clean — nothing at/above the `--fail-on` threshold |
 | `1` | Runtime error (bad input, empty domain, file I/O error) |
 | `2` | Threshold breached — at least one registered variant met `--fail-on` |
+| `3` | Nothing breached, but the result is unverified — the scan was degraded (DNS or probe failures), Spamhaus/SURBL refused the resolver, or a domain could not be scanned. Only with `--fail-on`. |
 
 ---
 
@@ -115,7 +116,7 @@ otacon scan example.com --weights-file weights.json
 
 ## Modes
 
-Otacon has four subcommands. Run it with no subcommand for the triage console:
+Otacon has four subcommands plus an interactive guided mode:
 
 | Mode | Network? | Use when |
 |---|---|---|
@@ -123,7 +124,7 @@ Otacon has four subcommands. Run it with no subcommand for the triage console:
 | `tui` | yes (or none with `--from`) | **Triage console** — a scan produces a few hundred rows of which a handful matter. Work them from the keyboard. |
 | `generate` | **no** | Offline wordlist generation. Useful for feeding into external tooling (`subfinder`, `nuclei`, etc.) or sanity-checking what Otacon *would* check. |
 | `diff` | **no** | Compare two saved JSON reports to see what changed between scans. |
-| *(no subcommand)* | yes | **The triage console** — name a target, the scan runs inside it, then work the findings. Needs an interactive terminal; elsewhere it tells you to use `otacon scan`. |
+| *(no subcommand)* | yes | **Interactive mode** — guided prompts, then a post-scan action loop (open in browser, WHOIS, rescan, allow-list). |
 
 ---
 
@@ -165,28 +166,27 @@ refused rather than written.
 
 ---
 
-## Scan memory
+## Interactive mode
 
-Every scan is kept on disk, so the console's start screen lists what you looked
-at before and reopens any of it without touching the network.
+Run `otacon` with no subcommand for a guided experience. After the scan, you can act on each registered domain individually:
 
+```text
+Action for githubupdate.com:
+  [*] [o]pen      — preview URL & sandbox link, prompt before opening
+      [w]hois     — show registration info (via RDAP / WHOIS)
+      [t]akedown  — generate abuse / phishing takedown notice
+      [e]xport    — save result as JSON
+      [a]llow     — skip in this session
+      [r]escan    — re-check this domain now
+      [b]ack      — pick a different domain
+      [q]uit      — exit actions
 ```
-~/.otacon/<target>/<timestamp>.json
-```
 
-One JSON report per scan, in the same format `--json` writes. No database and no
-index — a directory you can read, grep, copy and delete.
+Designed for triaging a fresh scan without leaving the terminal: safely inspect lookalike sites via urlscan sandbox links, retrieve RDAP/WHOIS details, draft abuse takedown notices with embedded technical evidence, or allow-list defensive domains.
 
-| Variable | Effect |
-|---|---|
-| `OTACON_HOME` | Keep scans here instead |
-| `XDG_DATA_HOME` | Used when `OTACON_HOME` is unset; scans land in `$XDG_DATA_HOME/otacon` |
-| `OTACON_NO_HISTORY=1` | Keep nothing |
+Picking a domain first shows its **dossier**: every signal Otacon found, each with a one-line explanation of what it means (for example *Mail: mx.lookalike.com, can send email that looks like it is from you*).
 
-The 30 most recent scans per target are kept and older ones are dropped, so the
-directory stays a few megabytes without anyone having to think about it. Files
-are written owner-only: a scan reveals which brand you watch and which
-lookalikes are live.
+---
 
 ## Terminal output
 

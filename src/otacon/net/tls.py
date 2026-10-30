@@ -92,10 +92,10 @@ async def probe_ssl(
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
 
-            conn_fn = asyncio.open_connection
-
             async with asyncio.timeout(timeout):
-                _reader, writer = await conn_fn(ip, HTTPS_PORT, ssl=ctx, server_hostname=domain)
+                _reader, writer = await asyncio.open_connection(
+                    ip, HTTPS_PORT, ssl=ctx, server_hostname=domain
+                )
             try:
                 ssl_obj: Any = writer.get_extra_info("ssl_object")
                 issuer_cn, age_days, san_matches = inspect_cert(ssl_obj, domain)

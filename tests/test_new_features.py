@@ -8,16 +8,16 @@ from __future__ import annotations
 
 import pytest
 
-from otacon.core.models import DomainResult, PermutationType
-from otacon.net.content import (
+from otacon._hashutils import (
     detect_login_form,
     extract_favicon_url,
     mmh3_32,
     shodan_favicon_hash,
 )
-from otacon.net.resolver import HTTPProbeResult, Resolver
+from otacon.models import DomainResult, PermutationType
+from otacon.resolver import HTTPProbeResult, Resolver
 from otacon.scoring import score
-from otacon.utils.theme import RiskLevel
+from otacon.theme import RiskLevel
 
 # ---------------------------------------------------------------------------
 # Feature 1: MurmurHash3 & Web Fingerprinting
@@ -165,7 +165,7 @@ async def test_resolver_dnsbl_mock_hit() -> None:
         return []
 
     r = Resolver()
-    r._dns.query = mock_query  # type: ignore[assignment]
+    r._dns.query_dns = mock_query  # type: ignore[assignment]
     listed, source = await r._check_dnsbl("evil.com")
     assert listed is True
     assert source == "Spamhaus DBL (phishing)"
@@ -177,7 +177,7 @@ async def test_resolver_dnsbl_clean() -> None:
         raise RuntimeError("NXDOMAIN")
 
     r = Resolver()
-    r._dns.query = mock_query  # type: ignore[assignment]
+    r._dns.query_dns = mock_query  # type: ignore[assignment]
     listed, source = await r._check_dnsbl("clean.com")
     assert listed is False
     assert source is None
@@ -201,68 +201,80 @@ def test_http_probe_result_tuple_compatibility() -> None:
 # ---------------------------------------------------------------------------
 
 
+class _CTResponse:
+    def __init__(self, payload, status_code: int = 200) -> None:
+        self._payload = payload
+        self.status_code = status_code
+
+    def json(self):
+        return self._payload
+
+
+class _CTClient:
+    """crt.sh answers the brand-label search; Certspotter lists the target's own certs."""
+
+    def __init__(self, crtsh, certspotter, certspotter_status: int = 200) -> None:
+        self.crtsh = crtsh
+        self.certspotter = certspotter
+        self.certspotter_status = certspotter_status
+        self.urls: list[str] = []
+
+    async def get(self, url: str, **kwargs):
+        self.urls.append(url)
+        if "certspotter" in url:
+            return _CTResponse(self.certspotter, self.certspotter_status)
+        return _CTResponse(self.crtsh)
+
+    async def aclose(self):
+        pass
+
+
+_CRTSH_HITS = [
+    {"name_value": "*.target-verify.com\nlogin.target-verify.com"},
+    {"name_value": "targetsupport.net"},
+    {"name_value": "target.com\napi.target.com"},  # the target and its subdomains
+    {"name_value": "targetcdn.net"},  # shares a certificate with target.com below
+    {"name_value": "target.cdn.example.org"},  # label only in an unrelated site's subdomain
+    {"name_value": "Target Corporation"},  # an organisation name, not a hostname
+]
+
+
 @pytest.mark.asyncio
-async def test_fetch_ct_domains_certspotter() -> None:
+async def test_fetch_ct_domains_finds_lookalikes_and_drops_own_infrastructure() -> None:
     from otacon.ct_logs import fetch_ct_domains
 
-    class MockResponse:
-        status_code = 200
-
-        def json(self):
-            return [
-                {"dns_names": ["target.com", "login.target.com", "*.target.com", "Target.com"]},
-                {"dns_names": ["secure-target.com"]},
-            ]
-
-    class MockClient:
-        async def get(self, url: str):
-            if "certspotter" in url:
-                return MockResponse()
-            return MockResponse()
-
-        async def aclose(self):
-            pass
-
-    domains = await fetch_ct_domains("target.com", client=MockClient())  # type: ignore[arg-type]
-    assert "login.target.com" in domains
-    assert "secure-target.com" in domains
-    # Target itself is excluded
-    assert "target.com" not in domains
-    # Wildcard prefix is stripped
-    assert "*.target.com" not in domains
+    client = _CTClient(_CRTSH_HITS, [{"dns_names": ["target.com", "www.targetcdn.net"]}])
+    domains = await fetch_ct_domains("target.com", client=client)  # type: ignore[arg-type]
+    # Collapsed to what was registered; the brand's own certificate excludes
+    # targetcdn.net, which is how facebook.net stops being a lookalike of facebook.com.
+    assert domains == {"target-verify.com", "targetsupport.net"}
+    assert any("%25target%25" in u for u in client.urls)
 
 
 @pytest.mark.asyncio
-async def test_fetch_ct_domains_crtsh_fallback() -> None:
+async def test_fetch_ct_domains_without_exclusion_list_still_drops_the_target() -> None:
     from otacon.ct_logs import fetch_ct_domains
 
-    class MockCertspotterResp:
-        status_code = 500
+    client = _CTClient(_CRTSH_HITS, [], certspotter_status=500)
+    domains = await fetch_ct_domains("target.com", client=client)  # type: ignore[arg-type]
+    assert domains == {"target-verify.com", "targetsupport.net", "targetcdn.net"}
 
-        def json(self):
-            return []
 
-    class MockCrtshResp:
-        status_code = 200
+@pytest.mark.asyncio
+async def test_fetch_ct_domains_skips_labels_too_short_to_search() -> None:
+    from otacon.ct_logs import fetch_ct_domains
 
-        def json(self):
-            return [
-                {"name_value": "*.portal-target.com\nportal-target.com"},
-                {"name_value": "auth-target.com"},
-            ]
+    client = _CTClient(_CRTSH_HITS, [])
+    assert await fetch_ct_domains("g.co", client=client) == set()  # type: ignore[arg-type]
+    assert client.urls == []
 
-    class MockClient:
-        async def get(self, url: str):
-            if "certspotter" in url:
-                return MockCertspotterResp()
-            return MockCrtshResp()
 
-        async def aclose(self):
-            pass
+def test_registrable_collapses_to_the_registered_name() -> None:
+    from otacon.ct_logs import registrable
 
-    domains = await fetch_ct_domains("target.com", client=MockClient())  # type: ignore[arg-type]
-    assert "portal-target.com" in domains
-    assert "auth-target.com" in domains
+    assert registrable("a.b.login-target.com") == "login-target.com"
+    assert registrable("shop.target.co.uk") == "target.co.uk"
+    assert registrable("target.pl") == "target.pl"
 
 
 @pytest.mark.asyncio
@@ -341,8 +353,8 @@ def test_scoring_mail_spoofable() -> None:
 def test_compute_diff() -> None:
     from datetime import UTC, datetime
 
-    from otacon.core.models import ScanReport
     from otacon.diff import compute_diff
+    from otacon.models import ScanReport
 
     t1 = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
     t2 = datetime(2026, 1, 2, 12, 0, tzinfo=UTC)
@@ -414,7 +426,7 @@ def test_cli_diff_subcommand(tmp_path) -> None:
     from typer.testing import CliRunner
 
     from otacon.cli import app
-    from otacon.core.models import DomainResult, ScanReport
+    from otacon.models import DomainResult, ScanReport
 
     runner = CliRunner()
 

@@ -9,6 +9,8 @@ from typing import Any
 
 import httpx
 
+from .http import USER_AGENT
+
 _log = logging.getLogger("otacon.net.rdap")
 DEFAULT_RDAP_TIMEOUT = 5.0
 
@@ -16,9 +18,14 @@ DEFAULT_RDAP_TIMEOUT = 5.0
 async def fetch_rdap(
     domain: str, client: httpx.AsyncClient | None = None, timeout: float = DEFAULT_RDAP_TIMEOUT
 ) -> datetime | None:
-    """Queries RDAP over HTTPS for domain registration date."""
+    """Queries RDAP over HTTPS for domain registration date.
+
+    *client* must follow redirects: rdap.org answers every lookup with a 302 to
+    the authoritative registry, so a client that does not follow them reports
+    every domain as having no registration date.
+    """
     url = f"https://rdap.org/domain/{domain}"
-    headers = {"Accept": "application/rdap+json, application/json", "User-Agent": "otacon/2.0"}
+    headers = {"Accept": "application/rdap+json, application/json", "User-Agent": USER_AGENT}
     try:
         if client is not None:
             async with asyncio.timeout(timeout):

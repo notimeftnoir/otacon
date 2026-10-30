@@ -1,149 +1,100 @@
-"""The brand mark, and the live view of the active palette.
-
-The colours live in :mod:`otacon.ui.tokens`; this module is the brand surface
-plus a thin, backwards-compatible view of whichever theme is active.
-
-The wordmark is the whole product in six characters: the O at ``SPOOF_INDEX``
-is U+041E, Cyrillic, not the Latin letter it reads as. The letters stay tight
-so the illusion holds: letter-spaced, the mark stops fooling anyone, and being
-fooled at a glance is the point.
-
-The mark carries no hue of its own. Severity is the only thing in this
-interface that earns colour, and a logo competing with it was noise; the
-homoglyph is picked out by weight and brightness instead, which also means the
-mark survives ``mono``, ``NO_COLOR``, a greyscale screenshot and a printed
-page unchanged.
-"""
+"""Color palette, UI glyphs, and styling utilities for terminal and report interfaces."""
 
 from __future__ import annotations
 
+from rich.color import Color
+from rich.text import Text
 from rich.theme import Theme
 
 from ..core.types import RiskLevel
-from ..ui.caps import ColorDepth, GlyphLevel, color_depth, glyph_level
-from ..ui.emit import rich_theme
-from ..ui.glyphs import SAFE as SAFE_GLYPHS
-from ..ui.glyphs import degrade
-from ..ui.tokens import MIDNIGHT, Palette, get_theme
 
-# The active palette. Mutable because `--theme` is resolved after import:
-# the CLI builds its Console at module scope, long before argv is parsed.
-_palette: Palette = MIDNIGHT
+OTACON_THEME = Theme(
+    {
+        "brand": "bold #00d7af",
+        "brand.dim": "#00875f",
+        "info": "#5fafff",
+        "muted": "dim #8a8a8a",
+        "ok": "bold #5fd700",
+        "warn": "bold #ffd700",
+        "danger": "bold #ff5f5f",
+        "critical": "bold white on #870000",
+        "crit.bar": "#ff0000",
+        "field": "bold #afafaf",
+        "value": "#ffffff",
+        "url": "underline #5fafff",
+        "spoof": "bold #ff5f87",
+    }
+)
 
-# The glyph level, resolved once and kept. Probing sys.stdout per render is
-# wrong inside a full-screen application: Textual swaps the stream out, so the
-# same interface would answer FULL before it started and ASCII once running.
-_glyphs: GlyphLevel | None = None
-
-
-def active_palette() -> Palette:
-    """The palette every surface should currently be drawing with."""
-    return _palette
-
-
-def set_palette(name: str | None) -> Palette:
-    """Switches the active palette, returning it. Unknown names keep the default."""
-    global _palette
-    _palette = get_theme(name)
-    return _palette
+GRADIENT = ("#00d7af", "#00c0d0", "#00a8e8", "#5f8fff")
 
 
-def active_glyphs() -> GlyphLevel:
-    """How adventurous the surfaces may be with codepoints.
-
-    Resolved from the real stream the first time it is asked, then kept, so
-    every surface agrees for the life of the process.
-    """
-    global _glyphs
-    if _glyphs is None:
-        _glyphs = glyph_level()
-    return _glyphs
-
-
-def set_glyphs(level: GlyphLevel | None = None) -> GlyphLevel:
-    """Pins the glyph level, re-reading the environment when given nothing."""
-    global _glyphs
-    _glyphs = level if level is not None else glyph_level()
-    return _glyphs
+def gradient_color(t: float, stops: tuple[str, ...] = GRADIENT) -> str:
+    """Hex colour at position t (0..1) along stops, linearly interpolated."""
+    t = min(max(t, 0.0), 1.0) * (len(stops) - 1)
+    i = min(int(t), len(stops) - 2)
+    a = Color.parse(stops[i]).get_truecolor()
+    b = Color.parse(stops[i + 1]).get_truecolor()
+    f = t - i
+    r, g, bl = (round(x + (y - x) * f) for x, y in zip(a, b, strict=True))
+    return f"#{r:02x}{g:02x}{bl:02x}"
 
 
-OTACON_THEME: Theme = rich_theme(MIDNIGHT)
-"""The default Rich theme. ``--theme`` pushes a different one onto the console."""
+def gradient(text: str, bold: bool = True) -> Text:
+    """Colours text character by character along the brand gradient."""
+    out = Text()
+    last = max(len(text) - 1, 1)
+    for i, ch in enumerate(text):
+        out.append(ch, style=f"{'bold ' if bold else ''}{gradient_color(i / last)}")
+    return out
+
+
+SAFE_GLYPHS = frozenset(
+    "○●"
+    "░▒▓█"
+    "»"
+    "✓✗"
+    "⚠"
+    "→←"
+    "►•"
+    "О"  # noqa: RUF001
+    "·—…›─"  # noqa: RUF001
+)
 
 GLYPH_DEFENSIVE = "»"
-WORDMARK = "OTACОN"  # noqa: RUF001  — the fifth character is U+041E
+LOGO_DOTS_TOP = "● ● ● ○ ○ ○"
+LOGO_DOTS_BOT = "○ ○ ○ ● ● ●"
+WORDMARK = "OTACОN"  # noqa: RUF001
 SPOOF_INDEX = 4
-HOMOGLYPH = "U+041E"
 TAGLINE = "domain impersonation detector"
 
-LOGO_SWEEP = "░▒▓█▓▒░"
-"""A scan passing over the name.
 
-Replaces the two rows of dots the mark used to carry. Same idea — marks above
-the wordmark, sweeping — in the density ramp the rest of the interface now
-uses for severity, so the tool has one visual language rather than two.
-"""
-
-
-def _marker_row(glyphs: GlyphLevel) -> str:
-    """The pointer line: an arrow under the homoglyph, then what it is."""
-    arrow = degrade("↑", glyphs)
-    separator = degrade("·", glyphs)
-    return f"{' ' * (1 + SPOOF_INDEX)}{arrow} {HOMOGLYPH} {separator} {TAGLINE}"
-
-
-def wordmark_markup(palette: Palette, glyphs: GlyphLevel | None = None) -> str:
-    """WORDMARK as Rich markup, with the homoglyph picked out by weight.
-
-    The letters degrade like everything else: U+041E cannot be drawn on a
-    terminal that only has ASCII, and leaving it there would show the reader
-    a replacement character in the brand mark itself.
-    """
-    level = glyphs if glyphs is not None else active_glyphs()
+def _wordmark_markup() -> str:
+    """WORDMARK as Rich markup with gradient letters and Cyrillic homoglyph in red."""
+    last = len(WORDMARK) - 1
     return "".join(
-        f"[bold {palette.strong}]{degrade(ch, level)}[/]"
-        if i == SPOOF_INDEX
-        else f"[{palette.muted}]{degrade(ch, level)}[/]"
+        f"[spoof]{ch}[/]" if i == SPOOF_INDEX else f"[bold {gradient_color(i / last)}]{ch}[/]"
         for i, ch in enumerate(WORDMARK)
     )
 
 
-def banner(palette: Palette | None = None, glyphs: GlyphLevel | None = None) -> str:
-    """The three-line brand mark, as Rich markup, for the given palette."""
-    pal = palette or _palette
-    level = glyphs if glyphs is not None else active_glyphs()
-    sweep = degrade(LOGO_SWEEP, level)
-    return (
-        f"\n [{pal.dim}]{sweep}[/]\n"
-        f" {wordmark_markup(pal, level)}\n"
-        f" [{pal.dim}]{_marker_row(level)[1:]}[/]\n"
-    )
-
-
-BANNER = banner(MIDNIGHT, GlyphLevel.FULL)
-"""The default-theme banner, kept as a constant for the modules that import it."""
+_LOGO_TOP = f" [brand]{LOGO_DOTS_TOP}[/]"
+_LOGO_MID = f"   {_wordmark_markup()}   [muted]← [0x041E] homoglyph target[/muted]"
+_LOGO_BOT = f" [brand.dim]{LOGO_DOTS_BOT}[/]  [muted]{TAGLINE}[/]"
+BANNER = f"\n{_LOGO_TOP}\n{_LOGO_MID}\n{_LOGO_BOT}\n"
 
 __all__ = [
     "BANNER",
     "GLYPH_DEFENSIVE",
-    "HOMOGLYPH",
-    "LOGO_SWEEP",
+    "GRADIENT",
+    "LOGO_DOTS_BOT",
+    "LOGO_DOTS_TOP",
     "OTACON_THEME",
     "SAFE_GLYPHS",
     "SPOOF_INDEX",
     "TAGLINE",
     "WORDMARK",
-    "ColorDepth",
-    "GlyphLevel",
-    "Palette",
     "RiskLevel",
-    "active_glyphs",
-    "active_palette",
-    "banner",
-    "color_depth",
-    "degrade",
-    "glyph_level",
-    "set_glyphs",
-    "set_palette",
-    "wordmark_markup",
+    "gradient",
+    "gradient_color",
 ]

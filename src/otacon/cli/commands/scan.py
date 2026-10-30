@@ -12,7 +12,6 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from ... import config, history
 from ..._asyncutils import run_async
 from ...core.models import ScanReport
 from ...core.types import RiskLevel
@@ -30,12 +29,6 @@ from ...utils.validate import (
     safe_cli_path,
 )
 from ..state import _state
-
-
-def _log_history_failure(console: Console, exc: Exception) -> None:
-    """Reports a failed history write once, without derailing the scan."""
-    console.print(f"[muted]Could not store this scan in history: {escape(str(exc))}[/muted]")
-
 
 _OUT, _NET, _FILTER, _CI = "Reports", "Network", "Filtering", "Scoring & CI"
 
@@ -105,12 +98,11 @@ async def _run_scan(
     check_ct: bool = True,
     console: Console | None = None,
 ) -> ScanReport:
-    active_console = console or Console()
-    res = await run_scan(
+    return await run_scan(
         target,
         concurrency=concurrency,
         check_http=check_http,
-        console=active_console,
+        console=console or Console(),
         exclude=exclude,
         weights=weights,
         show_progress=not quiet,
@@ -118,7 +110,6 @@ async def _run_scan(
         check_dnsbl=check_dnsbl,
         check_ct=check_ct,
     )
-    return res
 
 
 def _print_next_steps(
@@ -139,7 +130,7 @@ def _print_next_steps(
             (f"otacon scan {domain} --html report.html", "a report to share with your team")
         )
     if dangerous:
-        tips.append(("otacon", "triage console: filter, inspect, WHOIS, takedown"))
+        tips.append(("otacon", "guided mode: WHOIS, takedown notice, whitelist"))
     if not ci_gated:
         tips.append(
             (f"otacon -q scan {domain} --fail-on high", "automate it in CI or a nightly job")
@@ -168,7 +159,6 @@ def execute_scan(
     no_ct: bool,
     concurrency: int,
     show_all: bool,
-    top: int,
     exclude: str | None,
     exclude_file: Path | None,
     fail_on: str | None,
@@ -193,10 +183,6 @@ def execute_scan(
             scan_errors.append(d)
             continue
 
-        # A domain the operator waved through is one they have already decided
-        # about; re-checking it every week is work they did not ask for.
-        remembered = set(config.target(d).allowed)
-        per_target = exclusions | remembered
         console.print(f"\n[brand]►[/brand] Scanning [bold white]{escape(d)}[/bold white]")
         console.print(
             f"  [muted]{'DNS only' if no_http else 'DNS + HTTP/SSL'}"
@@ -204,17 +190,12 @@ def execute_scan(
             + (" · DNSBL off" if no_dnsbl else " · DNSBL")
             + (" · CT off" if no_ct else " · CT")
             + f" · {concurrency} parallel checks"
-            + (f" · whitelist: {len(per_target)}" if per_target else "")
-            + (f" ({len(remembered)} remembered)" if remembered else "")
+            + (f" · whitelist: {len(exclusions)}" if exclusions else "")
             + "[/muted]"
         )
 
-        run_scan_fn = _run_scan
-        run_async_fn = run_async
-        reporters_mod = reporters
-
         scan_kwargs: dict[str, Any] = {
-            "exclude": per_target,
+            "exclude": exclusions,
             "quiet": quiet,
             "weights": weights,
             "check_whois": not no_whois,
@@ -223,17 +204,7 @@ def execute_scan(
             "console": console,
         }
         try:
-            try:
-                coro = run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
-            except TypeError:
-                scan_kwargs.pop("console", None)
-                try:
-                    coro = run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
-                except TypeError:
-                    scan_kwargs.pop("check_ct", None)
-                    scan_kwargs.pop("check_dnsbl", None)
-                    coro = run_scan_fn(d, concurrency, check_http=not no_http, **scan_kwargs)
-            report = run_async_fn(coro)
+            report = run_async(_run_scan(d, concurrency, check_http=not no_http, **scan_kwargs))
         except KeyboardInterrupt:
             console.print("\n[muted]Interrupted.[/muted]")
             raise typer.Exit(1) from None
@@ -242,20 +213,14 @@ def execute_scan(
             scan_errors.append(d)
             continue
 
-        try:
-            history.save(report)
-        except Exception as exc:
-            # History is a convenience; never let it cost the operator a scan.
-            _log_history_failure(console, exc)
-
-        reporters_mod.render_table(report, console, show_safe=show_all, top=top)
+        reporters.render_table(report, console, show_safe=show_all)
         all_reports[d] = report
 
     if not all_reports:
         raise typer.Exit(1)
 
     if len(domains) > 1:
-        reporters_mod.render_aggregate_summary(all_reports, scan_errors, console)
+        reporters.render_aggregate_summary(all_reports, scan_errors, console)
 
     multi = len(all_reports) > 1
 
@@ -323,6 +288,21 @@ def execute_scan(
             for r in rep.registered
         ):
             raise typer.Exit(2)
+        # Nothing crossed the threshold — but a gate may only say so when the
+        # scan could actually tell. A broken resolver, probes that raised, a
+        # reputation list that refused to answer or a domain that was never
+        # scanned all look like "nothing found", and exit 0 would turn them
+        # into a green nightly build.
+        unverified = scan_errors + [
+            d for d, rep in all_reports.items() if rep.degraded or rep.dnsbl_refused
+        ]
+        if unverified:
+            console.print(
+                "[warn]⚠ --fail-on: could not verify "
+                + escape(", ".join(unverified))
+                + " — exiting 3 rather than reporting a clean result.[/warn]"
+            )
+            raise typer.Exit(3)
 
 
 __all__ = [

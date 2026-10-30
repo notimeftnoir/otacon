@@ -11,10 +11,8 @@ import httpx
 import pytest
 import respx
 
-from otacon.core.models import Permutation, PermutationType
-from otacon.net.content import _MAX_BODY_BYTES, _parse_title
-from otacon.net.resolver import Resolver
-from otacon.net.tls import _san_covers_host
+from otacon.models import Permutation, PermutationType
+from otacon.resolver import _MAX_BODY_BYTES, Resolver, _parse_title, _san_covers_host
 
 
 def test_parse_title_basic():
@@ -72,27 +70,27 @@ def test_parse_title_unescapes_html_entities():
 
 
 def test_strip_unsafe_chars_removes_c0_and_c1_control_codes():
-    from otacon.net.content import _strip_unsafe_chars
+    from otacon.resolver import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("evil\x1b[31mred\x1b[0m") == "evil[31mred[0m"
     assert _strip_unsafe_chars("evil\x9b31mred") == "evil31mred"
 
 
 def test_strip_unsafe_chars_removes_format_and_separator_chars():
-    from otacon.net.content import _strip_unsafe_chars
+    from otacon.resolver import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("safe\u202etext") == "safetext"
     assert _strip_unsafe_chars("line1\u2028line2\u2029") == "line1line2"
 
 
 def test_strip_unsafe_chars_leaves_normal_text_untouched():
-    from otacon.net.content import _strip_unsafe_chars
+    from otacon.resolver import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("Ordinary Title – 100% safe") == "Ordinary Title – 100% safe"  # noqa: RUF001 — en-dash is deliberate, not a stray control char
 
 
 def test_strip_unsafe_chars_removes_other_bidi_overrides_and_isolates():
-    from otacon.net.content import _strip_unsafe_chars
+    from otacon.resolver import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("safe‭text") == "safetext"  # LRO
     assert _strip_unsafe_chars("safe⁦text⁩") == "safetext"  # LRI/PDI
@@ -102,7 +100,7 @@ def test_strip_unsafe_chars_keeps_joiners_and_directional_marks():
     """Cf also contains ZWJ/ZWNJ/LRM/RLM, needed to correctly shape legitimate
     Arabic/Persian/Indic-script text — those are allowlisted even though the
     rest of Cf is stripped."""
-    from otacon.net.content import _strip_unsafe_chars
+    from otacon.resolver import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("a‌b‍c‎d‏e") == "a‌b‍c‎d‏e"
 
@@ -111,7 +109,7 @@ def test_strip_unsafe_chars_removes_invisible_cf_steganography_chars():
     """Cf codepoints outside the allowlist — ZERO WIDTH SPACE, BOM, and the
     Unicode "tag" block (a known vector for hiding payloads in text) — are
     stripped, not just the named bidi overrides."""
-    from otacon.net.content import _strip_unsafe_chars
+    from otacon.resolver import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("safe​text") == "safetext"  # ZWSP
     assert _strip_unsafe_chars("safe﻿text") == "safetext"  # BOM
@@ -167,37 +165,28 @@ async def test_read_capped_small_body_intact():
 
 
 @pytest.mark.asyncio
-async def test_whois_cache_deduplicates():
-    call_count = 0
+async def test_whois_lookups_share_one_rdap_client():
+    """Every RDAP lookup reuses the scan's client — one TLS session, not one per domain."""
+    clients = []
 
-    async def mock_fetch(domain: str):
-        nonlocal call_count
-        call_count += 1
-        await asyncio.sleep(0)  # yield so the second coroutine can reach _cached_whois
+    async def mock_fetch(domain: str, client=None):
+        clients.append(client)
         return None, None
 
-    perm = Permutation(domain="paypal.com", kind=PermutationType.TYPO)
-
     with patch("otacon.net.resolver.fetch_domain_age", side_effect=mock_fetch):
-        async with Resolver() as r:
+        async with Resolver(check_http=False) as r:
             with patch.object(r, "_resolve_a", new_callable=AsyncMock, return_value=["1.2.3.4"]):
                 with patch.object(r, "_resolve_mx", new_callable=AsyncMock, return_value=[]):
-                    ssl_ret = (False, None, None, None)
-                    ssl_patch = patch.object(
-                        r, "_check_ssl", new_callable=AsyncMock, return_value=ssl_ret
-                    )
-                    with ssl_patch:
-                        probe = AsyncMock(return_value=(None, None, None, None))
-                        with patch.object(r, "_probe_http", new=probe):
-                            with patch.object(
-                                r,
-                                "_probe_wildcard",
-                                new_callable=AsyncMock,
-                                return_value=frozenset(),
-                            ):
-                                await asyncio.gather(r.check_one(perm), r.check_one(perm))
+                    with patch.object(
+                        r, "_probe_wildcard", new_callable=AsyncMock, return_value=frozenset()
+                    ):
+                        for name in ("paypal.com", "paypa1.com"):
+                            await r.check_one(Permutation(domain=name, kind=PermutationType.TYPO))
+            shared = r._rdap
 
-    assert call_count == 1
+    assert len(clients) == 2
+    assert shared is not None
+    assert all(c is shared for c in clients)
 
 
 # ---------------------------------------------------------------------------
@@ -643,7 +632,7 @@ async def test_probe_http_caps_location_header_length():
     """A hostile Location header with no unsafe chars can still be huge —
     it must be capped the same way page_title is, so a report can't be
     bloated by an arbitrarily long redirect target."""
-    from otacon.net.resolver import _REDIRECT_MAX
+    from otacon.resolver import _REDIRECT_MAX
 
     class _FakeHeaders(dict):
         def get(self, key, default=None):
@@ -795,7 +784,7 @@ async def test_check_ssl_open_connection_failure():
     """A connection error returns the all-None failure tuple."""
     async with Resolver() as r:
         with patch(
-            "otacon.net.resolver.asyncio.open_connection",
+            "otacon.resolver.asyncio.open_connection",
             side_effect=OSError("refused"),
         ):
             ok, issuer, age, san_match = await r._check_ssl("x.example.com", "203.0.113.9")
@@ -823,7 +812,7 @@ async def test_check_ssl_success_returns_cert_metadata():
         return reader, writer
 
     async with Resolver() as r:
-        with patch("otacon.net.resolver.asyncio.open_connection", fake_open_connection):
+        with patch("otacon.resolver.asyncio.open_connection", fake_open_connection):
             ok, issuer, _age, san_match = await r._check_ssl("x.example.com", "203.0.113.9")
     assert ok is True
     assert issuer == "Let's Encrypt"
@@ -921,7 +910,7 @@ async def test_probe_pins_and_uses_safe_ip():
 
 @pytest.mark.asyncio
 async def test_pinned_network_backend_refuses_unpinned_host():
-    from otacon.net.security import _PinnedNetworkBackend
+    from otacon.resolver import _PinnedNetworkBackend
 
     backend = _PinnedNetworkBackend({})
     with pytest.raises(Exception, match="refusing unpinned connect"):
@@ -930,7 +919,7 @@ async def test_pinned_network_backend_refuses_unpinned_host():
 
 @pytest.mark.asyncio
 async def test_pinned_network_backend_connects_to_pinned_ip():
-    from otacon.net.security import _PinnedNetworkBackend
+    from otacon.resolver import _PinnedNetworkBackend
 
     backend = _PinnedNetworkBackend({"lookalike.example": "203.0.113.9"})
     with patch.object(
@@ -948,7 +937,7 @@ async def test_pinned_network_backend_connects_to_pinned_ip():
 async def test_pinned_network_backend_delegates_sleep():
     """httpcore's pool calls backend.sleep() for retry back-off; the base class
     raises NotImplementedError, so the pin backend must delegate it."""
-    from otacon.net.security import _PinnedNetworkBackend
+    from otacon.resolver import _PinnedNetworkBackend
 
     backend = _PinnedNetworkBackend({})
     await backend.sleep(0)  # must not raise NotImplementedError
@@ -962,7 +951,7 @@ def test_pinned_http_transport_wires_backend_into_pool():
     if a future httpx/httpcore release renamed that attribute and this
     assignment silently became a no-op, quietly disabling the SSRF pin for
     every real probe. Assert the wiring actually lands where we expect."""
-    from otacon.net.security import _PinnedHTTPTransport, _PinnedNetworkBackend
+    from otacon.resolver import _PinnedHTTPTransport, _PinnedNetworkBackend
 
     pins: dict[str, str] = {"lookalike.example": "203.0.113.9"}
     transport = _PinnedHTTPTransport(pins, verify=False)
@@ -982,7 +971,7 @@ def test_pinned_http_transport_wires_backend_into_pool():
 async def test_query_ips_returns_hosts_from_records():
     r = Resolver()
     records = [MagicMock(host="1.2.3.4"), MagicMock(host="1.2.3.5")]
-    with patch.object(r._dns, "query", new_callable=AsyncMock, return_value=records):
+    with patch.object(r._dns, "query_dns", new_callable=AsyncMock, return_value=records):
         ips = await r._query_ips("example.com", "A")
     assert ips == ["1.2.3.4", "1.2.3.5"]
 
@@ -990,7 +979,9 @@ async def test_query_ips_returns_hosts_from_records():
 @pytest.mark.asyncio
 async def test_query_ips_swallows_any_exception():
     r = Resolver()
-    with patch.object(r._dns, "query", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+    with patch.object(
+        r._dns, "query_dns", new_callable=AsyncMock, side_effect=RuntimeError("boom")
+    ):
         ips = await r._query_ips("example.com", "AAAA")
     assert ips == []
 
@@ -999,7 +990,7 @@ async def test_query_ips_swallows_any_exception():
 async def test_resolve_mx_returns_hosts_from_records():
     r = Resolver()
     records = [MagicMock(host="mail.example.com")]
-    with patch.object(r._dns, "query", new_callable=AsyncMock, return_value=records):
+    with patch.object(r._dns, "query_dns", new_callable=AsyncMock, return_value=records):
         mx = await r._resolve_mx("example.com")
     assert mx == ["mail.example.com"]
 
@@ -1007,7 +998,9 @@ async def test_resolve_mx_returns_hosts_from_records():
 @pytest.mark.asyncio
 async def test_resolve_mx_swallows_any_exception():
     r = Resolver()
-    with patch.object(r._dns, "query", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+    with patch.object(
+        r._dns, "query_dns", new_callable=AsyncMock, side_effect=RuntimeError("boom")
+    ):
         mx = await r._resolve_mx("example.com")
     assert mx == []
 
@@ -1086,7 +1079,7 @@ async def test_fetch_target_title_returns_none_on_exception():
 @pytest.mark.network
 @pytest.mark.asyncio
 async def test_live_check_ssl_extracts_real_issuer():
-    from otacon.utils.validate import first_safe_ip
+    from otacon._validate import first_safe_ip
 
     async with Resolver(check_http=True) as r:
         ips = await r._resolve_a("example.com")

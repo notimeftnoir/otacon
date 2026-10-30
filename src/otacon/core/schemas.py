@@ -70,6 +70,17 @@ class DomainResultSchema(BaseModel):
     is_parked: bool = False
 
 
+class ScanOptionsSchema(BaseModel):
+    """Which probes a scan ran, at the boundary."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    http: bool = True
+    whois: bool = True
+    dnsbl: bool = True
+    ct: bool = True
+
+
 class ScanReportSchema(BaseModel):
     """Complete scan report schema used for JSON file exports and imports."""
 
@@ -82,61 +93,8 @@ class ScanReportSchema(BaseModel):
     dns_hijack_detected: bool = False
     dns_queries: int = 0
     dns_failures: int = 0
-    cancelled: bool = False
-
-
-class ScoringWeightsSchema(BaseModel):
-    """Configurable scoring weights validated at input boundaries."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    points_homoglyph: int = 35
-    points_idn: int = 35
-    points_typo: int = 18
-    points_combo: int = 20
-    points_bitsquat: int = 15
-    points_subdomain: int = 30
-    points_soundsquat: int = 15
-    points_vowel_swap: int = 15
-    points_plural: int = 12
-    points_www_merge: int = 25
-    points_hyphen: int = 10
-    points_tld_swap: int = 8
-    points_ct_log: int = 20
-
-    points_resolves: int = 10
-    points_mx: int = 15
-    points_ssl: int = 10
-    points_http_2xx: int = 15
-    points_http_3xx: int = 10
-    points_http_4xx: int = 5
-    points_san_mismatch: int = 20
-    points_fresh_cert: int = 25
-    points_external_redirect: int = 15
-    points_age_new: int = 25
-    points_age_recent: int = 12
-
-    points_cloned_favicon: int = 30
-    points_login_form: int = 25
-    points_dnsbl: int = 40
-    points_spoofable_email: int = 15
-
-
-class WhoisResultSchema(BaseModel):
-    """Boundary schema for parsed RDAP/WHOIS response data."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    created_at: datetime | None = None
-    age_days: int | None = None
-    raw_text: str | None = None
-
-
-class CTLogEntrySchema(BaseModel):
-    """Boundary schema for Certificate Transparency log discovery records."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    domain: str
-    issuer: str | None = None
-    not_before: datetime | None = None
+    probe_failures: int = 0
+    dnsbl_refused: bool = False
+    options: ScanOptionsSchema = Field(default_factory=ScanOptionsSchema)
+    degraded: bool = False
+    """Written for readers of the JSON; recomputed from the counters on load."""

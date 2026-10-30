@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import logging
-import os
 import signal as _signal
 import sys
 from enum import Enum
@@ -14,15 +13,12 @@ import typer
 from rich.console import Console
 
 from .._splash import play_intro
-from ..ui.emit import rich_theme
-from ..ui.glyphs import degrade
-from ..ui.tokens import DEFAULT_THEME, THEMES
-from ..utils.theme import OTACON_THEME, active_glyphs, banner, set_glyphs, set_palette
+from ..triage.workflow import run as _interactive_run
+from ..utils.theme import BANNER, OTACON_THEME
 from .commands.diff import execute_diff
 from .commands.generate import execute_generate
 from .commands.scan import _CI, _FILTER, _NET, _OUT, execute_scan
 from .commands.tui import execute_tui
-from .commands.watch import DEFAULT_SCHEDULE, execute_watch
 from .state import _CliState
 
 
@@ -83,31 +79,10 @@ def _banner(animate: bool = False) -> None:
     if animate:
         play_intro(console)
     else:
-        console.print(banner(), end="")
-    # Degraded like the mark above it: a lone U+00B7 left behind on an ASCII
-    # terminal is the one character that gives the whole line away.
-    dot = degrade("·", active_glyphs())
+        console.print(BANNER, end="")
     console.print(
-        f"  [muted]v{__version__} {dot} find lookalike domains before attackers use them[/muted]\n"
+        f"  [muted]v{__version__} · find lookalike domains before attackers use them[/muted]\n"
     )
-
-
-def _apply_appearance(theme: str | None, ascii_only: bool) -> None:
-    """Resolves the palette and glyph level before anything renders.
-
-    The console is built at module scope, long before argv is parsed, so the
-    chosen theme is pushed onto it rather than passed to its constructor.
-    ``--ascii`` is exported into the environment because the detection in
-    ``ui.caps`` is what every surface reads, including the ones reached
-    through a library call rather than this callback.
-    """
-    if ascii_only:
-        os.environ["OTACON_ASCII"] = "1"
-    set_glyphs()
-    name = theme or os.environ.get("OTACON_THEME")
-    palette = set_palette(name)
-    if palette.name != DEFAULT_THEME:
-        console.push_theme(rich_theme(palette))
 
 
 def _version_callback(value: bool) -> None:
@@ -158,59 +133,18 @@ def _main(
         "-q",
         help="Disable UI, banner, and progress. Outputs JSON to stdout.",
     ),
-    theme: str = typer.Option(
-        None,
-        "--theme",
-        help=(
-            f"Colour theme: {' '.join(THEMES)}. "
-            "'vision' avoids red/green for colour-vision deficiency, "
-            "'mono' drops colour entirely. Also settable with OTACON_THEME."
-        ),
-    ),
-    ascii_only: bool = typer.Option(
-        False,
-        "--ascii",
-        help="Use ASCII stand-ins for the block and arrow glyphs, for limited fonts.",
-    ),
 ) -> None:
     """Shows banner before command execution or enters interactive guided mode when called bare."""
     ctx.obj = _CliState(quiet=quiet)
     console.quiet = quiet
     _configure_logging(debug)
-    _apply_appearance(theme, ascii_only)
 
     if not quiet:
         _banner(animate=ctx.invoked_subcommand is None)
 
     if ctx.invoked_subcommand is None:
-        _launch_default_surface(console)
+        _interactive_run(console)
         raise typer.Exit()
-
-
-def _textual_capable(console: Console) -> bool:
-    """True when the terminal can host a full-screen Textual application.
-
-    Textual asks more of a terminal than the guided prompts do: it takes over
-    the screen, needs cursor addressing and reads keys raw. A pipe, a dumb
-    terminal or a CI shell has none of that.
-    """
-    return bool(console.is_terminal) and not console.is_dumb_terminal
-
-
-def _launch_default_surface(console: Console) -> None:
-    """Opens the triage console, or explains what to run where it cannot."""
-    if not _textual_capable(console):
-        console.print(
-            "[warn]The triage console needs an interactive terminal.[/warn]\n"
-            "[muted]Run [/muted][value]otacon scan <domain>[/value][muted] instead, "
-            "or [/muted][value]otacon --help[/value][muted] for every option.[/muted]"
-        )
-        raise typer.Exit(1)
-
-    # Imported here so `otacon scan` in a CI container never loads Textual.
-    from ..tui import run_tui
-
-    run_tui()
 
 
 @app.command()
@@ -281,14 +215,6 @@ def scan(
     show_all: bool = typer.Option(
         False, "--all", help="Show unregistered variants too.", rich_help_panel=_FILTER
     ),
-    top: int = typer.Option(
-        0,
-        "--top",
-        "-n",
-        min=0,
-        help="Show only the N riskiest rows in the table (0 = all).",
-        rich_help_panel=_FILTER,
-    ),
     exclude: str = typer.Option(
         None,
         "--exclude",
@@ -335,7 +261,6 @@ def scan(
         no_ct=no_ct,
         concurrency=concurrency,
         show_all=show_all,
-        top=top,
         exclude=exclude,
         exclude_file=exclude_file,
         fail_on=fail_on.value if fail_on is not None else None,
@@ -419,20 +344,6 @@ def tui(
         check_dnsbl=not no_dnsbl,
         check_ct=not no_ct,
     )
-
-
-@app.command()
-def watch(
-    add: str = typer.Option(None, "--add", "-a", help="Put a target on the watchlist."),
-    remove: str = typer.Option(None, "--remove", "-r", help="Take a target off it."),
-    schedule: str = typer.Option(
-        DEFAULT_SCHEDULE,
-        "--schedule",
-        help="Cron schedule for the printed lines.",
-    ),
-) -> None:
-    """Lists the targets worth re-scanning, with crontab lines to automate it."""
-    execute_watch(console=console, add=add, remove=remove, schedule=schedule)
 
 
 if __name__ == "__main__":

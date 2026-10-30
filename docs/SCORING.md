@@ -83,9 +83,9 @@ Three classifiers bypass the arithmetic entirely:
 | **Defensive registration** — redirects to the target and has no MX | score forced to 0 |
 | **Parked** — parking nameservers, IPs, or for-sale page | HTTP/DNS signals ignored |
 
-Subdomains of the target discovered through Certificate Transparency are dropped before scoring:
-CT is queried with `include_subdomains`, so most hits are the target's own infrastructure, and
-that is not impersonation.
+Certificate Transparency candidates are collapsed to the registered domain and must carry the
+brand label. The target, its subdomains, and every domain that shares a certificate with the
+target are dropped before scoring — those are the target's own infrastructure, not impersonation.
 
 The final score is clamped to 0–100. Unregistered domains always score 0.
 

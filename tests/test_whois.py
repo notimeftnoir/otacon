@@ -145,7 +145,7 @@ async def test_fetch_domain_age_reports_future_date_as_unknown_age():
 @pytest.mark.asyncio
 async def test_future_creation_date_scores_no_age_points():
     """The unknown age from a future date must not earn the fresh-registration bonus."""
-    from otacon.core.models import DomainResult, PermutationType
+    from otacon.models import DomainResult, PermutationType
     from otacon.scoring import ScoringWeights, _age_points
 
     future_creation = datetime.now(UTC) + timedelta(days=5)

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from otacon.core.models import DomainResult, PermutationType
+from otacon.models import DomainResult, PermutationType
 from otacon.scoring import score
-from otacon.utils.theme import RiskLevel
+from otacon.theme import RiskLevel
 
 
 def test_score_unregistered_is_safe() -> None:
@@ -640,7 +640,7 @@ def test_scoring_weights_none_overrides_falls_back_to_defaults() -> None:
 def test_count_fresh_tracks_age_fresh_days_constant(monkeypatch) -> None:
     from otacon import scoring
 
-    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 20)
+    monkeypatch.setattr(scoring.engine, "AGE_FRESH_DAYS", 20)
     results = [
         DomainResult(domain="a.com", kind=PermutationType.TYPO, age_days=15),
         DomainResult(domain="b.com", kind=PermutationType.TYPO, age_days=25),
