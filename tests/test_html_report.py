@@ -107,7 +107,7 @@ def test_to_html_fresh_label_tracks_age_fresh_days_constant(monkeypatch) -> None
     """The '&lt;Nd&gt;' label must read AGE_FRESH_DAYS, not a hardcoded '&lt;7d&gt;'."""
     from otacon import scoring
 
-    monkeypatch.setattr(scoring, "AGE_FRESH_DAYS", 14)
+    monkeypatch.setattr(scoring.engine, "AGE_FRESH_DAYS", 14)
     r = _result(age_days=10)
 
     out = to_html(_report(r))
@@ -244,7 +244,7 @@ def test_scan_html_flag_writes_file(tmp_path, monkeypatch):
     empty_report = ScanReport(target="example.com", total_permutations=0)
 
     runner = CliRunner()
-    with patch("otacon.cli._run_scan", new_callable=AsyncMock) as mock_scan:
+    with patch("otacon.cli.commands.scan._run_scan", new_callable=AsyncMock) as mock_scan:
         mock_scan.return_value = empty_report
         result = runner.invoke(app, ["scan", "example.com", "--html", "report.html"])
 

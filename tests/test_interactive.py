@@ -619,7 +619,7 @@ def _patch_scan_deps(monkeypatch, resolver_cls=_FakeResolver) -> None:
         "otacon.interactive.permutations.generate",
         lambda target, exclude=None: _two_fake_perms(),
     )
-    monkeypatch.setattr("otacon._scanner.Resolver", resolver_cls)
+    monkeypatch.setattr("otacon.engine.scanner.Resolver", resolver_cls)
 
 
 @pytest.mark.asyncio

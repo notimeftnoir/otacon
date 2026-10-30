@@ -38,6 +38,9 @@ from .prompts import (
 _log = logging.getLogger("otacon.triage.workflow")
 
 
+# ponytail: test hook — the guided mode's tests patch the otacon.interactive facade
+# (~80 sites), so lookups go through it. Repoint those patches to the real
+# modules and this goes; until then it is confined to triage/.
 def _get_inter(name: str, fallback: Any) -> Any:
     import sys
 

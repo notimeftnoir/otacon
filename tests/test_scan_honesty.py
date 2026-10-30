@@ -220,7 +220,7 @@ def _gate(monkeypatch, report: ScanReport, *args: str) -> int:
     async def fake_run_scan(domain, concurrency, check_http, **kwargs):
         return report
 
-    monkeypatch.setattr("otacon.cli._run_scan", fake_run_scan)
+    monkeypatch.setattr("otacon.cli.commands.scan._run_scan", fake_run_scan)
     return CliRunner().invoke(app, ["-q", "scan", "example.com", *args]).exit_code
 
 

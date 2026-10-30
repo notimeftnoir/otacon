@@ -173,7 +173,7 @@ async def test_whois_lookups_share_one_rdap_client():
         clients.append(client)
         return None, None
 
-    with patch("otacon.resolver.fetch_domain_age", side_effect=mock_fetch):
+    with patch("otacon.net.resolver.fetch_domain_age", side_effect=mock_fetch):
         async with Resolver(check_http=False) as r:
             with patch.object(r, "_resolve_a", new_callable=AsyncMock, return_value=["1.2.3.4"]):
                 with patch.object(r, "_resolve_mx", new_callable=AsyncMock, return_value=[]):
@@ -244,7 +244,7 @@ def _patch_network(r: Resolver, *, resolve_ips: list[str]):
         patch.object(r, "_probe_http", new=AsyncMock(return_value=(None, None, None, None)))
     )
     stack.enter_context(
-        patch("otacon.resolver.fetch_domain_age", new=AsyncMock(return_value=(None, None)))
+        patch("otacon.net.resolver.fetch_domain_age", new=AsyncMock(return_value=(None, None)))
     )
     return stack
 
@@ -726,7 +726,7 @@ async def test_check_one_unregistered_domain_skips_probe_and_whois():
             patch.object(r, "_resolve_a", new_callable=AsyncMock, return_value=[]),
             patch.object(r, "_resolve_mx", new_callable=AsyncMock, return_value=[]),
             patch.object(r, "_probe", new_callable=AsyncMock) as mock_probe,
-            patch("otacon.resolver.fetch_domain_age", new_callable=AsyncMock) as mock_whois,
+            patch("otacon.net.resolver.fetch_domain_age", new_callable=AsyncMock) as mock_whois,
         ):
             result = await r.check_one(perm)
     assert result.resolves is False
@@ -744,7 +744,7 @@ async def test_check_one_skips_whois_when_check_whois_is_false():
         with (
             _patch_network(r, resolve_ips=["203.0.113.9"]),
             patch.object(r, "_probe_wildcard", new_callable=AsyncMock, return_value=frozenset()),
-            patch("otacon.resolver.fetch_domain_age", new_callable=AsyncMock) as mock_whois,
+            patch("otacon.net.resolver.fetch_domain_age", new_callable=AsyncMock) as mock_whois,
         ):
             result = await r.check_one(perm)
     assert result.resolves is True
