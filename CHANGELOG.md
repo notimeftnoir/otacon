@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- DNS queries that time out are retried (3 tries) instead of failing on the
+  first dropped packet. Home routers and VPN resolvers drop UDP under a scan's
+  burst; on such a resolver a `-c 50` scan lost half its lookups and came out
+  `degraded`. The guard around each query now outlasts the retries, which it
+  used to cut off at the first timeout.
+
 ## [4.0.0] — 2026-10-31
 
 A major because it takes back what 3.0.0 changed: `otacon` with no arguments
