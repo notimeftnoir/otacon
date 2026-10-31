@@ -3,35 +3,54 @@
 from __future__ import annotations
 
 import io
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
 from datetime import UTC
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import DEFAULT, AsyncMock, MagicMock, patch
 
 import pytest
 from rich.console import Console
 
-from otacon.interactive import (
-    _action_loop,
-    _confirm,
+import otacon.triage.actions
+import otacon.triage.prompts
+import otacon.triage.workflow
+from otacon.core.models import DomainResult, Permutation, ScanReport
+from otacon.core.types import PermutationType, RiskLevel
+from otacon.triage.actions import (
     _export_result,
-    _interactive_generate,
-    _interactive_scan,
     _rescan_result,
-    _scan,
     _show_whois,
     _suggest_defensive_whitelist,
-    _validate_domain,
-    _validate_limit,
-    _YNValidator,
+)
+from otacon.triage.prompts import _confirm, _validate_domain, _validate_limit, _YNValidator
+from otacon.triage.workflow import (
+    _action_loop,
+    _interactive_generate,
+    _interactive_scan,
+    _scan,
     run,
 )
-from otacon.models import (
-    DomainResult,
-    Permutation,
-    PermutationType,
-    ScanReport,
-)
-from otacon.theme import RiskLevel
+
+_TRIAGE_MODULES = (otacon.triage.workflow, otacon.triage.actions, otacon.triage.prompts)
+
+
+@contextmanager
+def _patch_triage(name: str, new: object = DEFAULT, **kwargs: object) -> Iterator[Any]:
+    """Patches *name* in every triage module that looks it up, all with one object."""
+    with ExitStack() as stack:
+        target: Any = DEFAULT
+        for mod in _TRIAGE_MODULES:
+            if not hasattr(mod, name):
+                continue
+            if target is DEFAULT:
+                target = stack.enter_context(patch.object(mod, name, new, **kwargs))
+            else:
+                stack.enter_context(patch.object(mod, name, target))
+        assert target is not DEFAULT, f"no triage module has {name!r}"
+        yield target
+
 
 # ---------------------------------------------------------------------------
 # Shared fixture
@@ -90,14 +109,14 @@ def test_validate_limit_not_a_number():
 
 def test_run_exits_cleanly_on_domain_ctrl_c():
     """Ctrl+C on domain input must exit without raising."""
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.text.return_value.ask.return_value = None
         run(MagicMock())
 
 
 def test_run_exits_cleanly_on_mode_ctrl_c():
     """Ctrl+C on mode selection must exit without raising."""
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.text.return_value.ask.return_value = "example.com"
         mock_q.select.return_value.ask.return_value = None
         run(MagicMock())
@@ -111,8 +130,8 @@ def test_run_routes_to_scan(monkeypatch):
         called["domain"] = domain
 
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._interactive_scan", fake_scan),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_interactive_scan", fake_scan),
     ):
         mock_q.text.return_value.ask.return_value = "  example.com  "
         mock_q.select.return_value.ask.return_value = "scan"
@@ -129,8 +148,8 @@ def test_run_routes_to_generate(monkeypatch):
         called["domain"] = domain
 
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._interactive_generate", fake_generate),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_interactive_generate", fake_generate),
     ):
         mock_q.text.return_value.ask.return_value = "example.com"
         mock_q.select.return_value.ask.return_value = "generate"
@@ -142,8 +161,8 @@ def test_run_routes_to_generate(monkeypatch):
 def test_interactive_generate_prints_variants():
     """generate branch must render variants to console."""
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive.permutations") as mock_perms,
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("permutations") as mock_perms,
     ):
         mock_perms.generate.return_value = [
             Permutation(domain="exmaple.com", kind=PermutationType.TYPO, note="swap"),
@@ -158,7 +177,7 @@ def test_interactive_generate_prints_variants():
 
 def test_interactive_generate_ctrl_c_on_limit():
     """Ctrl+C on limit input must exit without raising."""
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.text.return_value.ask.return_value = None
         console = MagicMock()
         _interactive_generate("example.com", console)
@@ -168,8 +187,8 @@ def test_interactive_generate_ctrl_c_on_limit():
 def test_interactive_generate_respects_limit():
     """A non-zero limit must cap the printed variants."""
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive.permutations") as mock_perms,
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("permutations") as mock_perms,
     ):
         mock_perms.generate.return_value = [
             Permutation(domain=f"ex{i}mple.com", kind=PermutationType.TYPO, note="x")
@@ -185,25 +204,25 @@ def test_interactive_generate_respects_limit():
 
 def test_confirm_returns_true_for_y():
     """_confirm returns True when user types y."""
-    with patch("otacon.interactive._pt_prompt", return_value="y"):
+    with _patch_triage("_pt_prompt", return_value="y"):
         assert _confirm("Continue?") is True
 
 
 def test_confirm_returns_false_for_n():
     """_confirm returns False when user types n."""
-    with patch("otacon.interactive._pt_prompt", return_value="n"):
+    with _patch_triage("_pt_prompt", return_value="n"):
         assert _confirm("Continue?") is False
 
 
 def test_confirm_returns_false_for_enter():
     """_confirm defaults to False when user presses Enter (empty input)."""
-    with patch("otacon.interactive._pt_prompt", return_value=""):
+    with _patch_triage("_pt_prompt", return_value=""):
         assert _confirm("Continue?") is False
 
 
 def test_confirm_returns_none_on_ctrl_c():
     """_confirm returns None on KeyboardInterrupt (Ctrl+C)."""
-    with patch("otacon.interactive._pt_prompt", side_effect=KeyboardInterrupt):
+    with _patch_triage("_pt_prompt", side_effect=KeyboardInterrupt):
         assert _confirm("Continue?") is None
 
 
@@ -257,10 +276,10 @@ def test_interactive_scan_full_calls_render_table(monkeypatch, tmp_path):
     mock_report = ScanReport(target="example.com", total_permutations=0)
 
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._confirm", return_value=False),
-        patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan,
-        patch("otacon.interactive.reporters") as mock_reporters,
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_confirm", return_value=False),
+        _patch_triage("_scan", new_callable=AsyncMock) as mock_scan,
+        _patch_triage("reporters") as mock_reporters,
     ):
         mock_q.select.return_value.ask.return_value = "full"
         mock_scan.return_value = mock_report
@@ -279,10 +298,10 @@ def test_interactive_scan_dns_only(monkeypatch, tmp_path):
     mock_report = ScanReport(target="example.com", total_permutations=0)
 
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._confirm", return_value=False),
-        patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan,
-        patch("otacon.interactive.reporters"),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_confirm", return_value=False),
+        _patch_triage("_scan", new_callable=AsyncMock) as mock_scan,
+        _patch_triage("reporters"),
     ):
         mock_q.select.return_value.ask.return_value = "dns"
         mock_scan.return_value = mock_report
@@ -307,10 +326,10 @@ def test_interactive_scan_reads_whitelist_file(monkeypatch, tmp_path):
     mock_report = ScanReport(target="example.com", total_permutations=0)
 
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._confirm", return_value=False),
-        patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan,
-        patch("otacon.interactive.reporters"),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_confirm", return_value=False),
+        _patch_triage("_scan", new_callable=AsyncMock) as mock_scan,
+        _patch_triage("reporters"),
     ):
         mock_q.select.return_value.ask.return_value = "full"
         mock_scan.return_value = mock_report
@@ -327,10 +346,10 @@ def test_interactive_scan_ignores_unreadable_whitelist_file(monkeypatch, tmp_pat
     mock_report = ScanReport(target="example.com", total_permutations=0)
 
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._confirm", return_value=False),
-        patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan,
-        patch("otacon.interactive.reporters"),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_confirm", return_value=False),
+        _patch_triage("_scan", new_callable=AsyncMock) as mock_scan,
+        _patch_triage("reporters"),
         patch.object(Path, "read_text", side_effect=OSError("permission denied")),
     ):
         mock_q.select.return_value.ask.return_value = "full"
@@ -342,7 +361,7 @@ def test_interactive_scan_ignores_unreadable_whitelist_file(monkeypatch, tmp_pat
 
 def test_interactive_scan_ctrl_c_on_network():
     """Ctrl+C on network selection must exit without raising."""
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.select.return_value.ask.return_value = None
         _interactive_scan("example.com", MagicMock())
 
@@ -350,9 +369,9 @@ def test_interactive_scan_ctrl_c_on_network():
 def test_interactive_scan_ctrl_c_on_show_all():
     """Ctrl+C on show-all must exit without raising."""
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._confirm", return_value=None),
-        patch("otacon.interactive._scan", new_callable=AsyncMock),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_confirm", return_value=None),
+        _patch_triage("_scan", new_callable=AsyncMock),
     ):
         mock_q.select.return_value.ask.return_value = "full"
         _interactive_scan("example.com", MagicMock())
@@ -365,7 +384,7 @@ def test_interactive_scan_ctrl_c_on_show_all():
 
 def test_action_loop_skips_when_no_registered():
     """Empty report → no prompt shown."""
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         report = ScanReport(target="example.com", total_permutations=5)
         _action_loop(report, "example.com", MagicMock(), check_http=True)
         mock_q.select.assert_not_called()
@@ -375,7 +394,7 @@ def test_action_loop_ctrl_c_on_domain_picker():
     """Ctrl+C on domain picker exits cleanly."""
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.select.return_value.ask.return_value = None
         _action_loop(report, "example.com", MagicMock(), check_http=True)
 
@@ -384,7 +403,7 @@ def test_action_loop_quit_choice_returns_title_string():
     """Selecting '── quit ──' returns its title (not None) in questionary 2.x; must exit cleanly."""
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.select.return_value.ask.return_value = "── quit ──"
         _action_loop(report, "example.com", MagicMock(), check_http=True)
 
@@ -393,7 +412,7 @@ def test_action_loop_quit_from_action_menu():
     """Quit from action menu exits loop."""
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.select.return_value.ask.side_effect = [r, "quit"]
         _action_loop(report, "example.com", MagicMock(), check_http=True)
 
@@ -402,7 +421,7 @@ def test_action_loop_ctrl_c_from_action_menu():
     """None from action menu exits loop."""
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.select.return_value.ask.side_effect = [r, None]
         _action_loop(report, "example.com", MagicMock(), check_http=True)
 
@@ -411,7 +430,7 @@ def test_action_loop_back_returns_to_domain_picker():
     """Back action returns to domain picker (outer loop)."""
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         # back → domain picker again → None (Ctrl+C)
         mock_q.select.return_value.ask.side_effect = [r, "back", None]
         _action_loop(report, "example.com", MagicMock(), check_http=True)
@@ -423,9 +442,9 @@ def test_action_loop_open_calls_webbrowser():
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive.webbrowser") as mock_wb,
-        patch("otacon.interactive._confirm", return_value=True),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("webbrowser") as mock_wb,
+        _patch_triage("_confirm", return_value=True),
     ):
         mock_q.select.return_value.ask.side_effect = [r, "open", "quit"]
         _action_loop(report, "example.com", MagicMock(), check_http=True)
@@ -437,9 +456,9 @@ def test_action_loop_open_cancelled_when_user_declines():
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive.webbrowser") as mock_wb,
-        patch("otacon.interactive._confirm", return_value=False),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("webbrowser") as mock_wb,
+        _patch_triage("_confirm", return_value=False),
     ):
         mock_q.select.return_value.ask.side_effect = [r, "open", "quit"]
         _action_loop(report, "example.com", MagicMock(), check_http=True)
@@ -451,8 +470,8 @@ def test_action_loop_whois_calls_show_whois():
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._show_whois") as mock_show,
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_show_whois") as mock_show,
     ):
         mock_q.select.return_value.ask.side_effect = [r, "whois", "quit"]
         _action_loop(report, "example.com", MagicMock(), check_http=True)
@@ -464,8 +483,8 @@ def test_action_loop_export_calls_export_result():
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._export_result") as mock_export,
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_export_result") as mock_export,
     ):
         mock_q.select.return_value.ask.side_effect = [r, "export", "quit"]
         _action_loop(report, "example.com", MagicMock(), check_http=True)
@@ -477,7 +496,7 @@ def test_action_loop_takedown_generates_report(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         # 1. select domain `r`
         # 2. select action `takedown`
         # 3. select takedown option `save`
@@ -498,14 +517,14 @@ def test_action_loop_takedown_treats_page_title_as_literal_text():
     into Rich markup (e.g. a clickable ``[link=…]``) in the user's terminal."""
     from rich.console import Console
 
-    from otacon.theme import OTACON_THEME
+    from otacon.utils.theme import OTACON_THEME
 
     r = _registered()
     r.http_status = 200
     r.page_title = "[/][link=https://evil.example]Login[/link]"
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
     console = Console(record=True, width=200, theme=OTACON_THEME)
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.select.return_value.ask.side_effect = [r, "takedown", "back", "quit"]
         _action_loop(report, "example.com", console, check_http=True)
     assert "[/][link=https://evil.example]Login[/link]" in console.export_text()
@@ -515,7 +534,7 @@ def test_action_loop_allow_removes_domain_from_next_iteration():
     """Allow adds domain to session whitelist → domain absent from next outer loop."""
     r = _registered()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         # allow → outer loop: no candidates → exits
         mock_q.select.return_value.ask.side_effect = [r, "allow"]
         _action_loop(report, "example.com", MagicMock(), check_http=True)
@@ -530,9 +549,9 @@ def test_action_loop_rescan_updates_report_and_selected():
     updated = updated.model_copy(update={"risk_level": RiskLevel.HIGH})
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._rescan_result", return_value=updated) as mock_rescan,
-        patch("otacon.interactive.reporters"),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_rescan_result", return_value=updated) as mock_rescan,
+        _patch_triage("reporters"),
     ):
         mock_q.select.return_value.ask.side_effect = [r, "rescan", "quit"]
         _action_loop(report, "example.com", MagicMock(), check_http=False)
@@ -549,9 +568,9 @@ def test_action_loop_rescan_finds_match_past_first_entry():
     updated = r.model_copy(update={"risk_score": 75, "risk_level": RiskLevel.HIGH})
     report = ScanReport(target="example.com", total_permutations=5, results=[other, r])
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._rescan_result", return_value=updated),
-        patch("otacon.interactive.reporters"),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_rescan_result", return_value=updated),
+        _patch_triage("reporters"),
     ):
         mock_q.select.return_value.ask.side_effect = [r, "rescan", "quit"]
         _action_loop(report, "example.com", MagicMock(), check_http=False)
@@ -562,7 +581,8 @@ def test_action_loop_rescan_finds_match_past_first_entry():
 def test_run_action_menu_ignores_unknown_action():
     """An action string outside the dispatch table (defensive fallback) must
     be skipped instead of crashing the menu loop."""
-    from otacon.interactive import _ActionContext, _run_action_menu
+    from otacon.triage.actions import _ActionContext
+    from otacon.triage.workflow import _run_action_menu
 
     r = _registered(score=50)
     ctx = _ActionContext(
@@ -573,7 +593,7 @@ def test_run_action_menu_ignores_unknown_action():
         session_allowed=set(),
         console=MagicMock(),
     )
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.select.return_value.ask.side_effect = ["unknown-action", "quit"]
         outcome = _run_action_menu(ctx)
     assert outcome == "quit"
@@ -616,7 +636,7 @@ def _two_fake_perms():
 
 def _patch_scan_deps(monkeypatch, resolver_cls=_FakeResolver) -> None:
     monkeypatch.setattr(
-        "otacon.interactive.permutations.generate",
+        "otacon.permutations.generate",
         lambda target, exclude=None: _two_fake_perms(),
     )
     monkeypatch.setattr("otacon.engine.scanner.Resolver", resolver_cls)
@@ -624,7 +644,7 @@ def _patch_scan_deps(monkeypatch, resolver_cls=_FakeResolver) -> None:
 
 @pytest.mark.asyncio
 async def test_scan_returns_empty_report_when_no_permutations(monkeypatch):
-    monkeypatch.setattr("otacon.interactive.permutations.generate", lambda target, exclude=None: [])
+    monkeypatch.setattr("otacon.permutations.generate", lambda target, exclude=None: [])
     report = await _scan("example.com", concurrency=5, check_http=True, console=MagicMock())
     assert report.results == []
     assert report.total_permutations == 0
@@ -663,11 +683,11 @@ def test_action_loop_called_after_render_in_interactive_scan():
         called["ran"] = True
 
     with (
-        patch("otacon.interactive.questionary") as mock_q,
-        patch("otacon.interactive._confirm", return_value=False),
-        patch("otacon.interactive._scan", new_callable=AsyncMock) as mock_scan,
-        patch("otacon.interactive.reporters"),
-        patch("otacon.interactive._action_loop", fake_loop),
+        _patch_triage("questionary") as mock_q,
+        _patch_triage("_confirm", return_value=False),
+        _patch_triage("_scan", new_callable=AsyncMock) as mock_scan,
+        _patch_triage("reporters"),
+        _patch_triage("_action_loop", fake_loop),
     ):
         mock_q.select.return_value.ask.return_value = "full"
         mock_scan.return_value = mock_report
@@ -691,7 +711,7 @@ def test_show_whois_uses_cached_data_without_fetch():
         created_at=datetime(2024, 3, 1, tzinfo=UTC),
         age_days=90,
     )
-    with patch("otacon.interactive.fetch_domain_age") as mock_fetch:
+    with _patch_triage("fetch_domain_age") as mock_fetch:
         console = MagicMock()
         _show_whois(r, console)
     mock_fetch.assert_not_called()
@@ -707,7 +727,7 @@ def test_show_whois_fetches_when_no_cache():
     async def _fake_fetch(domain):
         return (datetime(2024, 1, 1, tzinfo=UTC), 150)
 
-    with patch("otacon.interactive.fetch_domain_age", _fake_fetch):
+    with _patch_triage("fetch_domain_age", _fake_fetch):
         console = MagicMock()
         _show_whois(r, console)
     assert console.print.called
@@ -720,7 +740,7 @@ def test_show_whois_shows_unavailable_on_failed_lookup():
     async def _fake_fetch(domain):
         return (None, None)
 
-    with patch("otacon.interactive.fetch_domain_age", _fake_fetch):
+    with _patch_triage("fetch_domain_age", _fake_fetch):
         console = MagicMock()
         _show_whois(r, console)
     printed = " ".join(str(c) for c in console.print.call_args_list)
@@ -755,7 +775,7 @@ def test_export_result_writes_json_to_file(tmp_path, monkeypatch):
     """_export_result saves valid JSON for a relative filename under the CWD."""
     monkeypatch.chdir(tmp_path)
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.text.return_value.ask.return_value = "googel_com.json"
         _export_result(r, MagicMock())
     out_file = tmp_path / "googel_com.json"
@@ -771,7 +791,7 @@ def test_export_result_rejects_paths_outside_cwd(tmp_path, monkeypatch, bad_name
     """Absolute paths and `..` escapes are refused — write stays inside the CWD."""
     monkeypatch.chdir(tmp_path)
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.text.return_value.ask.return_value = bad_name
         _export_result(r, MagicMock())
     # Nothing escaped the working directory (parent stays empty of our file).
@@ -782,7 +802,7 @@ def test_export_result_rejects_paths_outside_cwd(tmp_path, monkeypatch, bad_name
 def test_export_result_ctrl_c_exits_cleanly():
     """Ctrl+C on filename prompt exits without error."""
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
-    with patch("otacon.interactive.questionary") as mock_q:
+    with _patch_triage("questionary") as mock_q:
         mock_q.text.return_value.ask.return_value = None
         _export_result(r, MagicMock())  # must not raise
 
@@ -793,7 +813,7 @@ def test_export_result_handles_write_failure(tmp_path, monkeypatch):
     r = DomainResult(domain="googel.com", kind=PermutationType.TYPO)
     console = MagicMock()
     with (
-        patch("otacon.interactive.questionary") as mock_q,
+        _patch_triage("questionary") as mock_q,
         patch.object(Path, "write_text", side_effect=OSError("disk full")),
     ):
         mock_q.text.return_value.ask.return_value = "googel_com.json"
@@ -813,8 +833,8 @@ def test_rescan_result_returns_scored_domain_result():
     fresh = DomainResult(domain="googel.com", kind=PermutationType.TYPO, resolves=True)
 
     with (
-        patch("otacon.interactive.Resolver") as MockResolver,
-        patch("otacon.interactive.scoring") as mock_scoring,
+        _patch_triage("Resolver") as MockResolver,
+        _patch_triage("scoring") as mock_scoring,
     ):
         # Make Resolver.check_one return the fresh result
         mock_instance = AsyncMock()
@@ -862,7 +882,7 @@ def test_suggest_defensive_whitelist_prints_message():
     """Defensive domain found → prints a warning with the count."""
     r = _defensive()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive._confirm", return_value=False):
+    with _patch_triage("_confirm", return_value=False):
         console = MagicMock()
         _suggest_defensive_whitelist(report, console)
     assert console.print.called
@@ -875,7 +895,7 @@ def test_suggest_defensive_whitelist_writes_file_on_yes(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     r = _defensive()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive._confirm", return_value=True):
+    with _patch_triage("_confirm", return_value=True):
         _suggest_defensive_whitelist(report, MagicMock())
     wl = tmp_path / "whitelist.txt"
     assert wl.exists()
@@ -887,7 +907,7 @@ def test_suggest_defensive_whitelist_no_file_on_no(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     r = _defensive()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive._confirm", return_value=False):
+    with _patch_triage("_confirm", return_value=False):
         _suggest_defensive_whitelist(report, MagicMock())
     assert not (tmp_path / "whitelist.txt").exists()
 
@@ -900,7 +920,7 @@ def test_suggest_defensive_whitelist_skips_already_present_entries(tmp_path, mon
     r = _defensive()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
     console = MagicMock()
-    with patch("otacon.interactive._confirm", return_value=True):
+    with _patch_triage("_confirm", return_value=True):
         _suggest_defensive_whitelist(report, console)
     printed = " ".join(str(c) for c in console.print.call_args_list)
     assert "already in whitelist" in printed
@@ -914,7 +934,7 @@ def test_suggest_defensive_whitelist_adds_newline_before_appending(tmp_path, mon
     (tmp_path / "whitelist.txt").write_text("existing.com", encoding="utf-8")  # no trailing \n
     r = _defensive()
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
-    with patch("otacon.interactive._confirm", return_value=True):
+    with _patch_triage("_confirm", return_value=True):
         _suggest_defensive_whitelist(report, MagicMock())
     content = (tmp_path / "whitelist.txt").read_text(encoding="utf-8")
     assert content == "existing.com\ngoogel.com\n"
@@ -927,7 +947,7 @@ def test_suggest_defensive_whitelist_handles_write_error(tmp_path, monkeypatch):
     report = ScanReport(target="example.com", total_permutations=5, results=[r])
     console = MagicMock()
     with (
-        patch("otacon.interactive._confirm", return_value=True),
+        _patch_triage("_confirm", return_value=True),
         patch.object(Path, "open", side_effect=OSError("permission denied")),
     ):
         _suggest_defensive_whitelist(report, console)

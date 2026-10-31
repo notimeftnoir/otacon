@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import webbrowser
 from pathlib import Path
-from typing import Any, cast
 from urllib.parse import quote
 
 import questionary
@@ -29,28 +28,13 @@ from .notice import build_takedown_notice
 from .prompts import _QMARK, _STYLE, _confirm
 
 
-# ponytail: test hook — the guided mode's tests patch the otacon.interactive facade
-# (~80 sites), so lookups go through it. Repoint those patches to the real
-# modules and this goes; until then it is confined to triage/.
-def _get_inter(name: str, fallback: Any) -> Any:
-    import sys
-
-    mod = sys.modules.get("otacon.interactive")
-    if mod and hasattr(mod, name):
-        val = getattr(mod, name)
-        if val is not fallback:
-            return val
-    return fallback
-
-
 def _show_whois(result: DomainResult, console: Console) -> None:
     """Displays WHOIS registration info for a domain result."""
     console.print(f"\n[field]WHOIS:[/field] [value]{escape(result.domain)}[/value]")
     created, age = result.created_at, result.age_days
     if created is None:
         console.print("[muted]Fetching WHOIS…[/muted]")
-        whois_fn = _get_inter("fetch_domain_age", fetch_domain_age)
-        created, age = run_async(whois_fn(result.domain))
+        created, age = run_async(fetch_domain_age(result.domain))
     if created is not None:
         console.print(f"  [field]Created:[/field]  [value]{created:%Y-%m-%d}[/value]")
         console.print(f"  [field]Age:[/field]     [value]{format_age(age)}[/value]")
@@ -68,8 +52,7 @@ def _show_whois(result: DomainResult, console: Console) -> None:
 def _export_result(result: DomainResult, console: Console) -> None:
     """Saves a single domain result as a JSON file under the current directory."""
     default_name = f"{result.domain.replace('.', '_')}.json"
-    q_mod = _get_inter("questionary", questionary)
-    filename = q_mod.text(
+    filename = questionary.text(
         "Save as:",
         default=default_name,
         qmark=_QMARK,
@@ -107,10 +90,8 @@ def _rescan_result(
     perm = Permutation(domain=result.domain, kind=result.kind, note=result.note)
     console.print(f"[muted]Rescanning {escape(result.domain)}…[/muted]")
 
-    resolver_cls = _get_inter("Resolver", Resolver)
-
     async def _run() -> tuple[DomainResult, str | None]:
-        async with resolver_cls(
+        async with Resolver(
             check_http=check_http,
             target=target,
             check_whois=opts.whois,
@@ -120,8 +101,7 @@ def _rescan_result(
             return res, resolver.target_title
 
     raw, target_title = run_async(_run())
-    scoring_mod = _get_inter("scoring", scoring)
-    return cast(DomainResult, scoring_mod.score(raw, target, target_title=target_title))
+    return scoring.score(raw, target, target_title=target_title)
 
 
 def _suggest_defensive_whitelist(report: ScanReport, console: Console) -> None:
@@ -133,8 +113,7 @@ def _suggest_defensive_whitelist(report: ScanReport, console: Console) -> None:
         f"[warn]{GLYPH_DEFENSIVE}  {len(defensive)} domain(s) appear defensive "
         f"(redirect → original). Add to whitelist?[/warn]"
     )
-    confirm_fn = _get_inter("_confirm", _confirm)
-    if confirm_fn("Write to whitelist.txt?") is not True:
+    if _confirm("Write to whitelist.txt?") is not True:
         return
     path = Path("whitelist.txt")
     try:
@@ -203,24 +182,20 @@ def _handle_open(ctx: _ActionContext) -> str:
     ctx.console.print(
         f"[muted]Sandbox lookup:[/muted] [url]https://urlscan.io/search/#{quote(ctx.selected.domain)}[/url]"
     )
-    confirm_fn = _get_inter("_confirm", _confirm)
-    if confirm_fn("Open anyway?") is not True:
+    if _confirm("Open anyway?") is not True:
         return _ActionResult.CONTINUE
-    wb_mod = _get_inter("webbrowser", webbrowser)
-    wb_mod.open(url)
+    webbrowser.open(url)
     ctx.console.print(f"[ok]→ Opened[/ok] [url]{url}[/url]")
     return _ActionResult.CONTINUE
 
 
 def _handle_whois(ctx: _ActionContext) -> str:
-    show_whois_fn = _get_inter("_show_whois", _show_whois)
-    show_whois_fn(ctx.selected, ctx.console)
+    _show_whois(ctx.selected, ctx.console)
     return _ActionResult.CONTINUE
 
 
 def _handle_export(ctx: _ActionContext) -> str:
-    export_fn = _get_inter("_export_result", _export_result)
-    export_fn(ctx.selected, ctx.console)
+    _export_result(ctx.selected, ctx.console)
     return _ActionResult.CONTINUE
 
 
@@ -231,15 +206,15 @@ def _handle_allow(ctx: _ActionContext) -> str:
 
 
 def _handle_rescan(ctx: _ActionContext) -> str:
-    rescan_fn = _get_inter("_rescan_result", _rescan_result)
-    updated = rescan_fn(ctx.selected, ctx.target, ctx.check_http, ctx.console, ctx.report.options)
+    updated = _rescan_result(
+        ctx.selected, ctx.target, ctx.check_http, ctx.console, ctx.report.options
+    )
     for i, r in enumerate(ctx.report.results):
         if r.domain == ctx.selected.domain:
             ctx.report.results[i] = updated
             break
     ctx.selected = updated
-    reporters_mod = _get_inter("reporters", reporters)
-    reporters_mod.render_table(
+    reporters.render_table(
         ScanReport(target=ctx.target, total_permutations=1, results=[updated]),
         ctx.console,
         show_safe=True,
@@ -254,17 +229,16 @@ def _handle_takedown(ctx: _ActionContext) -> str:
         Panel(Text(report_text), title="[brand]Abuse Takedown Notice[/brand]", border_style="brand")
     )
 
-    q_mod = _get_inter("questionary", questionary)
-    action = q_mod.select(
+    action = questionary.select(
         "Takedown report options:",
         choices=[
-            q_mod.Choice("Save to takedown file", value="save"),
-            q_mod.Choice("Return to action menu", value="back"),
+            questionary.Choice("Save to takedown file", value="save"),
+            questionary.Choice("Return to action menu", value="back"),
         ],
     ).ask()
     if action == "save":
         default_name = f"takedown-{r.domain.replace('.', '_')}.txt"
-        fname = q_mod.text("Filename:", default=default_name).ask()
+        fname = questionary.text("Filename:", default=default_name).ask()
         if fname:
             safe_path = safe_relative_path(fname)
             if safe_path:

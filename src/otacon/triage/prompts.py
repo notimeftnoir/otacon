@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 import questionary
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import FormattedText
@@ -69,23 +67,6 @@ def _yn_bindings() -> KeyBindings:
 
 def _confirm(message: str) -> bool | None:
     """Displays a stylized y/n confirmation prompt."""
-    # ponytail: test hook — the guided mode's tests patch the otacon.interactive facade
-    # (~80 sites), so lookups go through it. Repoint those patches to the real
-    # modules and this goes; until then it is confined to triage/.
-    import sys
-
-    mod = sys.modules.get("otacon.interactive")
-    if mod and hasattr(mod, "_confirm"):
-        val = mod._confirm
-        if val is not _confirm:
-            return cast(bool | None, val(message))
-
-    pt_prompt_fn = _pt_prompt
-    if mod and hasattr(mod, "_pt_prompt"):
-        p_val = mod._pt_prompt
-        if p_val is not _pt_prompt:
-            pt_prompt_fn = p_val
-
     prompt_text = FormattedText(
         [
             ("fg:#00d7af bold", "› "),  # noqa: RUF001
@@ -97,7 +78,7 @@ def _confirm(message: str) -> bool | None:
         ]
     )
     try:
-        answer = pt_prompt_fn(
+        answer = _pt_prompt(
             prompt_text,
             validator=_YNValidator(),
             validate_while_typing=False,

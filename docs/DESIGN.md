@@ -89,9 +89,6 @@ Every stage exchanges models from `core/` — `Permutation`, then `DomainResult`
 Alongside them sit a few single-file modules: `diff.py` (report comparison), `ct_logs.py`
 (Certificate Transparency discovery), `_splash.py` (the start-up animation) and
 `_asyncutils.py` (a cross-platform event-loop wrapper for a Windows socket teardown quirk).
-`theme.py`, `_validate.py`, `models.py`, `resolver.py`, `_scanner.py`, `html_report.py`,
-`_hashutils.py` and `interactive.py` are thin re-exports kept so pre-2.0 import paths keep
-resolving; none of them holds logic.
 
 Total: ~7,600 lines of source, 608 tests.
 
@@ -222,7 +219,7 @@ generate(target, exclude)              cli.scan
                                                 │
                                                 └──> ScanReport.results.append()
                                                          │
-                                                         └──> reporters / html_report
+                                                         └──> reporters/html
 ```
 
 Three immutability boundaries:
