@@ -1,12 +1,8 @@
-"""Core enumeration types and type aliases for Otacon."""
+"""Core enumeration types for Otacon."""
 
 from __future__ import annotations
 
 from enum import Enum
-
-type DomainName = str
-type IPAddress = str
-type PortNumber = int
 
 
 class PermutationType(str, Enum):

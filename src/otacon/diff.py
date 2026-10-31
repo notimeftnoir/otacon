@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 from rich.console import Console
@@ -14,13 +12,6 @@ from rich.text import Text
 
 from .core.models import DomainResult, ScanOptions, ScanReport
 from .core.types import RiskLevel
-
-
-class DomainStatus(str, Enum):
-    NEW_THREAT = "new_threat"
-    NEW_SAFE = "new_safe"
-    DROPPED = "dropped"
-    MODIFIED = "modified"
 
 
 class DomainDiff(BaseModel):
@@ -56,9 +47,6 @@ class ReportDiff(BaseModel):
         return any(d.risk_level.rank >= RiskLevel.HIGH.rank for d in self.new_domains) or any(
             d.risk_level.rank >= RiskLevel.HIGH.rank for d in self.modified_domains
         )
-
-
-ScanDiff = ReportDiff
 
 
 def _shared_options(old: ScanReport, new: ScanReport) -> ScanOptions:
@@ -255,25 +243,11 @@ def render_diff(diff: ReportDiff, console: Console) -> None:
     console.print()
 
 
-_diff_summary = render_diff
-_render_diff_table = render_diff
-
-
-def _load_report(path: Path) -> ScanReport:
-    """Loads and validates a ScanReport from a JSON file."""
-    return ScanReport.model_validate_json(path.read_text(encoding="utf-8"))
-
-
 __all__ = [
     "DomainDiff",
-    "DomainStatus",
     "ReportDiff",
-    "ScanDiff",
     "_compare_results",
-    "_diff_summary",
-    "_load_report",
     "_option_caveats",
-    "_render_diff_table",
     "_shared_options",
     "compute_diff",
     "render_diff",

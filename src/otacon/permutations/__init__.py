@@ -30,17 +30,6 @@ from .rules import (
 
 # Compatibility aliases
 _split_domain = split_domain
-_typos = rule_typos
-_homoglyphs = rule_homoglyphs
-_combos = rule_combos
-_bitsquats = rule_bitsquats
-_hyphenation = rule_hyphenation
-_soundsquats = rule_soundsquats
-_vowel_swaps = rule_vowel_swaps
-_plurals = rule_plurals
-_www_merge = rule_www_merge
-_to_ace = to_ace
-_idn_squats = idn_squats
 
 __all__ = [
     "_ALT_TLDS",
@@ -54,18 +43,7 @@ __all__ = [
     "_SPOOF_SUFFIXES",
     "Permutation",
     "PermutationType",
-    "_bitsquats",
-    "_combos",
-    "_homoglyphs",
-    "_hyphenation",
-    "_idn_squats",
-    "_plurals",
-    "_soundsquats",
     "_split_domain",
-    "_to_ace",
-    "_typos",
-    "_vowel_swaps",
-    "_www_merge",
     "generate",
     "idn_squats",
     "rule_bitsquats",

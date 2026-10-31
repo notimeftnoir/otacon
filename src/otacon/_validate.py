@@ -9,8 +9,6 @@ of duplication that lets one of them fall behind.
 from __future__ import annotations
 
 from .utils.validate import (
-    _LABEL_RE,
-    _WIN_RESERVED,
     first_safe_ip,
     is_valid_domain,
     normalize_domain,
@@ -21,8 +19,6 @@ from .utils.validate import (
 )
 
 __all__ = [
-    "_LABEL_RE",
-    "_WIN_RESERVED",
     "first_safe_ip",
     "is_valid_domain",
     "normalize_domain",

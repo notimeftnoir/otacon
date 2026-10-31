@@ -11,7 +11,6 @@ from typing import Any
 import httpcore
 import httpx
 
-from ..core.exceptions import SSRFBlockedError
 from ..utils.validate import first_safe_ip
 
 
@@ -51,18 +50,8 @@ class _PinnedHTTPTransport(httpx.AsyncHTTPTransport):
         self._pool._network_backend = _PinnedNetworkBackend(pins)
 
 
-def verify_safe_ips(ips: list[str]) -> str:
-    """Verifies all resolved IPs are safe and returns the first safe candidate."""
-    safe = first_safe_ip(ips)
-    if not safe:
-        raise SSRFBlockedError(f"SSRF guard blocked unvetted or internal IP set: {ips}")
-    return safe
-
-
 __all__ = [
-    "SSRFBlockedError",
     "_PinnedHTTPTransport",
     "_PinnedNetworkBackend",
     "first_safe_ip",
-    "verify_safe_ips",
 ]

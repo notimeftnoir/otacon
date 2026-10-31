@@ -29,7 +29,7 @@ from .http import (
 )
 from .rdap import DEFAULT_RDAP_TIMEOUT
 from .security import _PinnedHTTPTransport, first_safe_ip
-from .tls import HTTPS_PORT, inspect_cert, probe_ssl
+from .tls import inspect_cert, probe_ssl
 from .whois import fetch_domain_age
 
 _log = logging.getLogger("otacon.net.resolver")
@@ -39,7 +39,6 @@ DEFAULT_CONCURRENCY = 50
 _CONNECTIONS_PER_PROBE = 3
 _DNS_TIMEOUT = 3.0
 _HTTP_TIMEOUT = DEFAULT_HTTP_TIMEOUT
-_HTTPS_PORT = HTTPS_PORT
 _HTTP_DEADLINE = HTTP_DEADLINE
 _HTTPS_GRACE = HTTPS_GRACE
 
@@ -177,10 +176,6 @@ class Resolver:
     @property
     def target_title(self) -> str | None:
         return self._target_title
-
-    @property
-    def target_favicon_hash(self) -> int | None:
-        return self._target_favicon_hash
 
     @property
     def dns_hijack_detected(self) -> bool:
@@ -404,7 +399,6 @@ __all__ = [
     "DEFAULT_CONCURRENCY",
     "_DNS_TIMEOUT",
     "_HTTPS_GRACE",
-    "_HTTPS_PORT",
     "_HTTP_DEADLINE",
     "_HTTP_TIMEOUT",
     "_MAX_BODY_BYTES",
