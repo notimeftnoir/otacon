@@ -195,6 +195,25 @@ async def test_whois_lookups_share_one_rdap_client():
 
 
 @pytest.mark.asyncio
+async def test_slow_answer_within_retries_is_not_a_failure():
+    # A resolver that drops the first try answers after one c-ares timeout;
+    # the outer guard once cut that off at _DNS_TIMEOUT and counted a failure.
+    r = Resolver()
+
+    async def slow(resolver, domain, rtype):
+        await asyncio.sleep(0.02)
+        return ["1.2.3.4"]
+
+    with (
+        patch("otacon.net.resolver._DNS_TIMEOUT", 0.01),
+        patch("otacon.net.resolver._DNS_DEADLINE", 1.0),
+        patch("otacon.net.resolver._query_dns", side_effect=slow),
+    ):
+        assert await r._query("example.com", "A") == ["1.2.3.4"]
+    assert r.dns_failures == 0
+
+
+@pytest.mark.asyncio
 async def test_resolve_a_merges_a_and_aaaa():
     r = Resolver()
 
