@@ -38,6 +38,13 @@ DEFAULT_CONCURRENCY = 50
 # HTTP + HTTPS raced, plus one favicon fetch on a 2xx.
 _CONNECTIONS_PER_PROBE = 3
 _DNS_TIMEOUT = 3.0
+# Home routers and VPN resolvers drop UDP queries under a burst; with a single
+# try every drop became a failure (50-60% of a -c 50 scan). c-ares re-sends a
+# query only on timeout, so negative answers stay one round trip.
+_DNS_TRIES = 3
+# Safety net over c-ares' own retries, not a per-try limit: it must outlast
+# every try (c-ares doubles the timeout on each round) or the retries never run.
+_DNS_DEADLINE = _DNS_TIMEOUT * (2**_DNS_TRIES - 1)
 _HTTP_TIMEOUT = DEFAULT_HTTP_TIMEOUT
 _HTTP_DEADLINE = HTTP_DEADLINE
 _HTTPS_GRACE = HTTPS_GRACE
@@ -58,7 +65,7 @@ class Resolver:
         self._sem = asyncio.Semaphore(concurrency)
         self._tls_sem = asyncio.Semaphore(concurrency)
         self._whois_sem = asyncio.Semaphore(4)
-        self._dns = aiodns.DNSResolver(timeout=_DNS_TIMEOUT, tries=1)
+        self._dns = aiodns.DNSResolver(timeout=_DNS_TIMEOUT, tries=_DNS_TRIES)
         self._check_http = check_http
         self._check_whois = check_whois
         self._enable_dnsbl = check_dnsbl
@@ -144,7 +151,7 @@ class Resolver:
         """
         self.dns_queries += 1
         try:
-            async with asyncio.timeout(_DNS_TIMEOUT):
+            async with asyncio.timeout(_DNS_DEADLINE):
                 return await _query_dns(self._dns, domain, rtype)
         except Exception as exc:
             if not is_negative_answer(exc):
