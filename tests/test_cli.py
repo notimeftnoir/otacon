@@ -439,7 +439,7 @@ def test_debug_log_survives_quiet_mode(capsys: pytest.CaptureFixture[str]) -> No
     cli_main.console.quiet = True
     cli_main._configure_logging(True)
     try:
-        logging.getLogger("otacon.resolver").debug("dns miss for probe.example")
+        logging.getLogger("otacon.net.resolver").debug("dns miss for probe.example")
         assert "dns miss for probe.example" in capsys.readouterr().err
     finally:
         cli_main.console.quiet = False
