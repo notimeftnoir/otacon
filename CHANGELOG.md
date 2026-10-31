@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   live in `otacon.core`, `otacon.utils`, `otacon.net`, `otacon.triage`,
   `otacon.engine` and `otacon.reporters`; import from there, or from the
   top-level `otacon` package for the models and enums.
+- The `otacon.core.exceptions` hierarchy (`OtaconError` and its twelve
+  subclasses). Nothing in Otacon raised any of them, so catching them never
+  caught anything.
+- `otacon.reporters.base.BaseReporter`, a protocol nothing implemented against.
 - Dead code with no caller in the package, its tests or its tools:
   `otacon.diff.DomainStatus`, `ScanDiff` and `_load_report`;
   `otacon.net.security.verify_safe_ips` (the SSRF guard is `first_safe_ip`,

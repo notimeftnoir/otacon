@@ -14,8 +14,9 @@ import respx
 from otacon.core.models import Permutation
 from otacon.core.types import PermutationType
 from otacon.net.content import _MAX_BODY_BYTES, _parse_title
+from otacon.net.http import HTTPProbeResult, read_capped_body
 from otacon.net.resolver import Resolver
-from otacon.net.tls import _san_covers_host
+from otacon.net.tls import _san_covers_host, inspect_cert
 
 
 def test_parse_title_basic():
@@ -146,10 +147,10 @@ class _FakeStreamResp:
 
 @pytest.mark.asyncio
 async def test_read_capped_stops_at_limit():
-    # 50 MB "body" — _read_capped must return <= cap and stop pulling early
+    # 50 MB "body" — read_capped_body must return <= cap and stop pulling early
     # (never materialising the whole thing, as with a decompression bomb).
     resp = _FakeStreamResp(50 * 1024 * 1024)
-    text = await Resolver._read_capped(resp)
+    text = await read_capped_body(resp)
     assert len(text.encode("utf-8")) <= _MAX_BODY_BYTES
     # Generation halted shortly after the cap, not after the full 50 MB.
     assert resp.produced < _MAX_BODY_BYTES + resp._chunk_size
@@ -158,7 +159,7 @@ async def test_read_capped_stops_at_limit():
 @pytest.mark.asyncio
 async def test_read_capped_small_body_intact():
     resp = _FakeStreamResp(100)
-    text = await Resolver._read_capped(resp)
+    text = await read_capped_body(resp)
     assert text == "a" * 100
 
 
@@ -263,7 +264,11 @@ def _patch_network(r: Resolver, *, resolve_ips: list[str]):
         )
     )
     stack.enter_context(
-        patch.object(r, "_probe_http", new=AsyncMock(return_value=(None, None, None, None)))
+        patch.object(
+            r,
+            "_probe_http",
+            new=AsyncMock(return_value=HTTPProbeResult(None, None, None, None, False, None)),
+        )
     )
     stack.enter_context(
         patch("otacon.net.resolver.fetch_domain_age", new=AsyncMock(return_value=(None, None)))
@@ -336,7 +341,7 @@ async def test_dns_hijack_detected_property():
 
 
 # ---------------------------------------------------------------------------
-# _inspect_cert — the TLS-cert reader feeds scoring; every branch must be safe
+# inspect_cert — the TLS-cert reader feeds scoring; every branch must be safe
 #
 # The probe handshakes with CERT_NONE (hostile lookalikes have broken certs by
 # design) and CPython returns an EMPTY dict from text-form getpeercert() for
@@ -390,18 +395,18 @@ def _cert_none_ssl_obj(der: bytes | None) -> MagicMock:
 
 
 def test_inspect_cert_none_ssl_obj():
-    assert Resolver._inspect_cert(None, "example.com") == (None, None, None)
+    assert inspect_cert(None, "example.com") == (None, None, None)
 
 
 def test_inspect_cert_getpeercert_raises():
     obj = MagicMock(spec=ssl.SSLObject)
     obj.getpeercert.side_effect = ssl.SSLError("boom")
-    assert Resolver._inspect_cert(obj, "example.com") == (None, None, None)
+    assert inspect_cert(obj, "example.com") == (None, None, None)
 
 
 def test_inspect_cert_no_peer_cert():
     """binary_form=True returns None when the peer sent no certificate."""
-    assert Resolver._inspect_cert(_cert_none_ssl_obj(None), "example.com") == (
+    assert inspect_cert(_cert_none_ssl_obj(None), "example.com") == (
         None,
         None,
         None,
@@ -410,7 +415,7 @@ def test_inspect_cert_no_peer_cert():
 
 def test_inspect_cert_malformed_der():
     obj = _cert_none_ssl_obj(b"\x30\x03garbage-not-a-certificate")
-    assert Resolver._inspect_cert(obj, "example.com") == (None, None, None)
+    assert inspect_cert(obj, "example.com") == (None, None, None)
 
 
 def _with_negative_serial(der: bytes) -> bytes:
@@ -436,7 +441,7 @@ def test_inspect_cert_negative_serial_does_not_warn():
     obj = _cert_none_ssl_obj(_with_negative_serial(_make_der_cert()))
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        issuer, _, san_match = Resolver._inspect_cert(obj, "lookalike.example.com")
+        issuer, _, san_match = inspect_cert(obj, "lookalike.example.com")
     assert issuer == "Test CA"
     assert san_match is True
 
@@ -446,7 +451,7 @@ def test_inspect_cert_reads_der_under_cert_none():
     is empty, so the signals silently blanked in production while dict-mocking
     tests stayed green. The reader must extract everything from the DER form."""
     obj = _cert_none_ssl_obj(_make_der_cert())
-    issuer, age, san_match = Resolver._inspect_cert(obj, "lookalike.example.com")
+    issuer, age, san_match = inspect_cert(obj, "lookalike.example.com")
     assert issuer == "Test CA"
     assert age is not None
     assert san_match is True
@@ -458,9 +463,7 @@ def test_inspect_cert_full_match():
         not_before=datetime.now(UTC) - timedelta(days=2),
         san=("lookalike.example.com",),
     )
-    issuer, age, san_match = Resolver._inspect_cert(
-        _cert_none_ssl_obj(der), "lookalike.example.com"
-    )
+    issuer, age, san_match = inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
     assert issuer == "Let's Encrypt"
     assert age is not None and 1 <= age <= 3
     assert san_match is True
@@ -468,16 +471,14 @@ def test_inspect_cert_full_match():
 
 def test_inspect_cert_san_mismatch():
     der = _make_der_cert(issuer_cn="DigiCert", san=("totally-other.example",))
-    issuer, _age, san_match = Resolver._inspect_cert(
-        _cert_none_ssl_obj(der), "lookalike.example.com"
-    )
+    issuer, _age, san_match = inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
     assert issuer == "DigiCert"
     assert san_match is False
 
 
 def test_inspect_cert_san_wildcard_match():
     der = _make_der_cert(issuer_cn="DigiCert", san=("*.example.com",))
-    _, _, san_match = Resolver._inspect_cert(_cert_none_ssl_obj(der), "sub.example.com")
+    _, _, san_match = inspect_cert(_cert_none_ssl_obj(der), "sub.example.com")
     assert san_match is True
 
 
@@ -489,7 +490,7 @@ def test_inspect_cert_san_wildcard_does_not_match_deep_subdomain():
     a deeper host.
     """
     der = _make_der_cert(issuer_cn="DigiCert", san=("*.example.com",))
-    _, _, san_match = Resolver._inspect_cert(_cert_none_ssl_obj(der), "a.b.example.com")
+    _, _, san_match = inspect_cert(_cert_none_ssl_obj(der), "a.b.example.com")
     assert san_match is False
 
 
@@ -513,20 +514,20 @@ def test_san_covers_host(host, name, expected):
 
 def test_inspect_cert_no_san_extension():
     der = _make_der_cert(san=None)
-    _, _, san_match = Resolver._inspect_cert(_cert_none_ssl_obj(der), "x.example.com")
+    _, _, san_match = inspect_cert(_cert_none_ssl_obj(der), "x.example.com")
     assert san_match is None
 
 
 def test_inspect_cert_strips_escape_sequences_from_issuer():
     """The issuer CN of a self-signed lookalike cert is attacker-controlled."""
     der = _make_der_cert(issuer_cn="Evil[2J CA")
-    issuer, _, _ = Resolver._inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
+    issuer, _, _ = inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
     assert issuer == "Evil[2J CA"
 
 
 def test_inspect_cert_issuer_without_cn():
     der = _make_der_cert(issuer_cn=None)
-    issuer, age, _ = Resolver._inspect_cert(_cert_none_ssl_obj(der), "x.example.com")
+    issuer, age, _ = inspect_cert(_cert_none_ssl_obj(der), "x.example.com")
     assert issuer is None
     assert age is not None  # the other signals still come through
 
@@ -538,12 +539,12 @@ def test_inspect_cert_future_not_before_yields_zero_age():
     der = _make_der_cert(
         not_before=datetime.now(UTC) + timedelta(days=2),
     )
-    _, age, _ = Resolver._inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
+    _, age, _ = inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
     assert age == 0
 
 
 # ---------------------------------------------------------------------------
-# _read_capped — the bomb defense
+# read_capped_body — the bomb defense
 # ---------------------------------------------------------------------------
 
 
@@ -555,7 +556,7 @@ async def test_read_capped_truncates_oversized_body():
         r.get("https://x.example.com/").mock(return_value=httpx.Response(200, content=body))
         async with httpx.AsyncClient() as client:
             async with client.stream("GET", "https://x.example.com") as resp:
-                text = await Resolver._read_capped(resp)
+                text = await read_capped_body(resp)
     assert len(text) <= _MAX_BODY_BYTES
 
 
@@ -918,7 +919,7 @@ async def test_probe_pins_and_uses_safe_ip():
                 r,
                 "_probe_http",
                 new_callable=AsyncMock,
-                return_value=(200, None, None, None),
+                return_value=HTTPProbeResult(200, None, None, None, False, None),
             ):
                 await r._probe("lookalike.example", ["8.8.8.8"])
     assert r._ip_pins["lookalike.example"] == "8.8.8.8"
