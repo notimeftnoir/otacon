@@ -24,22 +24,19 @@ from .schemas import (
     ScanOptionsSchema,
     ScanReportSchema,
 )
-from .types import DomainName, IPAddress, PermutationType, PortNumber, RiskLevel
+from .types import PermutationType, RiskLevel
 
 __all__ = [
     "ConfigurationError",
     "DNSResolutionError",
-    "DomainName",
     "DomainResult",
     "DomainResultSchema",
     "HTTPProbeError",
-    "IPAddress",
     "OtaconError",
     "Permutation",
     "PermutationError",
     "PermutationSchema",
     "PermutationType",
-    "PortNumber",
     "ReportExportError",
     "ResolutionError",
     "RiskLevel",

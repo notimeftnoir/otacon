@@ -10,9 +10,6 @@ from __future__ import annotations
 
 from .core.types import RiskLevel
 from .utils.theme import (
-    _LOGO_BOT,
-    _LOGO_MID,
-    _LOGO_TOP,
     BANNER,
     GLYPH_DEFENSIVE,
     GRADIENT,
@@ -23,7 +20,6 @@ from .utils.theme import (
     SPOOF_INDEX,
     TAGLINE,
     WORDMARK,
-    _wordmark_markup,
     gradient,
     gradient_color,
 )
@@ -39,11 +35,7 @@ __all__ = [
     "SPOOF_INDEX",
     "TAGLINE",
     "WORDMARK",
-    "_LOGO_BOT",
-    "_LOGO_MID",
-    "_LOGO_TOP",
     "RiskLevel",
-    "_wordmark_markup",
     "gradient",
     "gradient_color",
 ]

@@ -30,7 +30,6 @@ from .security import (
     _PinnedHTTPTransport,
     _PinnedNetworkBackend,
     first_safe_ip,
-    verify_safe_ips,
 )
 from .tls import (
     DEFAULT_TLS_TIMEOUT,
@@ -75,5 +74,4 @@ __all__ = [
     "probe_ssl",
     "read_capped_body",
     "shodan_favicon_hash",
-    "verify_safe_ips",
 ]

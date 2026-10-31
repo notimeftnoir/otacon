@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Dead code with no caller in the package, its tests or its tools:
+  `otacon.diff.DomainStatus`, `ScanDiff` and `_load_report`;
+  `otacon.net.security.verify_safe_ips` (the SSRF guard is `first_safe_ip`,
+  unchanged); `Resolver.target_favicon_hash`; the `DomainName` / `IPAddress` /
+  `PortNumber` aliases in `otacon.core`; unused re-exports in `otacon.cli` and
+  the legacy shims. Nothing a scan does changes.
+
 ## [4.0.0] — 2026-10-31
 
 A major because it takes back what 3.0.0 changed: `otacon` with no arguments
