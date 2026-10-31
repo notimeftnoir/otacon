@@ -13,8 +13,11 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from otacon import cli
+from otacon import permutations, scoring
 from otacon.cli import app
+from otacon.cli import main as cli_main
+from otacon.cli.commands import scan as cli_scan
+from otacon.cli.state import _state
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -32,7 +35,7 @@ def plain(output: str) -> str:
 
 
 def test_load_exclusions_parses_comma_separated_values() -> None:
-    exclusions = cli._load_exclusions("good.com,EXAMPLE.COM", None)
+    exclusions = cli_scan._load_exclusions("good.com,EXAMPLE.COM", None)
     assert exclusions == {"good.com", "example.com"}
 
 
@@ -40,7 +43,7 @@ def test_load_exclusions_reads_file(tmp_path: Path) -> None:
     file_path = tmp_path / "whitelist.txt"
     file_path.write_text("# comment\ntrusted.com\n example.com \n")
 
-    exclusions = cli._load_exclusions(None, file_path)
+    exclusions = cli_scan._load_exclusions(None, file_path)
     assert exclusions == {"trusted.com", "example.com"}
 
 
@@ -53,7 +56,7 @@ def test_load_exclusions_strips_www_so_the_entry_can_match() -> None:
     """
     from otacon import permutations
 
-    exclusions = cli._load_exclusions("www.example.net", None)
+    exclusions = cli_scan._load_exclusions("www.example.net", None)
     assert exclusions == {"example.net"}
 
     generated = {p.domain for p in permutations.generate("example.com", exclude=exclusions)}
@@ -62,7 +65,7 @@ def test_load_exclusions_strips_www_so_the_entry_can_match() -> None:
 
 def test_load_exclusions_raises_for_missing_file() -> None:
     with pytest.raises(typer.BadParameter, match="exclude-file not found"):
-        cli._load_exclusions(None, Path("does-not-exist.txt"))
+        cli_scan._load_exclusions(None, Path("does-not-exist.txt"))
 
 
 def test_bare_invocation_calls_interactive(monkeypatch) -> None:
@@ -337,7 +340,7 @@ def test_scan_rejects_invalid_domain() -> None:
 def test_load_exclusions_combines_cli_and_file(tmp_path: Path) -> None:
     file_path = tmp_path / "wl.txt"
     file_path.write_text("from-file.com\n")
-    out = cli._load_exclusions("from-cli.com", file_path)
+    out = cli_scan._load_exclusions("from-cli.com", file_path)
     assert out == {"from-cli.com", "from-file.com"}
 
 
@@ -345,7 +348,7 @@ def test_state_default_when_obj_missing() -> None:
     """_state() must return a fresh default when ctx.obj is unset (test paths
     that invoke subcommands directly bypass the root callback)."""
     fake_ctx = type("Ctx", (), {"obj": None})()
-    assert cli._state(fake_ctx).quiet is False
+    assert _state(fake_ctx).quiet is False
 
 
 def test_scan_keyboard_interrupt_exits_cleanly(monkeypatch) -> None:
@@ -368,26 +371,26 @@ def test_scan_keyboard_interrupt_exits_cleanly(monkeypatch) -> None:
 
 def test_ensure_unicode_output_skips_non_textiowrapper(monkeypatch) -> None:
     """Streams that aren't a TextIOWrapper (e.g. pytest's capture proxy) are left alone."""
-    monkeypatch.setattr(cli.sys, "stdout", object())
-    monkeypatch.setattr(cli.sys, "stderr", object())
-    cli._ensure_unicode_output()  # must not raise
+    monkeypatch.setattr(sys, "stdout", object())
+    monkeypatch.setattr(sys, "stderr", object())
+    cli_main._ensure_unicode_output()  # must not raise
 
 
 def test_ensure_unicode_output_reconfigures_non_utf8_stream_on_posix(monkeypatch) -> None:
     stream = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
-    monkeypatch.setattr(cli.sys, "stdout", stream)
-    monkeypatch.setattr(cli.sys, "stderr", stream)
-    monkeypatch.setattr(cli.sys, "platform", "linux")
-    cli._ensure_unicode_output()
+    monkeypatch.setattr(sys, "stdout", stream)
+    monkeypatch.setattr(sys, "stderr", stream)
+    monkeypatch.setattr(sys, "platform", "linux")
+    cli_main._ensure_unicode_output()
     assert stream.errors == "replace"
 
 
 def test_ensure_unicode_output_reconfigures_utf8_on_win32(monkeypatch) -> None:
     stream = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
-    monkeypatch.setattr(cli.sys, "stdout", stream)
-    monkeypatch.setattr(cli.sys, "stderr", stream)
-    monkeypatch.setattr(cli.sys, "platform", "win32")
-    cli._ensure_unicode_output()
+    monkeypatch.setattr(sys, "stdout", stream)
+    monkeypatch.setattr(sys, "stderr", stream)
+    monkeypatch.setattr(sys, "platform", "win32")
+    cli_main._ensure_unicode_output()
     assert stream.encoding.lower().replace("-", "") == "utf8"
 
 
@@ -397,9 +400,9 @@ def test_ensure_unicode_output_swallows_reconfigure_errors(monkeypatch) -> None:
             raise ValueError("boom")
 
     stream = _BrokenStream(io.BytesIO(), encoding="cp1252")
-    monkeypatch.setattr(cli.sys, "stdout", stream)
-    monkeypatch.setattr(cli.sys, "stderr", stream)
-    cli._ensure_unicode_output()  # exception must be swallowed, not propagated
+    monkeypatch.setattr(sys, "stdout", stream)
+    monkeypatch.setattr(sys, "stderr", stream)
+    cli_main._ensure_unicode_output()  # exception must be swallowed, not propagated
 
 
 # ---------------------------------------------------------------------------
@@ -408,39 +411,39 @@ def test_ensure_unicode_output_swallows_reconfigure_errors(monkeypatch) -> None:
 
 
 def test_configure_logging_debug_attaches_rich_handler() -> None:
-    cli._configure_logging(True)
+    cli_main._configure_logging(True)
     logger = logging.getLogger("otacon")
     try:
         assert logger.level == logging.DEBUG
         assert len(logger.handlers) == 1
     finally:
-        cli._configure_logging(False)  # restore quiet state for other tests
+        cli_main._configure_logging(False)  # restore quiet state for other tests
 
 
 def test_debug_log_goes_to_stderr_not_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     # --help promises stderr; on stdout the log lines interleave with the
     # results table and can't be split off with `2> debug.log`.
-    cli._configure_logging(True)
+    cli_main._configure_logging(True)
     try:
         logging.getLogger("otacon.whois").debug("whois miss for probe.example")
         captured = capsys.readouterr()
         assert "whois miss for probe.example" in captured.err
         assert "whois miss for probe.example" not in captured.out
     finally:
-        cli._configure_logging(False)
+        cli_main._configure_logging(False)
 
 
 def test_debug_log_survives_quiet_mode(capsys: pytest.CaptureFixture[str]) -> None:
     # `-q -v` is the CI combination: clean JSON on stdout, diagnostics on
     # stderr. Silencing the UI console must not silence the debug log too.
-    cli.console.quiet = True
-    cli._configure_logging(True)
+    cli_main.console.quiet = True
+    cli_main._configure_logging(True)
     try:
         logging.getLogger("otacon.resolver").debug("dns miss for probe.example")
         assert "dns miss for probe.example" in capsys.readouterr().err
     finally:
-        cli.console.quiet = False
-        cli._configure_logging(False)
+        cli_main.console.quiet = False
+        cli_main._configure_logging(False)
 
 
 # ---------------------------------------------------------------------------
@@ -451,7 +454,7 @@ def test_debug_log_survives_quiet_mode(capsys: pytest.CaptureFixture[str]) -> No
 def test_load_exclusions_raises_for_unreadable_file(tmp_path: Path) -> None:
     # A directory can't be read_text()'d — OSError, not FileNotFoundError.
     with pytest.raises(typer.BadParameter, match="cannot read exclude-file"):
-        cli._load_exclusions(None, tmp_path)
+        cli_scan._load_exclusions(None, tmp_path)
 
 
 # ---------------------------------------------------------------------------
@@ -460,27 +463,27 @@ def test_load_exclusions_raises_for_unreadable_file(tmp_path: Path) -> None:
 
 
 def test_load_weights_returns_defaults_when_no_file() -> None:
-    weights = cli._load_weights(None)
-    assert isinstance(weights, cli.scoring.ScoringWeights)
+    weights = cli_scan._load_weights(None)
+    assert isinstance(weights, scoring.ScoringWeights)
 
 
 def test_load_weights_loads_overrides_from_json(tmp_path: Path) -> None:
     file_path = tmp_path / "weights.json"
     file_path.write_text('{"points_mx": 99}')
-    weights = cli._load_weights(file_path)
+    weights = cli_scan._load_weights(file_path)
     assert weights.points_mx == 99
 
 
 def test_load_weights_raises_for_missing_file() -> None:
     with pytest.raises(typer.BadParameter, match="weights-file not found"):
-        cli._load_weights(Path("does-not-exist.json"))
+        cli_scan._load_weights(Path("does-not-exist.json"))
 
 
 def test_load_weights_raises_for_invalid_json(tmp_path: Path) -> None:
     file_path = tmp_path / "bad.json"
     file_path.write_text("{not valid json")
     with pytest.raises(typer.BadParameter, match="cannot read/parse weights-file"):
-        cli._load_weights(file_path)
+        cli_scan._load_weights(file_path)
 
 
 def test_load_weights_raises_clean_error_for_non_numeric_value(tmp_path: Path) -> None:
@@ -489,7 +492,7 @@ def test_load_weights_raises_clean_error_for_non_numeric_value(tmp_path: Path) -
     file_path = tmp_path / "weights.json"
     file_path.write_text('{"points_mx": null}')
     with pytest.raises(typer.BadParameter, match="cannot read/parse weights-file"):
-        cli._load_weights(file_path)
+        cli_scan._load_weights(file_path)
 
 
 def test_load_weights_raises_clean_error_for_non_object_top_level_json(tmp_path: Path) -> None:
@@ -498,14 +501,14 @@ def test_load_weights_raises_clean_error_for_non_object_top_level_json(tmp_path:
     file_path = tmp_path / "weights.json"
     file_path.write_text("[1, 2, 3]")
     with pytest.raises(typer.BadParameter, match="cannot read/parse weights-file"):
-        cli._load_weights(file_path)
+        cli_scan._load_weights(file_path)
 
 
 def test_load_weights_treats_top_level_null_as_no_overrides(tmp_path: Path) -> None:
     """A JSON `null` weights-file body means 'no overrides', not an error."""
     file_path = tmp_path / "weights.json"
     file_path.write_text("null")
-    weights = cli._load_weights(file_path)
+    weights = cli_scan._load_weights(file_path)
     assert weights.points_mx == 25
 
 
@@ -550,23 +553,21 @@ def _two_fake_perms():
 
 @pytest.mark.asyncio
 async def test_run_scan_returns_empty_report_when_no_permutations(monkeypatch) -> None:
-    monkeypatch.setattr(cli.permutations, "generate", lambda target, exclude=None: [])
-    report = await cli._run_scan("example.com", concurrency=5, check_http=True)
+    monkeypatch.setattr(permutations, "generate", lambda target, exclude=None: [])
+    report = await cli_scan._run_scan("example.com", concurrency=5, check_http=True)
     assert report.results == []
     assert report.total_permutations == 0
 
 
 def _patch_scan_deps(monkeypatch, resolver_cls=_FakeResolver) -> None:
-    monkeypatch.setattr(
-        cli.permutations, "generate", lambda target, exclude=None: _two_fake_perms()
-    )
+    monkeypatch.setattr(permutations, "generate", lambda target, exclude=None: _two_fake_perms())
     monkeypatch.setattr("otacon.engine.scanner.Resolver", resolver_cls)
 
 
 @pytest.mark.asyncio
 async def test_run_scan_quiet_mode_collects_hits(monkeypatch) -> None:
     _patch_scan_deps(monkeypatch)
-    report = await cli._run_scan("example.com", concurrency=5, check_http=True, quiet=True)
+    report = await cli_scan._run_scan("example.com", concurrency=5, check_http=True, quiet=True)
     assert report.total_permutations == 2
     assert len(report.results) == 2
     assert all(r.is_registered for r in report.results)
@@ -575,14 +576,14 @@ async def test_run_scan_quiet_mode_collects_hits(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_run_scan_non_quiet_mode_renders_live_table(monkeypatch) -> None:
     _patch_scan_deps(monkeypatch)
-    report = await cli._run_scan("example.com", concurrency=5, check_http=True, quiet=False)
+    report = await cli_scan._run_scan("example.com", concurrency=5, check_http=True, quiet=False)
     assert len(report.results) == 2
 
 
 @pytest.mark.asyncio
 async def test_run_scan_reports_dns_hijack_warning(monkeypatch, capsys) -> None:
     _patch_scan_deps(monkeypatch, resolver_cls=_HijackResolver)
-    report = await cli._run_scan("example.com", concurrency=5, check_http=True, quiet=True)
+    report = await cli_scan._run_scan("example.com", concurrency=5, check_http=True, quiet=True)
     assert report.dns_hijack_detected is True
     assert "NXDOMAIN hijacking" in capsys.readouterr().out
 
@@ -599,9 +600,9 @@ async def test_run_scan_sorts_results_deterministically(monkeypatch) -> None:
             Permutation(domain="m.example.com", kind=PermutationType.TYPO),
         ]
 
-    monkeypatch.setattr(cli.permutations, "generate", fake_generate)
+    monkeypatch.setattr(permutations, "generate", fake_generate)
     monkeypatch.setattr("otacon.engine.scanner.Resolver", _FakeResolver)
-    report = await cli._run_scan("example.com", concurrency=5, check_http=True, quiet=True)
+    report = await cli_scan._run_scan("example.com", concurrency=5, check_http=True, quiet=True)
     domains = [r.domain for r in report.results]
     assert domains == sorted(domains)
 
@@ -712,25 +713,25 @@ def test_cli_module_dunder_main(monkeypatch) -> None:
 def test_load_domains_merges_args_and_file(tmp_path: Path) -> None:
     file_path = tmp_path / "domains.txt"
     file_path.write_text("# comment\nexample.com\ngoogle.com\n")
-    result = cli._load_domains(["github.com"], file_path)
+    result = cli_scan._load_domains(["github.com"], file_path)
     assert result == ["github.com", "example.com", "google.com"]
 
 
 def test_load_domains_deduplicates(tmp_path: Path) -> None:
     file_path = tmp_path / "domains.txt"
     file_path.write_text("github.com\n")
-    result = cli._load_domains(["github.com", "GITHUB.COM"], file_path)
+    result = cli_scan._load_domains(["github.com", "GITHUB.COM"], file_path)
     assert result == ["github.com"]
 
 
 def test_load_domains_normalises_www() -> None:
-    result = cli._load_domains(["www.github.com"], None)
+    result = cli_scan._load_domains(["www.github.com"], None)
     assert result == ["github.com"]
 
 
 def test_load_domains_raises_for_missing_file() -> None:
     with pytest.raises(typer.BadParameter, match="domains-file not found"):
-        cli._load_domains([], Path("does-not-exist.txt"))
+        cli_scan._load_domains([], Path("does-not-exist.txt"))
 
 
 def test_scan_multiple_positional_args_scans_each(monkeypatch) -> None:
@@ -838,11 +839,11 @@ def test_scan_exception_in_one_domain_continues_rest(monkeypatch) -> None:
 
 def test_load_domains_oserror_raises_bad_parameter(tmp_path: Path) -> None:
     with pytest.raises(typer.BadParameter, match="cannot read domains-file"):
-        cli._load_domains([], tmp_path)  # directory → IsADirectoryError (OSError subclass)
+        cli_scan._load_domains([], tmp_path)  # directory → IsADirectoryError (OSError subclass)
 
 
 def test_load_domains_empty_input_returns_empty_list() -> None:
-    assert cli._load_domains([], None) == []
+    assert cli_scan._load_domains([], None) == []
 
 
 def test_scan_all_domains_fail_exits_1(monkeypatch) -> None:

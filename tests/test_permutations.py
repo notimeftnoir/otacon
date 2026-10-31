@@ -211,7 +211,7 @@ def test_subdomain_spoof_present():
 
 def test_subdomain_spoof_uses_all_suffixes():
     """One variant per spoof suffix is generated."""
-    from otacon.permutations import _SPOOF_SUFFIXES
+    from otacon.permutations.rules import _SPOOF_SUFFIXES
 
     perms = permutations.generate("example.com")
     sub_domains = {p.domain for p in perms if p.kind == PermutationType.SUBDOMAIN}
@@ -232,7 +232,7 @@ def test_idn_variants_are_ascii():
 
 def test_split_domain_multi_part_tld():
     """_split_domain correctly separates label and multi-part TLD."""
-    from otacon.permutations import _split_domain
+    from otacon.permutations.rules import split_domain as _split_domain
 
     label, tld = _split_domain("example.co.uk")
     assert label == "example"
@@ -260,7 +260,7 @@ def test_split_domain_strips_trailing_root_dot():
     accepts — without stripping it here, the label/tld split collapses onto the
     empty final part, silently dropping TLD_SWAP and corrupting every other
     technique's output. See generate() parity test below."""
-    from otacon.permutations import _split_domain
+    from otacon.permutations.rules import split_domain as _split_domain
 
     assert _split_domain("example.com.") == ("example", "com")
     assert _split_domain("example.co.uk.") == ("example", "co.uk")
@@ -270,7 +270,7 @@ def test_split_domain_single_label_is_normalized():
     """The len<2 fallback must return the normalized label, not the raw input —
     a trailing dot surviving here ('COM.' -> ('com', '')) would corrupt every
     variant generate() builds from the label."""
-    from otacon.permutations import _split_domain
+    from otacon.permutations.rules import split_domain as _split_domain
 
     assert _split_domain("COM.") == ("com", "")
     assert _split_domain(" com ") == ("com", "")
@@ -295,7 +295,7 @@ def test_homoglyph_covers_previously_missing_letters():
     each substitution below is a documented single-codepoint confusable for
     that Latin letter, not a guess.
     """
-    from otacon.permutations import _HOMOGLYPHS
+    from otacon.permutations.rules import _HOMOGLYPHS
 
     for letter in "bfghjkqrtuvz":
         assert letter in _HOMOGLYPHS, f"no homoglyph entry for {letter!r}"
@@ -337,7 +337,7 @@ def test_tld_swap_includes_european_cctlds():
 
 def test_qwertz_adjacency_swaps_y_and_z():
     """QWERTZ (DE/AT/CH) differs from QWERTY by swapping the y/z key positions."""
-    from otacon.permutations import _QWERTY_ADJACENT, _QWERTZ_ADJACENT
+    from otacon.permutations.rules import _QWERTY_ADJACENT, _QWERTZ_ADJACENT
 
     # QWERTY 't' neighbors include 'y', not 'z' -> QWERTZ must have the opposite.
     assert "y" in _QWERTY_ADJACENT["t"] and "z" not in _QWERTY_ADJACENT["t"]
@@ -348,7 +348,7 @@ def test_qwertz_adjacency_swaps_y_and_z():
 
 def test_azerty_adjacency_swaps_q_a_and_w_z():
     """AZERTY (FR) differs from QWERTY by swapping q/a and w/z key positions."""
-    from otacon.permutations import _AZERTY_ADJACENT, _QWERTY_ADJACENT
+    from otacon.permutations.rules import _AZERTY_ADJACENT, _QWERTY_ADJACENT
 
     # The 'a' key on AZERTY sits where 'q' sat on QWERTY (with w/z also swapped
     # inside the neighbor string, since those keys moved too).
