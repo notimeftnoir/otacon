@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **`otacon tui` is gone**, together with the Textual dependency. 4.0.0 kept it
+  as an opt-in; nothing else used it. Triage a scan with the guided mode
+  (bare `otacon`) or read the HTML report; `--json` reports still load in
+  `otacon diff`.
 - Dead code with no caller in the package, its tests or its tools:
   `otacon.diff.DomainStatus`, `ScanDiff` and `_load_report`;
   `otacon.net.security.verify_safe_ips` (the SSRF guard is `first_safe_ip`,

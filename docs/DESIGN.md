@@ -26,43 +26,44 @@ This document explains *why* Otacon is built the way it is. For *how to use it*,
 ## Pipeline overview
 
 ```
-        ┌──────────────┬──────────────┬──────────────┐
-        │  cli/        │  tui/        │  triage/     │   entry points
-        │  scan·tui·   │  Textual     │  guided      │
-        │  generate·   │  console     │  prompts     │
-        │  diff        │              │              │
-        └──────┬───────┴──────┬───────┴──────┬───────┘
-               │              │              │
-               ▼              │              │
-        ┌──────────────┐      │              │
-        │ permutations/│      │              │          pure, no I/O
-        │ 12 rules +   │      │              │          -> list[Permutation]
-        │ IDN encoding │      │              │
-        └──────┬───────┘      │              │
-               ▼              │              │
-        ┌──────────────┐      │              │
-        │  engine/     │      │              │          structured concurrency
-        │  scanner     │      │              │          + FD-bounded pool
-        └──────┬───────┘      │              │
-               ▼              │              │
-        ┌──────────────┐      │              │
-        │  net/        │      │              │          all async I/O lives here
-        │  dns · http  │      │              │          resolver fans out per
-        │  tls · whois │      │              │          permutation
-        │  rdap· dnsbl │      │              │
-        │  email_sec   │      │              │
-        └──────┬───────┘      │              │
-               ▼              │              │
-        ┌──────────────┐      │              │
-        │  scoring/    │      │              │          pure, no I/O
-        │  engine      │      │              │          returns a scored copy
-        │  classifiers │      │              │
-        └──────┬───────┘      │              │
-               ▼              ▼              ▼
-        ┌──────────────────────────────────────────────┐
-        │  reporters/  console · json · markdown ·      │
-        │              html · csv                       │
-        └──────────────────────────────────────────────┘
+        ┌──────────────┬──────────────┐
+        │  cli/        │  triage/     │   entry points
+        │  scan·       │  guided      │
+        │  generate·   │  prompts     │
+        │  diff        │              │
+        └──────┬───────┴──────┬───────┘
+               │              │
+               ▼              │
+        ┌──────────────┐      │
+        │ permutations/│      │          pure, no I/O
+        │ 12 rules +   │      │          -> list[Permutation]
+        │ IDN encoding │      │
+        └──────┬───────┘      │
+               ▼              │
+        ┌──────────────┐      │
+        │  engine/     │      │          structured concurrency
+        │  scanner     │      │          + FD-bounded pool
+        └──────┬───────┘      │
+               ▼              │
+        ┌──────────────┐      │
+        │  net/        │      │          all async I/O lives here
+        │  dns · http  │      │          resolver fans out per
+        │  tls · whois │      │          permutation
+        │  rdap· dnsbl │      │
+        │  email_sec   │      │
+        └──────┬───────┘      │
+               ▼              │
+        ┌──────────────┐      │
+        │  scoring/    │      │          pure, no I/O
+        │  engine      │      │          returns a scored copy
+        │  classifiers │      │
+        └──────┬───────┘      │
+               ▼              ▼
+        ┌─────────────────────────────────┐
+        │  reporters/  console · json ·   │
+        │              markdown · html ·  │
+        │              csv                │
+        └─────────────────────────────────┘
 ```
 
 Every stage exchanges models from `core/` — `Permutation`, then `DomainResult`, finally aggregated into a `ScanReport`. Each carries enough information for downstream stages to be **stateless**: a reporter does not need to know how a domain was generated or how it got scored. `score()` returns a scored copy rather than mutating its input, so the same result can be re-scored under different weights without a re-scan.
@@ -82,9 +83,8 @@ Every stage exchanges models from `core/` — `Permutation`, then `DomainResult`
 | `net/` | Every async probe: DNS, HTTP, TLS, RDAP, WHOIS, DNSBL, mail security, content | **yes** | 1414 |
 | `scoring/` | Rule-based 0–100 score with transparent reasons, plus the parked/sinkhole/defensive classifiers | no | 608 |
 | `reporters/` | Terminal table, JSON, Markdown, CSV and the self-contained HTML report | output | 1230 |
-| `cli/` | Typer subcommands: `scan`, `tui`, `generate`, `diff` | orchestration | 1029 |
+| `cli/` | Typer subcommands: `scan`, `generate`, `diff` | orchestration | 856 |
 | `triage/` | Guided prompts, the post-scan action loop, dossier and takedown notice | terminal | 961 |
-| `tui/` | Textual triage console | terminal | 579 |
 
 Alongside them sit a few single-file modules: `diff.py` (report comparison), `ct_logs.py`
 (Certificate Transparency discovery), `_splash.py` (the start-up animation) and

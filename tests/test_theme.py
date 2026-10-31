@@ -41,8 +41,6 @@ _UI_MODULES = (
     "cli/commands/generate.py",
     "cli/commands/diff.py",
     "engine/scanner.py",
-    "tui/app.py",
-    "cli/commands/tui.py",
     "triage/dossier.py",
     "triage/prompts.py",
     "triage/actions.py",
