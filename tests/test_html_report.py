@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from otacon.html_report import to_html
-from otacon.models import DomainResult, PermutationType, ScanReport
-from otacon.theme import GLYPH_DEFENSIVE, RiskLevel
+from otacon.core.models import DomainResult, ScanReport
+from otacon.core.types import PermutationType, RiskLevel
+from otacon.reporters.html import to_html
+from otacon.utils.theme import GLYPH_DEFENSIVE
 
 
 def _report(*results: DomainResult, total: int = 10) -> ScanReport:
@@ -260,8 +261,8 @@ def test_scan_html_flag_writes_file(tmp_path, monkeypatch):
 
 
 def _make_report_html(domain: str, results=()) -> ScanReport:
-    from otacon.models import DomainResult, PermutationType, ScanReport
-    from otacon.theme import RiskLevel
+    from otacon.core.models import DomainResult, ScanReport
+    from otacon.core.types import PermutationType, RiskLevel
 
     r = ScanReport(target=domain, total_permutations=5)
     for kwargs in results:
@@ -278,8 +279,8 @@ def _make_report_html(domain: str, results=()) -> ScanReport:
 
 
 def test_aggregate_html_is_valid_html_document() -> None:
-    from otacon.html_report import aggregate_html
-    from otacon.models import ScanReport
+    from otacon.core.models import ScanReport
+    from otacon.reporters.html import aggregate_html
 
     reports = {"github.com": ScanReport(target="github.com", total_permutations=5)}
     out = aggregate_html(reports)
@@ -289,7 +290,7 @@ def test_aggregate_html_is_valid_html_document() -> None:
 
 
 def test_aggregate_html_contains_summary_section() -> None:
-    from otacon.html_report import aggregate_html
+    from otacon.reporters.html import aggregate_html
 
     reports = {
         "a.com": _make_report_html("a.com"),
@@ -302,7 +303,7 @@ def test_aggregate_html_contains_summary_section() -> None:
 
 
 def test_aggregate_html_contains_per_domain_sections() -> None:
-    from otacon.html_report import aggregate_html
+    from otacon.reporters.html import aggregate_html
 
     reports = {
         "alpha.com": _make_report_html("alpha.com"),
@@ -314,15 +315,15 @@ def test_aggregate_html_contains_per_domain_sections() -> None:
 
 
 def test_aggregate_html_has_csp_header() -> None:
-    from otacon.html_report import aggregate_html
-    from otacon.models import ScanReport
+    from otacon.core.models import ScanReport
+    from otacon.reporters.html import aggregate_html
 
     out = aggregate_html({"x.com": ScanReport(target="x.com", total_permutations=0)})
     assert "Content-Security-Policy" in out
 
 
 def test_aggregate_html_summary_table_shows_all_risk_columns() -> None:
-    from otacon.html_report import aggregate_html
+    from otacon.reporters.html import aggregate_html
 
     reports = {
         "a.com": _make_report_html(
@@ -361,7 +362,7 @@ def test_aggregate_html_summary_table_shows_all_risk_columns() -> None:
 
 
 def test_aggregate_html_navigation_links_match_ids() -> None:
-    from otacon.html_report import aggregate_html
+    from otacon.reporters.html import aggregate_html
 
     out = aggregate_html({"nav-test.com": _make_report_html("nav-test.com")})
     assert "href='#nav-test.com'" in out
@@ -369,7 +370,7 @@ def test_aggregate_html_navigation_links_match_ids() -> None:
 
 
 def test_aggregate_html_clean_domains_show_no_results_message() -> None:
-    from otacon.html_report import aggregate_html
+    from otacon.reporters.html import aggregate_html
 
     reports = {
         "clean1.com": _make_report_html("clean1.com"),
@@ -381,8 +382,9 @@ def test_aggregate_html_clean_domains_show_no_results_message() -> None:
 
 def test_html_report_survives_a_malformed_redirect_target() -> None:
     """The defensive-marker branch parsed the Location header with no guard at all."""
-    from otacon.html_report import to_html
-    from otacon.models import DomainResult, PermutationType, ScanReport
+    from otacon.core.models import DomainResult, ScanReport
+    from otacon.core.types import PermutationType
+    from otacon.reporters.html import to_html
 
     result = DomainResult(
         domain="exampl3.com",

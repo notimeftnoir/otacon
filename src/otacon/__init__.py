@@ -8,21 +8,6 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .core.exceptions import (
-    ConfigurationError,
-    DNSResolutionError,
-    HTTPProbeError,
-    OtaconError,
-    PermutationError,
-    ReportExportError,
-    ResolutionError,
-    ScoringError,
-    SecurityError,
-    SSRFBlockedError,
-    TLSProbeError,
-    ValidationError,
-    WhoisError,
-)
 from .core.models import (
     DomainResult,
     Permutation,
@@ -39,24 +24,11 @@ except PackageNotFoundError:
     __version__ = "4.0.0"
 
 __all__ = [
-    "ConfigurationError",
-    "DNSResolutionError",
     "DomainResult",
-    "HTTPProbeError",
-    "OtaconError",
     "Permutation",
-    "PermutationError",
     "PermutationType",
-    "ReportExportError",
-    "ResolutionError",
     "RiskLevel",
-    "SSRFBlockedError",
     "ScanReport",
-    "ScoringError",
-    "SecurityError",
-    "TLSProbeError",
-    "ValidationError",
-    "WhoisError",
     "__version__",
     "count_fresh",
     "generate",

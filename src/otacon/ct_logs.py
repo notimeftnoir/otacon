@@ -18,9 +18,9 @@ from typing import Any
 
 import httpx
 
-from ._validate import is_valid_domain, normalize_domain
 from .net.http import USER_AGENT
 from .permutations.rules import split_domain
+from .utils.validate import is_valid_domain, normalize_domain
 
 _log = logging.getLogger("otacon.ct_logs")
 

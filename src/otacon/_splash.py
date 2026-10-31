@@ -19,7 +19,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.text import Text
 
-from .theme import BANNER, LOGO_DOTS_TOP, SPOOF_INDEX, TAGLINE, WORDMARK, gradient_color
+from .utils.theme import BANNER, LOGO_DOTS_TOP, SPOOF_INDEX, TAGLINE, WORDMARK, gradient_color
 
 # Plausible stand-ins per letter: digit and letter swaps a typosquatter uses.
 # ASCII on purpose, so the frames stay inside the SAFE_GLYPHS font budget.

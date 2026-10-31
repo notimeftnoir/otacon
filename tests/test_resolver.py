@@ -11,8 +11,12 @@ import httpx
 import pytest
 import respx
 
-from otacon.models import Permutation, PermutationType
-from otacon.resolver import _MAX_BODY_BYTES, Resolver, _parse_title, _san_covers_host
+from otacon.core.models import Permutation
+from otacon.core.types import PermutationType
+from otacon.net.content import _MAX_BODY_BYTES, _parse_title
+from otacon.net.http import HTTPProbeResult, read_capped_body
+from otacon.net.resolver import Resolver
+from otacon.net.tls import _san_covers_host, inspect_cert
 
 
 def test_parse_title_basic():
@@ -70,27 +74,27 @@ def test_parse_title_unescapes_html_entities():
 
 
 def test_strip_unsafe_chars_removes_c0_and_c1_control_codes():
-    from otacon.resolver import _strip_unsafe_chars
+    from otacon.net.content import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("evil\x1b[31mred\x1b[0m") == "evil[31mred[0m"
     assert _strip_unsafe_chars("evil\x9b31mred") == "evil31mred"
 
 
 def test_strip_unsafe_chars_removes_format_and_separator_chars():
-    from otacon.resolver import _strip_unsafe_chars
+    from otacon.net.content import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("safe\u202etext") == "safetext"
     assert _strip_unsafe_chars("line1\u2028line2\u2029") == "line1line2"
 
 
 def test_strip_unsafe_chars_leaves_normal_text_untouched():
-    from otacon.resolver import _strip_unsafe_chars
+    from otacon.net.content import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("Ordinary Title – 100% safe") == "Ordinary Title – 100% safe"  # noqa: RUF001 — en-dash is deliberate, not a stray control char
 
 
 def test_strip_unsafe_chars_removes_other_bidi_overrides_and_isolates():
-    from otacon.resolver import _strip_unsafe_chars
+    from otacon.net.content import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("safe‭text") == "safetext"  # LRO
     assert _strip_unsafe_chars("safe⁦text⁩") == "safetext"  # LRI/PDI
@@ -100,7 +104,7 @@ def test_strip_unsafe_chars_keeps_joiners_and_directional_marks():
     """Cf also contains ZWJ/ZWNJ/LRM/RLM, needed to correctly shape legitimate
     Arabic/Persian/Indic-script text — those are allowlisted even though the
     rest of Cf is stripped."""
-    from otacon.resolver import _strip_unsafe_chars
+    from otacon.net.content import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("a‌b‍c‎d‏e") == "a‌b‍c‎d‏e"
 
@@ -109,7 +113,7 @@ def test_strip_unsafe_chars_removes_invisible_cf_steganography_chars():
     """Cf codepoints outside the allowlist — ZERO WIDTH SPACE, BOM, and the
     Unicode "tag" block (a known vector for hiding payloads in text) — are
     stripped, not just the named bidi overrides."""
-    from otacon.resolver import _strip_unsafe_chars
+    from otacon.net.content import _strip_unsafe_chars
 
     assert _strip_unsafe_chars("safe​text") == "safetext"  # ZWSP
     assert _strip_unsafe_chars("safe﻿text") == "safetext"  # BOM
@@ -143,10 +147,10 @@ class _FakeStreamResp:
 
 @pytest.mark.asyncio
 async def test_read_capped_stops_at_limit():
-    # 50 MB "body" — _read_capped must return <= cap and stop pulling early
+    # 50 MB "body" — read_capped_body must return <= cap and stop pulling early
     # (never materialising the whole thing, as with a decompression bomb).
     resp = _FakeStreamResp(50 * 1024 * 1024)
-    text = await Resolver._read_capped(resp)
+    text = await read_capped_body(resp)
     assert len(text.encode("utf-8")) <= _MAX_BODY_BYTES
     # Generation halted shortly after the cap, not after the full 50 MB.
     assert resp.produced < _MAX_BODY_BYTES + resp._chunk_size
@@ -155,7 +159,7 @@ async def test_read_capped_stops_at_limit():
 @pytest.mark.asyncio
 async def test_read_capped_small_body_intact():
     resp = _FakeStreamResp(100)
-    text = await Resolver._read_capped(resp)
+    text = await read_capped_body(resp)
     assert text == "a" * 100
 
 
@@ -260,7 +264,11 @@ def _patch_network(r: Resolver, *, resolve_ips: list[str]):
         )
     )
     stack.enter_context(
-        patch.object(r, "_probe_http", new=AsyncMock(return_value=(None, None, None, None)))
+        patch.object(
+            r,
+            "_probe_http",
+            new=AsyncMock(return_value=HTTPProbeResult(None, None, None, None, False, None)),
+        )
     )
     stack.enter_context(
         patch("otacon.net.resolver.fetch_domain_age", new=AsyncMock(return_value=(None, None)))
@@ -333,7 +341,7 @@ async def test_dns_hijack_detected_property():
 
 
 # ---------------------------------------------------------------------------
-# _inspect_cert — the TLS-cert reader feeds scoring; every branch must be safe
+# inspect_cert — the TLS-cert reader feeds scoring; every branch must be safe
 #
 # The probe handshakes with CERT_NONE (hostile lookalikes have broken certs by
 # design) and CPython returns an EMPTY dict from text-form getpeercert() for
@@ -387,18 +395,18 @@ def _cert_none_ssl_obj(der: bytes | None) -> MagicMock:
 
 
 def test_inspect_cert_none_ssl_obj():
-    assert Resolver._inspect_cert(None, "example.com") == (None, None, None)
+    assert inspect_cert(None, "example.com") == (None, None, None)
 
 
 def test_inspect_cert_getpeercert_raises():
     obj = MagicMock(spec=ssl.SSLObject)
     obj.getpeercert.side_effect = ssl.SSLError("boom")
-    assert Resolver._inspect_cert(obj, "example.com") == (None, None, None)
+    assert inspect_cert(obj, "example.com") == (None, None, None)
 
 
 def test_inspect_cert_no_peer_cert():
     """binary_form=True returns None when the peer sent no certificate."""
-    assert Resolver._inspect_cert(_cert_none_ssl_obj(None), "example.com") == (
+    assert inspect_cert(_cert_none_ssl_obj(None), "example.com") == (
         None,
         None,
         None,
@@ -407,7 +415,7 @@ def test_inspect_cert_no_peer_cert():
 
 def test_inspect_cert_malformed_der():
     obj = _cert_none_ssl_obj(b"\x30\x03garbage-not-a-certificate")
-    assert Resolver._inspect_cert(obj, "example.com") == (None, None, None)
+    assert inspect_cert(obj, "example.com") == (None, None, None)
 
 
 def _with_negative_serial(der: bytes) -> bytes:
@@ -433,7 +441,7 @@ def test_inspect_cert_negative_serial_does_not_warn():
     obj = _cert_none_ssl_obj(_with_negative_serial(_make_der_cert()))
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        issuer, _, san_match = Resolver._inspect_cert(obj, "lookalike.example.com")
+        issuer, _, san_match = inspect_cert(obj, "lookalike.example.com")
     assert issuer == "Test CA"
     assert san_match is True
 
@@ -443,7 +451,7 @@ def test_inspect_cert_reads_der_under_cert_none():
     is empty, so the signals silently blanked in production while dict-mocking
     tests stayed green. The reader must extract everything from the DER form."""
     obj = _cert_none_ssl_obj(_make_der_cert())
-    issuer, age, san_match = Resolver._inspect_cert(obj, "lookalike.example.com")
+    issuer, age, san_match = inspect_cert(obj, "lookalike.example.com")
     assert issuer == "Test CA"
     assert age is not None
     assert san_match is True
@@ -455,9 +463,7 @@ def test_inspect_cert_full_match():
         not_before=datetime.now(UTC) - timedelta(days=2),
         san=("lookalike.example.com",),
     )
-    issuer, age, san_match = Resolver._inspect_cert(
-        _cert_none_ssl_obj(der), "lookalike.example.com"
-    )
+    issuer, age, san_match = inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
     assert issuer == "Let's Encrypt"
     assert age is not None and 1 <= age <= 3
     assert san_match is True
@@ -465,16 +471,14 @@ def test_inspect_cert_full_match():
 
 def test_inspect_cert_san_mismatch():
     der = _make_der_cert(issuer_cn="DigiCert", san=("totally-other.example",))
-    issuer, _age, san_match = Resolver._inspect_cert(
-        _cert_none_ssl_obj(der), "lookalike.example.com"
-    )
+    issuer, _age, san_match = inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
     assert issuer == "DigiCert"
     assert san_match is False
 
 
 def test_inspect_cert_san_wildcard_match():
     der = _make_der_cert(issuer_cn="DigiCert", san=("*.example.com",))
-    _, _, san_match = Resolver._inspect_cert(_cert_none_ssl_obj(der), "sub.example.com")
+    _, _, san_match = inspect_cert(_cert_none_ssl_obj(der), "sub.example.com")
     assert san_match is True
 
 
@@ -486,7 +490,7 @@ def test_inspect_cert_san_wildcard_does_not_match_deep_subdomain():
     a deeper host.
     """
     der = _make_der_cert(issuer_cn="DigiCert", san=("*.example.com",))
-    _, _, san_match = Resolver._inspect_cert(_cert_none_ssl_obj(der), "a.b.example.com")
+    _, _, san_match = inspect_cert(_cert_none_ssl_obj(der), "a.b.example.com")
     assert san_match is False
 
 
@@ -510,20 +514,20 @@ def test_san_covers_host(host, name, expected):
 
 def test_inspect_cert_no_san_extension():
     der = _make_der_cert(san=None)
-    _, _, san_match = Resolver._inspect_cert(_cert_none_ssl_obj(der), "x.example.com")
+    _, _, san_match = inspect_cert(_cert_none_ssl_obj(der), "x.example.com")
     assert san_match is None
 
 
 def test_inspect_cert_strips_escape_sequences_from_issuer():
     """The issuer CN of a self-signed lookalike cert is attacker-controlled."""
     der = _make_der_cert(issuer_cn="Evil[2J CA")
-    issuer, _, _ = Resolver._inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
+    issuer, _, _ = inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
     assert issuer == "Evil[2J CA"
 
 
 def test_inspect_cert_issuer_without_cn():
     der = _make_der_cert(issuer_cn=None)
-    issuer, age, _ = Resolver._inspect_cert(_cert_none_ssl_obj(der), "x.example.com")
+    issuer, age, _ = inspect_cert(_cert_none_ssl_obj(der), "x.example.com")
     assert issuer is None
     assert age is not None  # the other signals still come through
 
@@ -535,12 +539,12 @@ def test_inspect_cert_future_not_before_yields_zero_age():
     der = _make_der_cert(
         not_before=datetime.now(UTC) + timedelta(days=2),
     )
-    _, age, _ = Resolver._inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
+    _, age, _ = inspect_cert(_cert_none_ssl_obj(der), "lookalike.example.com")
     assert age == 0
 
 
 # ---------------------------------------------------------------------------
-# _read_capped — the bomb defense
+# read_capped_body — the bomb defense
 # ---------------------------------------------------------------------------
 
 
@@ -552,7 +556,7 @@ async def test_read_capped_truncates_oversized_body():
         r.get("https://x.example.com/").mock(return_value=httpx.Response(200, content=body))
         async with httpx.AsyncClient() as client:
             async with client.stream("GET", "https://x.example.com") as resp:
-                text = await Resolver._read_capped(resp)
+                text = await read_capped_body(resp)
     assert len(text) <= _MAX_BODY_BYTES
 
 
@@ -651,7 +655,7 @@ async def test_probe_http_caps_location_header_length():
     """A hostile Location header with no unsafe chars can still be huge —
     it must be capped the same way page_title is, so a report can't be
     bloated by an arbitrarily long redirect target."""
-    from otacon.resolver import _REDIRECT_MAX
+    from otacon.net.http import _REDIRECT_MAX
 
     class _FakeHeaders(dict):
         def get(self, key, default=None):
@@ -803,7 +807,7 @@ async def test_check_ssl_open_connection_failure():
     """A connection error returns the all-None failure tuple."""
     async with Resolver() as r:
         with patch(
-            "otacon.resolver.asyncio.open_connection",
+            "otacon.net.tls.asyncio.open_connection",
             side_effect=OSError("refused"),
         ):
             ok, issuer, age, san_match = await r._check_ssl("x.example.com", "203.0.113.9")
@@ -831,7 +835,7 @@ async def test_check_ssl_success_returns_cert_metadata():
         return reader, writer
 
     async with Resolver() as r:
-        with patch("otacon.resolver.asyncio.open_connection", fake_open_connection):
+        with patch("otacon.net.tls.asyncio.open_connection", fake_open_connection):
             ok, issuer, _age, san_match = await r._check_ssl("x.example.com", "203.0.113.9")
     assert ok is True
     assert issuer == "Let's Encrypt"
@@ -915,7 +919,7 @@ async def test_probe_pins_and_uses_safe_ip():
                 r,
                 "_probe_http",
                 new_callable=AsyncMock,
-                return_value=(200, None, None, None),
+                return_value=HTTPProbeResult(200, None, None, None, False, None),
             ):
                 await r._probe("lookalike.example", ["8.8.8.8"])
     assert r._ip_pins["lookalike.example"] == "8.8.8.8"
@@ -929,7 +933,7 @@ async def test_probe_pins_and_uses_safe_ip():
 
 @pytest.mark.asyncio
 async def test_pinned_network_backend_refuses_unpinned_host():
-    from otacon.resolver import _PinnedNetworkBackend
+    from otacon.net.security import _PinnedNetworkBackend
 
     backend = _PinnedNetworkBackend({})
     with pytest.raises(Exception, match="refusing unpinned connect"):
@@ -938,7 +942,7 @@ async def test_pinned_network_backend_refuses_unpinned_host():
 
 @pytest.mark.asyncio
 async def test_pinned_network_backend_connects_to_pinned_ip():
-    from otacon.resolver import _PinnedNetworkBackend
+    from otacon.net.security import _PinnedNetworkBackend
 
     backend = _PinnedNetworkBackend({"lookalike.example": "203.0.113.9"})
     with patch.object(
@@ -956,7 +960,7 @@ async def test_pinned_network_backend_connects_to_pinned_ip():
 async def test_pinned_network_backend_delegates_sleep():
     """httpcore's pool calls backend.sleep() for retry back-off; the base class
     raises NotImplementedError, so the pin backend must delegate it."""
-    from otacon.resolver import _PinnedNetworkBackend
+    from otacon.net.security import _PinnedNetworkBackend
 
     backend = _PinnedNetworkBackend({})
     await backend.sleep(0)  # must not raise NotImplementedError
@@ -970,7 +974,7 @@ def test_pinned_http_transport_wires_backend_into_pool():
     if a future httpx/httpcore release renamed that attribute and this
     assignment silently became a no-op, quietly disabling the SSRF pin for
     every real probe. Assert the wiring actually lands where we expect."""
-    from otacon.resolver import _PinnedHTTPTransport, _PinnedNetworkBackend
+    from otacon.net.security import _PinnedHTTPTransport, _PinnedNetworkBackend
 
     pins: dict[str, str] = {"lookalike.example": "203.0.113.9"}
     transport = _PinnedHTTPTransport(pins, verify=False)
@@ -1098,7 +1102,7 @@ async def test_fetch_target_title_returns_none_on_exception():
 @pytest.mark.network
 @pytest.mark.asyncio
 async def test_live_check_ssl_extracts_real_issuer():
-    from otacon._validate import first_safe_ip
+    from otacon.utils.validate import first_safe_ip
 
     async with Resolver(check_http=True) as r:
         ips = await r._resolve_a("example.com")

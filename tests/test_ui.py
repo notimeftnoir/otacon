@@ -7,10 +7,12 @@ from io import StringIO
 
 from rich.console import Console
 
-from otacon import _scanner, _splash, reporters
-from otacon.interactive import _dossier
-from otacon.models import DomainResult, PermutationType, ScanReport
-from otacon.theme import OTACON_THEME, WORDMARK, RiskLevel, gradient, gradient_color
+from otacon import _splash, reporters
+from otacon.core.models import DomainResult, ScanReport
+from otacon.core.types import PermutationType, RiskLevel
+from otacon.engine.scanner import _tally
+from otacon.triage.dossier import _dossier
+from otacon.utils.theme import OTACON_THEME, WORDMARK, gradient, gradient_color
 
 
 def _console(**kw: object) -> tuple[Console, StringIO]:
@@ -116,8 +118,8 @@ def test_live_table_caps_rows_and_says_how_many_are_hidden() -> None:
 
 
 def test_tally_counts_dangerous_hits() -> None:
-    assert "nothing registered" in _scanner._tally([])
-    tally = _scanner._tally([_hit(90, RiskLevel.CRITICAL), _hit(20, RiskLevel.LOW)])
+    assert "nothing registered" in _tally([])
+    tally = _tally([_hit(90, RiskLevel.CRITICAL), _hit(20, RiskLevel.LOW)])
     assert "2 registered" in tally and "1 dangerous" in tally
 
 

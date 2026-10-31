@@ -36,7 +36,6 @@ dependencies = [
     "prompt_toolkit>=3.0.0,<4",
     "asyncwhois>=1.1.0,<2",
     "idna>=3.7,<4",
-    "textual>=1.0,<9",
 ]
 
 [project.optional-dependencies]
@@ -50,7 +49,6 @@ dev = [
     "pip-audit>=2.7.0",
     "interrogate>=1.7.0",
     "bandit>=1.9.4",  # <1.9.4 crashes on Python 3.14 (ast.Constant.s removed)
-    "types-setuptools",
     "build>=1.0.0",
 ]
 

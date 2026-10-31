@@ -9,21 +9,6 @@ from unittest.mock import patch
 
 import pytest
 
-from otacon.core.exceptions import (
-    ConfigurationError,
-    DNSResolutionError,
-    HTTPProbeError,
-    OtaconError,
-    PermutationError,
-    ReportExportError,
-    ResolutionError,
-    ScoringError,
-    SecurityError,
-    SSRFBlockedError,
-    TLSProbeError,
-    ValidationError,
-    WhoisError,
-)
 from otacon.core.models import (
     DomainResult,
     Permutation,
@@ -37,29 +22,7 @@ from otacon.reporters.csv import _csv_safe
 from otacon.scoring.config import ScoringWeights
 
 # ---------------------------------------------------------------------------
-# 1. Exception Hierarchy
-# ---------------------------------------------------------------------------
-
-
-def test_exception_hierarchy() -> None:
-    assert issubclass(ResolutionError, OtaconError)
-    assert issubclass(DNSResolutionError, ResolutionError)
-    assert issubclass(TLSProbeError, ResolutionError)
-    assert issubclass(HTTPProbeError, ResolutionError)
-    assert issubclass(WhoisError, ResolutionError)
-
-    assert issubclass(SecurityError, OtaconError)
-    assert issubclass(SSRFBlockedError, SecurityError)
-
-    assert issubclass(ValidationError, OtaconError)
-    assert issubclass(PermutationError, OtaconError)
-    assert issubclass(ScoringError, OtaconError)
-    assert issubclass(ConfigurationError, OtaconError)
-    assert issubclass(ReportExportError, OtaconError)
-
-
-# ---------------------------------------------------------------------------
-# 2. Schema Boundary Validation & Immutability
+# 1. Schema Boundary Validation & Immutability
 # ---------------------------------------------------------------------------
 
 
@@ -124,7 +87,7 @@ def test_scan_report_schema_roundtrip() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. SSRF Vetting & IP Filtering
+# 2. SSRF Vetting & IP Filtering
 # ---------------------------------------------------------------------------
 
 
@@ -148,7 +111,7 @@ def test_first_safe_ip_filtering(ips: list[str], expected: str | None) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. ReDoS-Free HTML Head Parser
+# 3. ReDoS-Free HTML Head Parser
 # ---------------------------------------------------------------------------
 
 
@@ -184,7 +147,7 @@ def test_safe_head_parser_pathological_input() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 5. IDN & Punycode (UTS #46)
+# 4. IDN & Punycode (UTS #46)
 # ---------------------------------------------------------------------------
 
 
@@ -204,7 +167,7 @@ def test_idn_squats_produces_ace_encoded_domains() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 6. Adaptive OS FD Concurrency Pool
+# 5. Adaptive OS FD Concurrency Pool
 # ---------------------------------------------------------------------------
 
 
@@ -263,7 +226,7 @@ def test_pool_does_not_import_resource_unguarded() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 7. CSV Formula Injection Defense
+# 6. CSV Formula Injection Defense
 # ---------------------------------------------------------------------------
 
 
@@ -284,7 +247,7 @@ def test_csv_safe_formula_neutralization(input_val: str, expected: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 8. Scoring Overrides Type Safety
+# 7. Scoring Overrides Type Safety
 # ---------------------------------------------------------------------------
 
 
@@ -301,7 +264,7 @@ def test_scoring_weights_type_check() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 9. CLI Dispatch & Scanner Generator Resolution
+# 8. CLI Dispatch & Scanner Generator Resolution
 # ---------------------------------------------------------------------------
 
 

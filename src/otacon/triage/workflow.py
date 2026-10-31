@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 import questionary
 from rich.console import Console
 from rich.markup import escape
 
+from .. import permutations
 from .._asyncutils import run_async
 from ..core.models import DomainResult, ScanReport
 from ..engine.scanner import run_scan
 from ..net.resolver import DEFAULT_CONCURRENCY
-from ..permutations.generator import generate
 from ..reporters import console as reporters
 from ..utils.validate import normalize_domain, parse_domain_list
 from .actions import (
@@ -38,20 +37,6 @@ from .prompts import (
 _log = logging.getLogger("otacon.triage.workflow")
 
 
-# ponytail: test hook — the guided mode's tests patch the otacon.interactive facade
-# (~80 sites), so lookups go through it. Repoint those patches to the real
-# modules and this goes; until then it is confined to triage/.
-def _get_inter(name: str, fallback: Any) -> Any:
-    import sys
-
-    mod = sys.modules.get("otacon.interactive")
-    if mod and hasattr(mod, name):
-        val = getattr(mod, name)
-        if val is not fallback:
-            return val
-    return fallback
-
-
 def _pick_domain(report: ScanReport, session_allowed: set[str]) -> DomainResult | None:
     """Renders the domain picker and returns the chosen result."""
     candidates = sorted(
@@ -68,8 +53,7 @@ def _pick_domain(report: ScanReport, session_allowed: set[str]) -> DomainResult 
         )
         for r in candidates
     ] + [questionary.Choice("── quit ──")]
-    q_mod = _get_inter("questionary", questionary)
-    selected = q_mod.select(
+    selected = questionary.select(
         "Pick a domain to inspect (riskiest first):",
         choices=choices,
         pointer=_POINTER,
@@ -83,8 +67,7 @@ def _run_action_menu(ctx: _ActionContext) -> str:
     """Prompts for actions on ctx.selected until handler signals NEXT_DOMAIN or QUIT."""
     ctx.console.print(_dossier(ctx.selected))
     while True:
-        q_mod = _get_inter("questionary", questionary)
-        action = q_mod.select(
+        action = questionary.select(
             f"Action for {ctx.selected.domain}:",
             choices=_ACTION_CHOICES,
             pointer=_POINTER,
@@ -141,8 +124,7 @@ async def _scan(
 
 def _interactive_scan(domain: str, console: Console) -> None:
     """Guided scan workflow."""
-    q_mod = _get_inter("questionary", questionary)
-    network = q_mod.select(
+    network = questionary.select(
         "How thorough?",
         choices=[
             questionary.Choice(
@@ -157,8 +139,7 @@ def _interactive_scan(domain: str, console: Console) -> None:
     if network is None:
         return
 
-    confirm_fn = _get_inter("_confirm", _confirm)
-    show_all = confirm_fn("Also list lookalikes nobody has registered?")
+    show_all = _confirm("Also list lookalikes nobody has registered?")
     if show_all is None:
         return
 
@@ -171,9 +152,8 @@ def _interactive_scan(domain: str, console: Console) -> None:
         except OSError as exc:
             _log.debug("Could not read whitelist.txt: %s", exc)
 
-    scan_fn = _get_inter("_scan", _scan)
     report = run_async(
-        scan_fn(
+        _scan(
             domain,
             concurrency=DEFAULT_CONCURRENCY,
             check_http=check_http,
@@ -181,18 +161,14 @@ def _interactive_scan(domain: str, console: Console) -> None:
             exclude=exclusions or None,
         )
     )
-    reporters_mod = _get_inter("reporters", reporters)
-    reporters_mod.render_table(report, console, show_safe=show_all)
-    suggest_fn = _get_inter("_suggest_defensive_whitelist", _suggest_defensive_whitelist)
-    suggest_fn(report, console)
-    action_loop_fn = _get_inter("_action_loop", _action_loop)
-    action_loop_fn(report, domain, console, check_http=check_http)
+    reporters.render_table(report, console, show_safe=show_all)
+    _suggest_defensive_whitelist(report, console)
+    _action_loop(report, domain, console, check_http=check_http)
 
 
 def _interactive_generate(domain: str, console: Console) -> None:
     """Guided offline generation workflow."""
-    q_mod = _get_inter("questionary", questionary)
-    limit_str = q_mod.text(
+    limit_str = questionary.text(
         "Result limit (0 = all):",
         default="0",
         validate=_validate_limit,
@@ -203,9 +179,7 @@ def _interactive_generate(domain: str, console: Console) -> None:
         return
 
     limit = int(limit_str)
-    perms_mod = _get_inter("permutations", None)
-    gen_fn = getattr(perms_mod, "generate", generate) if perms_mod else generate
-    perms = gen_fn(domain)
+    perms = permutations.generate(domain)
     shown = perms[:limit] if limit > 0 else perms
 
     console.print(
@@ -227,8 +201,7 @@ def run(console: Console) -> None:
         "[muted]Type the domain you want to protect. Otacon builds the lookalikes an "
         "attacker could register and checks which ones exist.[/muted]\n"
     )
-    q_mod = _get_inter("questionary", questionary)
-    domain = q_mod.text(
+    domain = questionary.text(
         "Your domain (e.g. example.com):",
         validate=_validate_domain,
         qmark=_QMARK,
@@ -238,7 +211,7 @@ def run(console: Console) -> None:
         return
     domain = normalize_domain(domain)
 
-    mode = q_mod.select(
+    mode = questionary.select(
         "What should I do?",
         choices=[
             questionary.Choice(
@@ -257,11 +230,9 @@ def run(console: Console) -> None:
         return
 
     if mode == "scan":
-        interactive_scan_fn = _get_inter("_interactive_scan", _interactive_scan)
-        interactive_scan_fn(domain, console)
+        _interactive_scan(domain, console)
     else:
-        interactive_gen_fn = _get_inter("_interactive_generate", _interactive_generate)
-        interactive_gen_fn(domain, console)
+        _interactive_generate(domain, console)
 
 
 __all__ = [

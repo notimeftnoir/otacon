@@ -25,11 +25,10 @@ from .http import (
     USER_AGENT,
     HTTPProbeResult,
     probe_http,
-    read_capped_body,
 )
 from .rdap import DEFAULT_RDAP_TIMEOUT
 from .security import _PinnedHTTPTransport, first_safe_ip
-from .tls import inspect_cert, probe_ssl
+from .tls import probe_ssl
 from .whois import fetch_domain_age
 
 _log = logging.getLogger("otacon.net.resolver")
@@ -228,14 +227,6 @@ class Resolver:
     ) -> tuple[bool, str | None, int | None, bool | None]:
         return await probe_ssl(domain, ip, timeout=_HTTP_TIMEOUT, tls_sem=self._tls_sem)
 
-    @staticmethod
-    def _inspect_cert(ssl_obj: Any, domain: str) -> tuple[str | None, int | None, bool | None]:
-        return inspect_cert(ssl_obj, domain)
-
-    @staticmethod
-    async def _read_capped(resp: httpx.Response) -> str:
-        return await read_capped_body(resp)
-
     async def _probe_http(self, domain: str) -> HTTPProbeResult:
         if self._http is None:
             raise RuntimeError("Resolver._probe_http called outside async context manager")
@@ -258,18 +249,7 @@ class Resolver:
         async with asyncio.TaskGroup() as tg:
             t_ssl = tg.create_task(self._check_ssl(domain, safe_ip))
             t_http = tg.create_task(self._probe_http(domain))
-        ssl_info = t_ssl.result()
-        http_res = t_http.result()
-        if not isinstance(http_res, HTTPProbeResult):
-            http_res = HTTPProbeResult(
-                http_res[0],
-                http_res[1],
-                http_res[2],
-                http_res[3],
-                getattr(http_res, "has_login_form", False),
-                getattr(http_res, "favicon_hash", None),
-            )
-        return ssl_info, http_res
+        return t_ssl.result(), t_http.result()
 
     async def _fetch_whois(self, domain: str) -> tuple[datetime | None, int | None]:
         async with self._whois_sem:

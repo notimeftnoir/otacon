@@ -18,7 +18,6 @@
 <p align="center">
   <a href="#install"><b>Install</b></a> ·
   <a href="#quick-start"><b>Quick start</b></a> ·
-  <a href="#triage-console"><b>Triage console</b></a> ·
   <a href="#detection-techniques"><b>Techniques</b></a> ·
   <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md"><b>Usage</b></a> ·
   <a href="https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md"><b>Scoring</b></a> ·
@@ -54,8 +53,6 @@ the DNS engine (`pycares`) ships prebuilt wheels with `c-ares` built in.
 otacon scan example.com                   # full scan: DNS, MX, TLS, HTTP, WHOIS
 otacon scan example.com --no-http         # DNS only — roughly 3x faster
 otacon scan example.com --fail-on high    # CI gate: exit 2 on high or critical
-otacon tui example.com                    # scan, then triage in the console
-otacon tui --from report.json             # reopen a saved report
 otacon generate example.com -o list.txt   # offline wordlist, no network traffic
 otacon                                    # guided interactive mode
 ```
@@ -118,35 +115,6 @@ Otacon is **fully passive**: DNS queries, a TLS handshake, one HTTP GET per vari
 
 ---
 
-## Triage console
-
-A scan of a busy brand returns a few hundred rows of which a handful matter.
-`otacon tui` keeps the whole report in memory and lets one hand work it.
-
-```bash
-otacon tui example.com            # scan, then open the console on the result
-otacon tui --from report.json     # reopen a saved report, no network at all
-```
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/notimeftnoir/otacon/main/assets/brand/demo-tui.svg"
-    alt="otacon tui — dossier pane on the left, results table on the right, risk filters bound to the number keys"
-    width="860">
-</p>
-
-The dossier on the left tracks the cursor: every signal with a one-line
-explanation of what it means, then the full scoring breakdown. Arrows or
-`j`/`k` move, `1`–`5` filter to a single risk level, `/` filters by substring,
-`a` reveals unregistered variants, and `w` / `t` / `e` run WHOIS, render an
-abuse notice, and export the selected row. Full key map in
-[`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md#triage-console-otacon-tui).
-
-`--from` makes it a reader for anything already on disk, so a nightly
-`otacon -q scan` in CI can be triaged by hand the next morning without
-touching the network again.
-
----
-
 ## Detection techniques
 
 Otacon implements **12 permutation techniques** modeled on real-world attacks. The
@@ -195,7 +163,7 @@ for why that matters when you read a report.
 
 | Document | What's in it |
 |---|---|
-| [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md) | Every CLI flag, the four modes, the triage console, whitelisting |
+| [`docs/USAGE.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/USAGE.md) | Every CLI flag, the modes, whitelisting |
 | [`docs/SCORING.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/SCORING.md) | Every signal and its point value, risk-level thresholds |
 | [`docs/OUTPUT.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/OUTPUT.md) | The five output formats and the JSON schema |
 | [`docs/CI.md`](https://github.com/notimeftnoir/otacon/blob/main/docs/CI.md) | Ready-to-paste GitHub Actions and GitLab CI pipelines |
@@ -215,7 +183,6 @@ for why that matters when you read a report.
 | CI/CD exit code gating | ✓ `--fail-on` | ✗ |
 | Self-contained HTML report | ✓ dark theme, zero JS, pure-CSS filters, SVG charts, defanged IOCs | partial (`--format html`) |
 | Interactive post-scan triage | ✓ open (OPSEC safe) / whois / takedown / rescan / allow | ✗ |
-| Keyboard triage console (`otacon tui`) | ✓ filter by risk, search, live dossier pane | ✗ |
 | Automated abuse takedown notice | ✓ formatted draft with technical evidence | ✗ |
 | Permutation techniques | 12 (with regional combosquatting for `.pl`, `.de`, `.fr`) | 13+ |
 | Visual screenshots of pages | ✗ | ✓ |

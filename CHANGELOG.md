@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **`otacon tui` is gone**, together with the Textual dependency. 4.0.0 kept it
+  as an opt-in; nothing else used it. Triage a scan with the guided mode
+  (bare `otacon`) or read the HTML report; `--json` reports still load in
+  `otacon diff`.
+- The pre-2.0 import paths `otacon.models`, `otacon.theme`, `otacon.resolver`,
+  `otacon.interactive`, `otacon._validate`, `otacon._scanner`,
+  `otacon._hashutils` and `otacon.html_report`. They only re-exported names that
+  live in `otacon.core`, `otacon.utils`, `otacon.net`, `otacon.triage`,
+  `otacon.engine` and `otacon.reporters`; import from there, or from the
+  top-level `otacon` package for the models and enums.
+- The `otacon.core.exceptions` hierarchy (`OtaconError` and its twelve
+  subclasses). Nothing in Otacon raised any of them, so catching them never
+  caught anything.
+- `otacon.reporters.base.BaseReporter`, a protocol nothing implemented against.
 - Dead code with no caller in the package, its tests or its tools:
   `otacon.diff.DomainStatus`, `ScanDiff` and `_load_report`;
   `otacon.net.security.verify_safe_ips` (the SSRF guard is `first_safe_ip`,

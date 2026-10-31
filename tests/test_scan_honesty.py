@@ -358,7 +358,7 @@ def test_rescan_carries_the_scans_options(monkeypatch) -> None:
             return DomainResult(domain=perm.domain, kind=perm.kind, resolves=True)
 
     # Patched where _get_inter looks first, as the rest of the suite does.
-    monkeypatch.setattr("otacon.interactive.Resolver", _Spy, raising=False)
+    monkeypatch.setattr("otacon.triage.actions.Resolver", _Spy)
     monkeypatch.setattr(actions, "Resolver", _Spy)
     row = DomainResult(domain="examp1e.com", kind=PermutationType.HOMOGLYPH)
     opts = ScanOptions(http=True, whois=False, dnsbl=False)

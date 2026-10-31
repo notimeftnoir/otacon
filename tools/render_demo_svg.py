@@ -17,8 +17,8 @@ from rich.terminal_theme import TerminalTheme
 
 from otacon import reporters
 from otacon._asyncutils import run_async
-from otacon._scanner import run_scan
-from otacon.theme import BANNER, OTACON_THEME
+from otacon.engine.scanner import run_scan
+from otacon.utils.theme import BANNER, OTACON_THEME
 
 _ROWS = 10
 
