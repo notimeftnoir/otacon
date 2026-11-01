@@ -7,9 +7,8 @@
 
 # Security-critical paths — always require a review even if branch protection
 # is relaxed for trivial doc PRs.
-/src/otacon/_validate.py               @notimeftnoir
-/src/otacon/resolver.py                @notimeftnoir
-/src/otacon/html_report.py             @notimeftnoir
-/src/otacon/reporters.py               @notimeftnoir
+/src/otacon/utils/validate.py          @notimeftnoir
+/src/otacon/net/                       @notimeftnoir
+/src/otacon/reporters/                 @notimeftnoir
 /.github/workflows/                    @notimeftnoir
 /SECURITY.md                           @notimeftnoir
