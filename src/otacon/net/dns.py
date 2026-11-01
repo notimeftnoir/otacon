@@ -21,6 +21,7 @@ _HOST_FIELDS = ("addr", "exchange", "nsdname", "cname", "dname", "target")
 # scan are unregistered, so these dominate a perfectly healthy run and must not
 # count as failures — otherwise the health signal is noise.
 _NEGATIVE_ANSWER_CODES = frozenset({1, 4})  # ARES_ENODATA, ARES_ENOTFOUND
+_ARES_ETIMEOUT = 12
 
 NULL_MX = "."
 """RFC 7505: an MX of "." declares that the domain handles no mail at all.
@@ -43,6 +44,15 @@ def is_negative_answer(exc: BaseException) -> bool:
         isinstance(exc, aiodns.error.DNSError)
         and bool(exc.args)
         and exc.args[0] in _NEGATIVE_ANSWER_CODES
+    )
+
+
+def is_timeout(exc: BaseException) -> bool:
+    """True when no answer arrived at all — c-ares gave up, or the outer deadline hit."""
+    if isinstance(exc, TimeoutError):
+        return True
+    return (
+        isinstance(exc, aiodns.error.DNSError) and bool(exc.args) and exc.args[0] == _ARES_ETIMEOUT
     )
 
 
@@ -96,5 +106,6 @@ async def query_records(resolver: Any, name: str, rtype: str) -> list[Any]:
 __all__ = [
     "NULL_MX",
     "is_negative_answer",
+    "is_timeout",
     "query_records",
 ]
