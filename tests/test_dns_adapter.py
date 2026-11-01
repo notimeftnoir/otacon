@@ -107,7 +107,9 @@ async def test_query_records_still_accepts_legacy_lists() -> None:
 async def test_live_resolver_returns_records_against_real_aiodns() -> None:
     import aiodns
 
-    async with aiodns.DNSResolver(timeout=5.0, tries=2) as resolver:
+    # flags=0: no EDNS, so a router that drops EDNS queries cannot fail a test
+    # that only checks the shape of what aiodns returns.
+    async with aiodns.DNSResolver(timeout=5.0, tries=2, flags=0) as resolver:
         a_records = await query_records(resolver, "example.com", "A")
         assert a_records, "example.com must return at least one A record"
         assert all(r.host for r in a_records), "A records must expose a non-empty .host"

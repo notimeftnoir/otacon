@@ -13,7 +13,7 @@ from rich.console import Console
 
 from otacon.core.models import DEGRADED_RATIO, DomainResult, ScanReport
 from otacon.core.types import PermutationType, RiskLevel
-from otacon.net.dns import is_negative_answer
+from otacon.net.dns import is_negative_answer, is_timeout
 from otacon.net.resolver import Resolver
 from otacon.reporters.console import _headline, _verdict_card
 from otacon.utils.theme import OTACON_THEME
@@ -91,6 +91,73 @@ async def test_successful_lookup_counts_only_as_a_query(
     monkeypatch.setattr("otacon.net.resolver._query_dns", ok)
     assert await r._query_ips("example.com", "A") == ["1.2.3.4"]
     assert (r.dns_queries, r.dns_failures) == (1, 0)
+
+
+# ── retrying a timeout without EDNS ─────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected"),
+    [
+        (aiodns.error.DNSError(12, "timeout"), True),
+        (TimeoutError(), True),
+        (aiodns.error.DNSError(3, "server failure"), False),
+        (aiodns.error.DNSError(4, "not found"), False),
+        (aiodns.error.DNSError(), False),
+    ],
+)
+def test_is_timeout(exc: BaseException, expected: bool) -> None:
+    assert is_timeout(exc) is expected
+
+
+class _Rec:
+    host = "1.2.3.4"
+
+
+@pytest.mark.asyncio
+async def test_timeout_is_retried_without_edns(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A home router that drops EDNS queries for a name but answers plain ones.
+    r = Resolver(check_http=False)
+    asked: list[object] = []
+
+    async def router(resolver: object, *_a: object) -> list[object]:
+        asked.append(resolver)
+        if resolver is r._dns:
+            raise aiodns.error.DNSError(12, "Timeout while contacting DNS servers")
+        return [_Rec()]
+
+    monkeypatch.setattr("otacon.net.resolver._query_dns", router)
+    assert await r._query_ips("example.com", "A") == ["1.2.3.4"]
+    assert asked == [r._dns, r._dns_no_edns]
+    assert (r.dns_queries, r.dns_failures) == (1, 0)
+
+
+@pytest.mark.asyncio
+async def test_only_timeouts_are_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    r = Resolver(check_http=False)
+    calls = 0
+
+    async def nxdomain(*_a: object) -> list[object]:
+        nonlocal calls
+        calls += 1
+        raise aiodns.error.DNSError(4, "Domain name not found")
+
+    monkeypatch.setattr("otacon.net.resolver._query_dns", nxdomain)
+    assert await r._query_ips("nope.com", "A") == []
+    assert calls == 1
+    assert (r.dns_queries, r.dns_failures) == (1, 0)
+
+
+@pytest.mark.asyncio
+async def test_timeout_on_both_counts_one_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    r = Resolver(check_http=False)
+
+    async def dead(*_a: object) -> list[object]:
+        raise aiodns.error.DNSError(12, "timeout")
+
+    monkeypatch.setattr("otacon.net.resolver._query_dns", dead)
+    assert await r._query_ips("example.com", "A") == []
+    assert (r.dns_queries, r.dns_failures) == (1, 1)
 
 
 # ── the report-level verdict ────────────────────────────────────────────

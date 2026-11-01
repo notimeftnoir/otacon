@@ -13,7 +13,7 @@ import httpx
 
 from ..core.models import DomainResult, Permutation
 from .content import _MAX_BODY_BYTES, _strip_unsafe_chars
-from .dns import NULL_MX, is_negative_answer
+from .dns import NULL_MX, is_negative_answer, is_timeout
 from .dns import query_records as _query_dns
 from .dnsbl import check_dnsbl
 from .email_sec import check_email_security
@@ -65,6 +65,11 @@ class Resolver:
         self._tls_sem = asyncio.Semaphore(concurrency)
         self._whois_sem = asyncio.Semaphore(4)
         self._dns = aiodns.DNSResolver(timeout=_DNS_TIMEOUT, tries=_DNS_TRIES)
+        # Same resolver without EDNS0 (flags=0), asked only after a timeout.
+        # Some home routers silently drop EDNS queries for certain names
+        # (example.com A: 0/5 with EDNS, 5/5 without) while answering plain
+        # ones, so the scan read as degraded on a network that works.
+        self._dns_no_edns = aiodns.DNSResolver(timeout=_DNS_TIMEOUT, tries=_DNS_TRIES, flags=0)
         self._check_http = check_http
         self._check_whois = check_whois
         self._enable_dnsbl = check_dnsbl
@@ -140,6 +145,7 @@ class Resolver:
         # ("Exception ignored from cffi callback ... Event loop is closed").
         # Closing the channel cancels it while the loop is still alive.
         await self._dns.close()
+        await self._dns_no_edns.close()
 
     async def fetch_ct_domains(self) -> set[str]:
         """Discovers certificates and lookalike domains via Certificate Transparency logs."""
@@ -155,8 +161,17 @@ class Resolver:
         """
         self.dns_queries += 1
         try:
-            async with asyncio.timeout(_DNS_DEADLINE):
-                return await _query_dns(self._dns, domain, rtype)
+            try:
+                async with asyncio.timeout(_DNS_DEADLINE):
+                    return await _query_dns(self._dns, domain, rtype)
+            except Exception as exc:
+                if not is_timeout(exc):
+                    raise
+                # ponytail: doubles the wait on a dead network; skip the retry
+                # after N straight no-EDNS timeouts if that ever hurts.
+                _log.debug("%s lookup timed out for %s, retrying without EDNS", rtype, domain)
+                async with asyncio.timeout(_DNS_DEADLINE):
+                    return await _query_dns(self._dns_no_edns, domain, rtype)
         except Exception as exc:
             if not is_negative_answer(exc):
                 self.dns_failures += 1
