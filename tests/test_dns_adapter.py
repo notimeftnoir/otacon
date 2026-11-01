@@ -107,18 +107,17 @@ async def test_query_records_still_accepts_legacy_lists() -> None:
 async def test_live_resolver_returns_records_against_real_aiodns() -> None:
     import aiodns
 
-    resolver = aiodns.DNSResolver(timeout=5.0, tries=2)
+    async with aiodns.DNSResolver(timeout=5.0, tries=2) as resolver:
+        a_records = await query_records(resolver, "example.com", "A")
+        assert a_records, "example.com must return at least one A record"
+        assert all(r.host for r in a_records), "A records must expose a non-empty .host"
 
-    a_records = await query_records(resolver, "example.com", "A")
-    assert a_records, "example.com must return at least one A record"
-    assert all(r.host for r in a_records), "A records must expose a non-empty .host"
+        ns_records = await query_records(resolver, "example.com", "NS")
+        assert ns_records, "example.com must return NS records"
+        assert all("." in r.host for r in ns_records)
 
-    ns_records = await query_records(resolver, "example.com", "NS")
-    assert ns_records, "example.com must return NS records"
-    assert all("." in r.host for r in ns_records)
-
-    txt_records = await query_records(resolver, "example.com", "TXT")
-    assert all(isinstance(r.text, str) for r in txt_records)
+        txt_records = await query_records(resolver, "example.com", "TXT")
+        assert all(isinstance(r.text, str) for r in txt_records)
 
 
 @pytest.mark.network

@@ -135,6 +135,11 @@ class Resolver:
         for client in (self._http, self._rdap):
             if client is not None:
                 await client.aclose()
+        # A lookup abandoned by its timeout guard is still running inside
+        # c-ares; left open, it answers later into a closed event loop
+        # ("Exception ignored from cffi callback ... Event loop is closed").
+        # Closing the channel cancels it while the loop is still alive.
+        await self._dns.close()
 
     async def fetch_ct_domains(self) -> set[str]:
         """Discovers certificates and lookalike domains via Certificate Transparency logs."""

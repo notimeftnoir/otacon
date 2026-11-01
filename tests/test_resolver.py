@@ -1092,6 +1092,16 @@ async def test_fetch_target_title_returns_none_on_exception():
     assert title is None
 
 
+@pytest.mark.asyncio
+async def test_exit_closes_the_dns_channel():
+    # An open c-ares channel lets a timed-out lookup answer after the event
+    # loop is gone: "Exception ignored from cffi callback ... Event loop is closed".
+    async with Resolver(check_http=False) as r:
+        close = AsyncMock()
+        r._dns.close = close  # type: ignore[method-assign]
+    close.assert_awaited_once()
+
+
 # ---------------------------------------------------------------------------
 # Live-network regression test — excluded by default (addopts: -m 'not network');
 # run explicitly with `pytest -m network`. Exists because the cert-signal bug
